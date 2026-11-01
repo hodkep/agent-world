@@ -240,3 +240,65 @@ describe('mailbox', () => {
     expect(box.isStarting('new')).toBe(true)
   })
 })
+
+describe('broadcast: one message to every other agent in the sender\'s project', () => {
+  const crew = (online: string[]) => [
+    { id: 'a1', name: 'ada', online: online.includes('a1'), repoPath: '/shop' },
+    { id: 'a2', name: 'linus', online: online.includes('a2'), repoPath: '/shop' },
+    { id: 'a3', name: 'grace', online: online.includes('a3'), repoPath: '/shop' },
+    { id: 'a4', name: 'tester', online: online.includes('a4'), repoPath: '/shop' },
+    { id: 'z9', name: 'other', online: true, repoPath: '/elsewhere' }
+  ]
+  const make = (on: string[], now = () => 0) => {
+    const sent: { to: string; text: string }[] = []
+    const seen: AgentMessage[] = []
+    const b = new Mailbox({ agents: () => crew(on), deliver: (to, text) => sent.push({ to, text }), notify: (m) => seen.push({ ...m }), now })
+    for (const id of on) b.ready(id)
+    return { b, sent, seen }
+  }
+
+  it('tells each of the others at once, never the sender and never another project, and names who else was told', () => {
+    const { b, sent } = make(['a1', 'a2', 'a3', 'a4', 'z9'])
+    const r = b.broadcast('a1', 'main moved: rebase please', {})
+    expect(r.results.map((x) => [x.name, x.status])).toEqual([['linus', 'delivered'], ['grace', 'delivered'], ['tester', 'delivered']])
+    expect(sent.map((d) => d.to).sort()).toEqual(['a2', 'a3', 'a4'])
+    const toLinus = sent.find((d) => d.to === 'a2')!.text
+    expect(toLinus).toContain('Broadcast from ada (also sent to: grace, tester): main moved: rebase please')
+    expect(toLinus).toContain('send_message')
+    expect(toLinus).toContain('to="ada"')
+  })
+
+  it('holds it for a busy agent, and marks a sleeping one asleep without sending it anything', () => {
+    const { b, sent, seen } = make(['a1', 'a2', 'a3'])
+    b.busy('a2')
+    const r = b.broadcast('a1', 'hello', {})
+    expect(r.results.map((x) => [x.name, x.status])).toEqual([['linus', 'queued'], ['grace', 'delivered'], ['tester', 'asleep']])
+    expect(sent.map((d) => d.to)).toEqual(['a3'])
+    expect(b.pending('a4')).toBe(0)
+    expect(seen.find((m) => m.toId === 'a4')).toMatchObject({ status: 'asleep', broadcast: r.id })
+    b.turnEnded('a2')
+    expect(sent.map((d) => d.to)).toEqual(['a3', 'a2'])
+  })
+
+  it('ties every copy to one broadcast id, and the sleeping one is told only to the person', () => {
+    const { b, seen } = make(['a1', 'a2'])
+    const r = b.broadcast('a1', 'hello', {})
+    expect(new Set(seen.map((m) => m.broadcast))).toEqual(new Set([r.id]))
+    expect(r.results.find((x) => x.status === 'asleep')?.reason).toContain('only the person can wake it')
+  })
+
+  it('leaves out an agent over the pair limit, with the reason, and still tells the others', () => {
+    const { b } = make(['a1', 'a2', 'a3'])
+    for (let i = 0; i < 6; i++) b.send('a1', 'linus', `m${i}`)
+    const r = b.broadcast('a1', 'again', {})
+    expect(r.results.find((x) => x.name === 'linus')).toMatchObject({ status: 'limit' })
+    expect(r.results.find((x) => x.name === 'grace')?.status).toBe('delivered')
+  })
+
+  it('needs someone to tell, and a known sender', () => {
+    const { b } = make(['a1'])
+    expect(() => b.broadcast('nobody', 'hi', {})).toThrow('Unknown agent')
+    const alone = new Mailbox({ agents: () => [{ id: 'a1', name: 'ada', online: true, repoPath: '/solo' }], deliver: () => undefined, notify: () => undefined })
+    expect(() => alone.broadcast('a1', 'hi', {})).toThrow('no other agent')
+  })
+})

@@ -239,8 +239,13 @@ export interface AgentMessage {
   fromId: string
   toId: string
   text: string
-  status: 'queued' | 'delivered' | 'dropped'
+  /** `asleep` and `limit` only come from a broadcast: nothing was sent to that agent (it was not running, or the two were over the message limit). */
+  status: 'queued' | 'delivered' | 'dropped' | 'asleep' | 'limit'
   at: number
+  /** The id one broadcast gives every copy of its message, so they are shown as one. */
+  broadcast?: string
+  /** Why nothing was sent, for `asleep` and `limit`. */
+  reason?: string
 }
 
 /** Live numbers from Claude's statusline feed. */

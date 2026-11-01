@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { noReplyTail, replyTail } from '../shared/mail'
+import type { BroadcastState } from '../shared/mail'
 import type { AgentMessage } from '../shared/types'
 
 interface AgentInfo {
@@ -36,11 +37,27 @@ export function formatDelivery(fromName: string, rawText: string, expectsReply: 
   return `[Agent World] Message from ${fromName}: ${text}\n\n${tail}`
 }
 
+/** A broadcast as the recipient reads it: who sent it, who else was told (so they need not tell each other), and how to answer the sender. */
+export function formatBroadcast(fromName: string, rawText: string, expectsReply: boolean, also: string[]) {
+  const tail = expectsReply ? replyTail(fromName) : noReplyTail
+  return `[Agent World] Broadcast from ${fromName}${also.length ? ` (also sent to: ${also.join(', ')})` : ''}: ${unsafe(rawText)}\n\n${tail}`
+}
+
+export interface BroadcastResult {
+  id: string
+  name: string
+  status: BroadcastState
+  /** Why nothing was sent, for asleep and limit. */
+  reason?: string
+}
+
 /** Agent-to-agent mail: straight into an idle recipient's prompt, otherwise held until its turn ends. */
 export class Mailbox {
   private readonly state = new Map<string, State>()
   private readonly queues = new Map<string, AgentMessage[]>()
   private readonly expects = new Map<string, boolean>()
+  /** What a broadcast's copy says when it is typed in, by message id, since it names who else was told. */
+  private readonly rendered = new Map<string, string>()
   /** Messages from the office itself (an answer to a plan), by agent: they go before mail from agents. */
   private readonly office = new Map<string, string[]>()
   /** What the person typed in the app for an agent that was not ready to take it (the first message to a new agent), by agent. */
@@ -74,6 +91,48 @@ export class Mailbox {
     this.deps.notify(m)
     this.flush(to.id)
     return m.status === 'delivered' ? 'delivered' : 'queued'
+  }
+
+  /**
+   * One message to every other agent of the sender's project. An idle agent gets it at once and a busy one when its turn ends; one that is not running is only
+   * marked asleep (only the person can wake it), and one over the message limit with the sender is marked too. Nothing waits for replies: they come back as mail.
+   */
+  broadcast(fromId: string, text: string, o: { expectsReply?: boolean } = {}): { id: string; results: BroadcastResult[] } {
+    const all = this.deps.agents()
+    const me = all.find((a) => a.id === fromId)
+    if (!me) throw new Error('Unknown agent.')
+    const others = all.filter((a) => a.id !== fromId && a.repoPath === me.repoPath)
+    if (others.length === 0) throw new Error('There is no other agent in this project to tell.')
+    const now = (this.deps.now ?? Date.now)()
+    while (this.history[0] && now - this.history[0].at > PAIR_WINDOW_MS) this.history.shift()
+    const id = randomUUID()
+    const pairOf = (to: string) => [fromId, to].sort().join('|')
+    const blocked = new Map<string, { status: 'asleep' | 'limit'; reason: string }>()
+    for (const to of others) {
+      if (!to.online) blocked.set(to.id, { status: 'asleep', reason: 'only the person can wake it' })
+      else if (this.history.filter((h) => h.pair === pairOf(to.id)).length >= PAIR_LIMIT) blocked.set(to.id, { status: 'limit', reason: `${PAIR_LIMIT} messages in 10 minutes with you` })
+    }
+    const told = others.filter((a) => !blocked.has(a.id))
+    const results: BroadcastResult[] = []
+    for (const to of others) {
+      const stop = blocked.get(to.id)
+      const m: AgentMessage = { id: randomUUID(), fromId, toId: to.id, text, status: stop?.status ?? 'queued', at: now, broadcast: id, ...(stop && { reason: stop.reason }) }
+      if (stop) {
+        this.deps.notify(m)
+        results.push({ id: to.id, name: to.name, status: stop.status, reason: stop.reason })
+        continue
+      }
+      this.history.push({ pair: pairOf(to.id), at: now })
+      this.expects.set(m.id, o.expectsReply ?? true)
+      this.rendered.set(m.id, formatBroadcast(me.name, text, o.expectsReply ?? true, told.filter((a) => a.id !== to.id).map((a) => a.name)))
+      const queue = this.queues.get(to.id) ?? []
+      queue.push(m)
+      this.queues.set(to.id, queue)
+      this.deps.notify(m)
+      this.flush(to.id)
+      results.push({ id: to.id, name: to.name, status: m.status === 'delivered' ? 'delivered' : 'queued' })
+    }
+    return { id, results }
   }
 
   /** The office tells an agent something (the person's answer to its plan). No reply is asked for. */
@@ -129,7 +188,7 @@ export class Mailbox {
   }
 
   gone(agentId: string) {
-    for (const m of this.queues.get(agentId) ?? []) this.deps.notify({ ...m, status: 'dropped' })
+    for (const m of this.queues.get(agentId) ?? []) (this.rendered.delete(m.id), this.expects.delete(m.id), this.deps.notify({ ...m, status: 'dropped' }))
     this.queues.delete(agentId)
     this.office.delete(agentId)
     this.person.delete(agentId)
@@ -153,8 +212,9 @@ export class Mailbox {
     const from = this.deps.agents().find((a) => a.id === m.fromId)?.name ?? 'another agent'
     // The delivered message starts the recipient's next turn.
     this.state.set(agentId, 'busy')
-    this.deps.deliver(agentId, formatDelivery(from, m.text, this.expects.get(m.id) ?? true))
+    this.deps.deliver(agentId, this.rendered.get(m.id) ?? formatDelivery(from, m.text, this.expects.get(m.id) ?? true))
     this.expects.delete(m.id)
+    this.rendered.delete(m.id)
     m.status = 'delivered'
     this.deps.notify(m)
   }
