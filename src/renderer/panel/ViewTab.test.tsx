@@ -28,6 +28,15 @@ describe('a view tab shown as an icon', () => {
     expect(tab.getAttribute('aria-selected')).toBe('true')
   })
 
+  it('is marked as named when it stands for a file, so its name stays visible whatever the width', async () => {
+    const plain = await mount({ selected: false })
+    expect(plain.tab.className).not.toContain('named')
+    document.body.innerHTML = ''
+    const file = await mount({ selected: false, named: true, label: 'poster.png' })
+    expect(file.tab.className).toContain('named')
+    expect(file.tab.querySelector('.vt-label')!.textContent).toBe('poster.png')
+  })
+
   it('shows its label, what it is for and the key that jumps to it on hover, and not otherwise', async () => {
     const { host, tab } = await mount()
     expect(host.querySelector('.vt-tip')).toBeNull()

@@ -4608,3 +4608,6 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .office-rail .rail-read:hover { background: var(--ok-text); color: var(--ink); }
 .office-rail.slim:not(.peek) .rail-cell > .rail-agent { width: 44px; }
 .office-rail.slim:not(.peek) .rail-read { display: none; }
+
+/* A tab that stands for a file always shows the file's name, on one line, cut with an ellipsis. */
+.tabbar .vt.named .vt-label { display: inline; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

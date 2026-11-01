@@ -6,7 +6,7 @@ import { type HeaderIconName, OutlineIcon } from './IconButton'
  * One tab of the side panel, drawn as its icon. What it is, what it is for and the key that jumps to it show in a card while the pointer or keyboard focus is on it;
  * `number` is its place in the row, which is the digit of Mod+Alt+digit. The card is fixed to the window, since the row scrolls sideways and would cut off one hung under it.
  */
-export function ViewTab({ icon, label, name = label, about, number, selected, onClick, badge, dot, keys = [], reveal, mac = isMac() }: { icon: HeaderIconName; label: string; /** What assistive tools and the Playwright specs call it; the label, unless it carries a count or a dot. */ name?: string; about: string; number: number; selected: boolean; onClick: () => void; /** A count on the icon. */ badge?: number; /** A dot on the icon: something is open (`run`) or up (`live`). */ dot?: 'run' | 'live'; /** Keys it has besides the jump, as combos. */ keys?: string[]; /** The folder it shows, for the right-click reveal. */ reveal?: string; mac?: boolean }) {
+export function ViewTab({ icon, label, name = label, about, number, selected, onClick, badge, dot, keys = [], reveal, named, mac = isMac() }: { icon: HeaderIconName; label: string; /** What assistive tools and the Playwright specs call it; the label, unless it carries a count or a dot. */ name?: string; about: string; number: number; selected: boolean; onClick: () => void; /** A count on the icon. */ badge?: number; /** A dot on the icon: something is open (`run`) or up (`live`). */ dot?: 'run' | 'live'; /** Keys it has besides the jump, as combos. */ keys?: string[]; /** The folder it shows, for the right-click reveal. */ reveal?: string; mac?: boolean , /** Its label is always shown (a tab that stands for a file): the name is what tells it from another file's. */ named?: boolean}) {
   const [at, setAt] = useState<{ left: number; top: number } | null>(null)
   const show = (el: HTMLElement) => {
     const r = el.getBoundingClientRect()
@@ -16,7 +16,7 @@ export function ViewTab({ icon, label, name = label, about, number, selected, on
   return (
     <button
       role="tab"
-      className="vt"
+      className={`vt ${named ? 'named' : ''}`}
       aria-selected={selected}
       aria-label={name}
       data-reveal={reveal}
