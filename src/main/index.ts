@@ -1430,6 +1430,10 @@ async function main() {
       // The builder's agent is the builder's own: the others are not told of it.
       agents.filter((a) => !a.builder || a.id === caller).map((a) => ({ name: a.name, activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : 'offline', branch: a.branch, you: a.id === caller })),
     send: (from, to, message, expectsReply) => mailbox.send(from, to, message, { expectsReply }),
+    broadcast: (from, message, expectsReply) => {
+      const r = mailbox.broadcast(from, message, { expectsReply })
+      return { id: r.id, results: r.results.map((x) => ({ name: x.name, status: x.status, reason: x.reason })) }
+    },
     remember: (caller, text) => {
       const a = byId(caller)
       if (a) remember(memoryFile(a.repoPath), text, a.name)
