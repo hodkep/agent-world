@@ -977,7 +977,9 @@ export function App() {
   // An agent's card over the office has nothing to show over while it is hidden, and its timers would go on.
   useEffect(() => void (noOffice && setCardOpen(false)), [noOffice])
   // Hidden, the office draws nothing at all.
-  useEffect(() => office.current?.setShown(!noOffice), [noOffice, officeReady])
+  // Not drawn while the person hid it, nor while the grid is on top of it: it is not seen.
+  const gridCovers = grid && agents.length > 0
+  useEffect(() => office.current?.setShown(!noOffice && !gridCovers), [noOffice, gridCovers, officeReady])
   // The agent the side panel is showing is left out of the grid while it does, so it is not on screen twice.
   const inPanel = grid && showPanel && agents.some((a) => a.id === selected) ? selected : null
   const folderName = folder ? (folder.split(/[\\/]/).filter(Boolean).pop() ?? folder) : ''
