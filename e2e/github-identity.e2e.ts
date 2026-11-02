@@ -16,6 +16,9 @@ case "$*" in
 esac
 `
 
+// A runner that is itself signed in to GitHub (an agent's shell, CI) hands these down, and a terminal inherits them: blank, they cannot reach the app.
+const NO_TOKENS = { GH_TOKEN: '', GITHUB_TOKEN: '', GH_ENTERPRISE_TOKEN: '', GITHUB_ENTERPRISE_TOKEN: '' }
+
 function setup(picked: string | null) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'aw-ident-')))
   const home = join(tmp, 'home')
@@ -29,7 +32,7 @@ function setup(picked: string | null) {
   writeFileSync(join(home, 'preferences.json'), JSON.stringify({ setup: { done: true, defaultProvider: 'claude' } }))
   writeFileSync(join(home, 'workspaces.json'), JSON.stringify({ active: folder, recent: [folder] }))
   writeFileSync(join(home, 'identity.json'), JSON.stringify({ profiles: [hodkep, work], byProject: picked ? { [folder]: picked } : {} }))
-  return { tmp, home, folder, env: { AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), HOME: tmp, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` } }
+  return { tmp, home, folder, env: { ...NO_TOKENS, AW_HOME: home, AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), HOME: tmp, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` } }
 }
 
 test('a project acts as its GitHub profile: the chip, Settings and a terminal tab', async () => {
