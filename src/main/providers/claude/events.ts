@@ -109,8 +109,9 @@ export function normalize(payload: unknown): RawEvent | null {
       return activity('thinking')
     case 'Stop':
       return activity('idle')
+    // `idle_prompt` only says the prompt has sat empty for a minute after a turn: a finished agent stays idle. A real request for the person arrives as a permission or a question.
     case 'Notification':
-      return str(p.notification_type) === 'idle_prompt' ? activity('waiting') : null
+      return null
     case 'SubagentStart':
       return subagentId ? { type: 'subagent-start', sessionId, subagentId, subagentType: str(p.agent_type) ?? 'agent' } : null
     case 'SubagentStop':

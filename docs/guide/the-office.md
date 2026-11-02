@@ -8,7 +8,7 @@ The office shows every agent of the open project as a character. Where it stands
 
 What each activity means, as the agent's bar and the agents panel show it:
 
-- **idle**: finished its turn, resting on a sofa. **waiting**: finished and waiting for you, in the lounge with a "?" bubble.
+- **idle**: finished its turn, resting on a sofa until you give it more to do. An agent that needs you is shown as **permission** or by a card, not as idle.
 - **thinking**, **researching** (reading, searching), **implementing** (editing files), **running** (a shell command), **delegating** (handing work to a subagent): at its desk, each with its own bubble or effect. **compacting**: summarising the conversation to free up context.
 - **permission**: it needs you. A red bubble with a blinking "!" and a waving arm.
 - **blocked**: its turn ended in an error. It waits in the lounge.

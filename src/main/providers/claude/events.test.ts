@@ -58,10 +58,8 @@ describe('normalize hook payload → AgentEvent', () => {
     expect(normalize({ ...base, hook_event_name: 'Stop' })).toMatchObject({ activity: 'idle' })
   })
 
-  it('idle_prompt notification means waiting for the user', () => {
-    expect(normalize({ ...base, hook_event_name: 'Notification', notification_type: 'idle_prompt' })).toMatchObject({
-      activity: 'waiting'
-    })
+  it('idle_prompt notification is only an empty prompt: a finished agent stays idle, nothing waits on the person', () => {
+    expect(normalize({ ...base, hook_event_name: 'Notification', notification_type: 'idle_prompt' })).toBeNull()
     expect(normalize({ ...base, hook_event_name: 'Notification', notification_type: 'auth_success' })).toBeNull()
   })
 
