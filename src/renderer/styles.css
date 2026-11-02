@@ -3124,9 +3124,11 @@ input:disabled + .wfl-track { opacity: 0.5; }
 .wfl-detail .sk-banner { padding: 8px 12px; background: var(--well); box-shadow: inset 3px 0 var(--danger-text); font-size: 12px; overflow-wrap: anywhere; }
 
 /* The describe box and the builder: its chat beside its draft. `.mono` and `.muted` are scoped, as above. */
-.wfl-describe { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 2px solid var(--ink); align-items: center; }
+.wfl-describe { position: relative; display: flex; gap: 8px; padding: 12px 20px; border-bottom: 2px solid var(--ink); align-items: center; }
 .wfl-describe input { flex: 1; min-width: 0; }
-.imp-wrap { position: relative; }
+.imp-wrap { position: static; }
+/* The panel hangs from the toolbar, not from the button, so it opens inside the window however narrow it is. */
+.imp-wrap .am-pop { left: 20px; right: auto; width: min(440px, calc(100% - 40px)); }
 .imp-note { padding: 10px 12px; margin: 0; }
 .imp-ft { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-top: 2px solid var(--ink); }
 .imp-ft .muted { margin-right: auto; font-size: 11.5px; }
