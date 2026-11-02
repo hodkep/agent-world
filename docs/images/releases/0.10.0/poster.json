@@ -1,0 +1,41 @@
+{
+  "version": "0.10.0",
+  "tagline": "Tell every agent. Finish steps yourself.",
+  "subtitle": "Agent broadcasts, steps you finish yourself, and workflows off per workspace.",
+  "cards": [
+    {
+      "kicker": "Agents",
+      "title": "Tell every agent at once",
+      "text": "An agent can send one message to every other agent of its project. You see who got it, who was busy and who was asleep.",
+      "chips": [
+        "One message",
+        "Cards in Traces"
+      ]
+    },
+    {
+      "kicker": "Workflows",
+      "title": "A step you finish yourself",
+      "text": "Mark a step as yours in the builder and word its buttons. The agent gives you the setup, and you answer once, on one card.",
+      "chips": [
+        "Builder",
+        "One card"
+      ]
+    },
+    {
+      "kicker": "Workflows",
+      "title": "Switch them off, per workspace",
+      "text": "Turn workflows off for one workspace, or for any single workflow in it, from the Workflows window. Toggle switches now slide.",
+      "chips": [
+        "Per workspace",
+        "Sliding toggles"
+      ]
+    }
+  ],
+  "also": [
+    "A finished agent stays idle",
+    "The grid panel stays in the window",
+    "New website: agent-world.in",
+    "Downloads from dl.agent-world.in"
+  ],
+  "footer": "agent-world.in"
+}

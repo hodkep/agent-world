@@ -4,6 +4,25 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-02
+
+![Agent World 0.10.0: tell every agent at once, finish steps yourself, and switch workflows off per workspace](https://raw.githubusercontent.com/hodkep/agent-world/v0.10.0/docs/images/releases/0.10.0/poster.png)
+
+### Added
+
+- Agents: an agent can send one message to every other agent of its project with `broadcast_message`; the message shows as a card in the sender's and each recipient's chat and in Traces, with who got it, who was busy and who was asleep.
+- Workflows: a step can be marked as one you finish yourself, with the words of its buttons, set in the workflow builder; the agent gives you the setup and you answer once, on one card.
+- Workflows: workflows can be switched off for one workspace, all at once or one by one, from the Workflows window, and every toggle switch now slides.
+
+### Changed
+
+- Website: the project's website is agent-world.in, and the download links name dl.agent-world.in, in the README, the install pages and the site.
+
+### Fixed
+
+- Chat: the agents and project grid panel no longer runs off the right edge of the window; it slides left to stay in view.
+- Office: an agent that has finished its work stays idle instead of showing "waiting for you" a minute later.
+
 ## [0.9.4] - 2026-11-01
 
 ### Added
