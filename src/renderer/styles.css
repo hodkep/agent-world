@@ -3065,8 +3065,29 @@ aside:not(.drawer) { flex: none; }
 /* The Workflows tab: the list, and the chosen workflow's steps beside it. */
 .k-plan { --k: var(--accent); } .k-work { --k: var(--think); } .k-check { --k: var(--ok); } .k-audit { --k: #e0894a; } .k-approve { --k: #e07aa8; } .k-merge { --k: #cfd0e6; }
 .wfl { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 0; flex: 1; overflow: hidden; }
-.wfl-side { list-style: none; margin: 0; padding: 0; border-right: 2px solid var(--ink); overflow: auto; }
-.wfl-side li { padding: 10px 14px; border-bottom: 1px solid var(--ink); display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+.wfl-sidecol { display: flex; flex-direction: column; min-height: 0; border-right: 2px solid var(--ink); }
+.wfl-side { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: auto; }
+/* The switch for all workflows in this workspace, and one per workflow: the hire form's square track, violet when on. */
+.settings label.wfl-all { display: flex; flex-direction: row; align-items: center; text-align: left; gap: 10px; padding: 10px 14px; border-bottom: 2px solid var(--ink); background: var(--well); cursor: pointer; }
+.settings label.wfl-all.off { background: #2a1d14; }
+.wfl-all > span { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.wfl-all small { color: var(--muted); }
+.wfl-line { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.wfl-name { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wfl-offrow .wfl-name { opacity: 0.5; }
+.wfl-offtag { margin-left: 6px; padding: 0 5px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; background: var(--selected); color: var(--muted); }
+.settings label.wfl-sw { display: flex; flex-direction: row; flex: none; cursor: pointer; }
+.wfl-all input, .wfl-sw input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.wfl-track { position: relative; flex: none; width: 34px; height: 16px; background: var(--well); box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 1px var(--line); }
+.wfl-sw .wfl-track { width: 26px; height: 14px; }
+.wfl-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: var(--muted); }
+.wfl-sw .wfl-track::after { width: 10px; height: 10px; }
+input:checked + .wfl-track { background: var(--violet); }
+input:checked + .wfl-track::after { left: 20px; background: var(--ink); }
+.wfl-sw input:checked + .wfl-track::after { left: 14px; }
+input:disabled + .wfl-track { opacity: 0.5; }
+.wfl-all input:focus-visible + .wfl-track, .wfl-sw input:focus-visible + .wfl-track { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wfl-side li { padding: 10px 14px; border-bottom: 1px solid var(--ink); cursor: pointer; }
 .wfl-side li.on { background: var(--selected); }
 .wfl-side:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wfl-detail { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; overflow: auto; }
@@ -3090,7 +3111,7 @@ aside:not(.drawer) { flex: none; }
   .wfl-main { overflow: visible; min-height: auto; flex: none; }
   .wfl-flow { height: 420px; flex: none; }
 }
-@media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-side { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
+@media (max-width: 760px) { .wfl { grid-template-columns: 1fr; } .wfl-sidecol { border-right: 0; border-bottom: 2px solid var(--ink); max-height: 30vh; } }
 
 /* A work step's skills: ready (green), granted by the step (amber), not in the library (red). */
 .sk-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }

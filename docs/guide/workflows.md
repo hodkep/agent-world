@@ -32,6 +32,10 @@ A commit with no announced task gets a run marked **from a commit**, in the **No
 
 In the **Workflows** window, select **Standard** and click **Remove**. Agents in that project then work as if workflows were off: no task is recorded, nothing is held (no plan hold, no track, no gate), no reminder is added and no run starts from a commit. It is a choice for that project only; **Restore Standard** undoes it, and making another workflow the default also ends it. Runs already open finish as they were.
 
+## Switch workflows off in one workspace
+
+In the **Workflows** tab of the window, the switch **Workflows in this workspace** at the top of the list turns all workflows off for the open project only: agents there work as if workflows were off, and other projects keep theirs. The small switch on each workflow turns off just that one there: it is tagged **Disabled here** and agents are not offered it. Turning the top switch back on restores which ones were off. This is separate from the switch in Settings, which turns workflows off for the whole app. Agents already running keep what they started with until they restart.
+
 ## Enforced and only asked
 
 Announcing a task, handing in a plan, reporting steps and saying done are only asked. The app holds:

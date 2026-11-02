@@ -5,6 +5,11 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_PREFS, cleanPrefs, loadPrefs, savePrefs } from './prefs'
 
 describe('preferences', () => {
+  it('keeps the workspaces where workflows are off, dropping what is not a folder with workflow ids', () => {
+    const w = cleanPrefs({ workflows: { off: { '/p/shop': ['bug-fix', 7, 'Bad Id'], '': ['x'], '/p/e': [] }, offAll: ['/p/shop', 3, ''] } }).workflows
+    expect([w.off, w.offAll]).toEqual([{ '/p/shop': ['bug-fix'] }, ['/p/shop']])
+    expect(cleanPrefs({}).workflows.off).toBeUndefined()
+  })
   it('start from the defaults when there is no file', () => {
     expect(loadPrefs(join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'none.json'))).toEqual(DEFAULT_PREFS)
   })
