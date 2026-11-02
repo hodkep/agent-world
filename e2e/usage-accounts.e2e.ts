@@ -42,7 +42,9 @@ test('Usage and Weekly Rewind show each account with its program, spend, limits 
     await expect(scope.locator('img').first()).toBeVisible()
     if (process.env.AW_SHOTS) await usage.screenshot({ path: `${process.env.AW_SHOTS}/usage-overview.png` })
     // The month's pace is a number, and each account has a line about what it is doing.
-    await expect(usage.locator('.st-card', { hasText: 'This month' })).toContainText('$')
+    // It counts spend since the 1st: on the 1st (or a Monday that is the 2nd..) the seeded week can lie wholly in last month, and the card then has nothing to project.
+    const monthStart = new Date(new Date(now).getFullYear(), new Date(now).getMonth(), 1).getTime()
+    await expect(usage.locator('.st-card', { hasText: 'This month' })).toContainText(ev.some((e) => e.k === 'cost' && e.t >= monthStart) ? '$' : '—')
     await expect(usage.locator('.st-insight').first()).toBeVisible()
     // One account at a time: the total follows.
     await scope.getByRole('button', { name: /Work/ }).click()
