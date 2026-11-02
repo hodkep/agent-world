@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DIALS, NO_WORKFLOW, usesNoWorkflow, askModel, auditModel, pickAsker, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, workflowCost, workflowsShown } from './workflows'
+import { DIALS, NO_WORKFLOW, usesNoWorkflow, askModel, auditModel, pickAsker, defaultWorkflow, dialDoes, withDefault, dialSummary, switchWorkflows, windingDown, allOffHere, isOffHere, withAllOff, withOff, enabledHere, workflowCost, workflowsShown } from './workflows'
 
 describe('what workflows add to a task, per dial', () => {
   it('economy adds only the step briefs to the agent: five of 150 tokens, and makes no separate call', () => {
@@ -122,5 +122,34 @@ describe('which program asks', () => {
     expect(pickAsker('agy', ['claude'])).toBe('claude')
     expect(pickAsker('claude', ['agy'])).toBe('agy')
     expect(pickAsker('claude', [])).toBeUndefined()
+  })
+})
+
+describe('workflows turned off in one workspace', () => {
+  const w = { enabled: true, dial: 'balanced' as const, since: 0, defaults: {} }
+  const entries = [{ id: 'standard' }, { id: 'bug-fix' }]
+  it('one workflow off there leaves the others, and every other workspace, as they were', () => {
+    const off = withOff(w, '/p/shop', 'bug-fix', true)
+    expect([isOffHere(off, '/p/shop', 'bug-fix'), isOffHere(off, '/p/shop', 'standard'), isOffHere(off, '/p/other', 'bug-fix')]).toEqual([true, false, false])
+    expect(enabledHere(off, '/p/shop', entries)).toEqual([{ id: 'standard' }])
+    expect(enabledHere(off, '/p/other', entries)).toEqual(entries)
+    expect(usesNoWorkflow(off, '/p/shop')).toBe(false)
+    expect(w).toEqual({ enabled: true, dial: 'balanced', since: 0, defaults: {} })
+  })
+  it('turning one back on removes it, and the last one leaves no entry', () => {
+    const off = withOff(w, '/p/shop', 'bug-fix', true)
+    expect(withOff(off, '/p/shop', 'bug-fix', false).off).toEqual({})
+  })
+  it('all off there is no workflow at all, and turning it on again brings back what was off one by one', () => {
+    const some = withOff(w, '/p/shop', 'bug-fix', true)
+    const all = withAllOff(some, '/p/shop', true)
+    expect([allOffHere(all, '/p/shop'), allOffHere(all, '/p/other'), usesNoWorkflow(all, '/p/shop'), usesNoWorkflow(all, '/p/other')]).toEqual([true, false, true, false])
+    expect(isOffHere(all, '/p/shop', 'standard')).toBe(true)
+    expect(enabledHere(all, '/p/shop', entries)).toEqual([])
+    const back = withAllOff(all, '/p/shop', false)
+    expect([allOffHere(back, '/p/shop'), isOffHere(back, '/p/shop', 'bug-fix'), isOffHere(back, '/p/shop', 'standard')]).toEqual([false, true, false])
+  })
+  it('no folder means nothing is off', () => {
+    expect([allOffHere(withAllOff(w, '/p/shop', true), null), isOffHere(withOff(w, '/p/shop', 'x', true), null, 'x')]).toEqual([false, false])
   })
 })

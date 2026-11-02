@@ -55,9 +55,15 @@ function cleanDefaults(raw: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => k && isWorkflowId(v)).slice(0, 200)) as Record<string, string>
 }
 
+/** The workspaces with workflows off: a folder with workflow ids. Left out when empty, so a file without them stays as it was. */
+function cleanOff(raw: unknown): Pick<Prefs['workflows'], 'off' | 'offAll'> {
+  const off = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? Object.fromEntries(Object.entries(raw).map(([k, v]) => [k, Array.isArray(v) ? v.filter(isWorkflowId).slice(0, 50) : []]).filter(([k, v]) => k && (v as string[]).length).slice(0, 200)) : {}
+  return Object.keys(off).length ? { off: off as Record<string, string[]> } : {}
+}
+
 function cleanWorkflows(raw: unknown, base: Prefs['workflows']): Prefs['workflows'] {
   const w = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
-  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since, defaults: cleanDefaults(w.defaults) }
+  return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since, defaults: cleanDefaults(w.defaults), ...cleanOff(w.off), ...(Array.isArray(w.offAll) && w.offAll.some((p) => p && typeof p === 'string') && { offAll: w.offAll.filter((p): p is string => !!p && typeof p === 'string').slice(0, 200) }) }
 }
 
 function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {

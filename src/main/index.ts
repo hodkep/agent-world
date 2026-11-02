@@ -107,7 +107,7 @@ import { auditSettled } from '../shared/mergeCheck'
 import { troubleOf } from '../shared/trouble'
 import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
-import { askModel, auditModel, defaultWorkflow, pickAsker, usesNoWorkflow } from '../shared/workflows'
+import { askModel, auditModel, defaultWorkflow, enabledHere, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
 import { createRemoteGates } from './remoteGates'
 import { UNPROVEN } from './remoteReply'
@@ -565,7 +565,7 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   pick: (id, requested) => {
     const a = byId(id)
     if (!a) return undefined
-    const chosen = pickEntry(workflowStore.list(a.repoPath), requested, defaultWorkflow(prefs.workflows, a.repoPath))
+    const chosen = pickEntry(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), requested, defaultWorkflow(prefs.workflows, a.repoPath))
     return chosen ? toRunWorkflow(chosen.workflow!, chosen.hash, chosen.scope === 'built-in' ? undefined : chosen.scope) : undefined
   },
   enabled: () => prefs.workflows.enabled,
@@ -1046,7 +1046,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(workflowStore.list(a.repoPath), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1605,7 +1605,7 @@ async function main() {
         const run = workflows.runs().find((r) => r.id === id)
         const a = byId(caller)
         // An agent that asked for a workflow that is not there is told the default was used.
-        const missing = workflow && a && !workflowStore.list(a.repoPath).some((e) => e.workflow && e.id === workflow) ? workflow : undefined
+        const missing = workflow && a && !enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)).some((e) => e.workflow && e.id === workflow) ? workflow : undefined
         // A follow-up round is not forced to plan again; a task's first round is, when its workflow wants a plan.
         const planFirst = run?.rounds.length === 1 && workflows.planWanted(caller)
         return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst, skills: skillStates(run.workflow, skillSource.items(), skillSource.playbook(a?.repoPath ?? null)) }) }) }

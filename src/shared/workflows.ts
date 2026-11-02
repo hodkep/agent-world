@@ -10,6 +10,10 @@ export interface WorkflowPrefs {
   since: number
   /** The workflow a project uses unless the agent picks another, by project folder. A project with no entry uses Standard. */
   defaults: Record<string, string>
+  /** Workflows turned off in one workspace (project folder), by id; the others and every other workspace are untouched. */
+  off?: Record<string, string[]>
+  /** Workspaces where all workflows are off. `off` keeps its choices meanwhile, so turning all back on restores them. */
+  offAll?: string[]
 }
 
 export interface CostPart {
@@ -90,8 +94,30 @@ export const NO_WORKFLOW = 'none'
 /** The workflow id a project uses by default. */
 export const defaultWorkflow = (w: WorkflowPrefs, project: string | null) => (project ? w.defaults[project] : undefined) ?? 'standard'
 
-/** Whether the project has chosen to use no workflow. */
-export const usesNoWorkflow = (w: WorkflowPrefs, project: string | null) => defaultWorkflow(w, project) === NO_WORKFLOW
+/** Whether all workflows are switched off in this workspace. */
+export const allOffHere = (w: WorkflowPrefs, project: string | null) => !!project && !!w.offAll?.includes(project)
+
+/** Whether this workflow is off in this workspace, by its own switch or by the one for all. */
+export const isOffHere = (w: WorkflowPrefs, project: string | null, id: string) => !!project && (allOffHere(w, project) || !!w.off?.[project]?.includes(id))
+
+/** What agents in this workspace may use: the entries that are not off there. */
+export const enabledHere = <T extends { id: string }>(w: WorkflowPrefs, project: string | null, entries: T[]): T[] => entries.filter((e) => !isOffHere(w, project, e.id))
+
+/** Whether the project uses no workflow: it chose none, or all are switched off there. */
+export const usesNoWorkflow = (w: WorkflowPrefs, project: string | null) => defaultWorkflow(w, project) === NO_WORKFLOW || allOffHere(w, project)
+
+/** The preferences with one workflow switched off (or back on) in `project`. */
+export function withOff(w: WorkflowPrefs, project: string, id: string, off: boolean): WorkflowPrefs {
+  const { [project]: was = [], ...rest } = w.off ?? {}
+  const ids = off ? [...new Set([...was, id])] : was.filter((x) => x !== id)
+  return { ...w, off: ids.length ? { ...rest, [project]: ids } : rest }
+}
+
+/** The preferences with all workflows switched off (or back on) in `project`; what was off one by one stays. */
+export function withAllOff(w: WorkflowPrefs, project: string, off: boolean): WorkflowPrefs {
+  const rest = (w.offAll ?? []).filter((p) => p !== project)
+  return { ...w, offAll: off ? [...rest, project] : rest }
+}
 
 /** The preferences with `id` as the default for `project`; Standard is what no entry means, so choosing it removes the entry. */
 export function withDefault(w: WorkflowPrefs, project: string, id: string): WorkflowPrefs {

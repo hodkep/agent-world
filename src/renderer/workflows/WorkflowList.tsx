@@ -4,7 +4,7 @@ import { workflowRuns } from '../../shared/runStats'
 import { type SkillState, goneSkills } from '../../shared/skills'
 import type { WorkflowEntry } from '../../shared/workflow'
 import { FlowCanvas } from './flow/FlowCanvas'
-import { NO_WORKFLOW } from '../../shared/workflows'
+import { NO_WORKFLOW, type WorkflowPrefs, allOffHere, isOffHere, withAllOff, withOff } from '../../shared/workflows'
 import { History } from './History'
 import { ImportMenu } from './ImportMenu'
 import { listButtons } from './listButtons'
@@ -32,7 +32,7 @@ export function SkillChips({ ids, states }: { ids: string[]; states?: Record<str
 }
 
 /** The workflows a project can use, with the chosen one's steps beside the list; copying, deleting and choosing the default are here. */
-export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '', onBuilder }: { folder: string | null; runs: Run[]; defaultId: string; onDefault: (id: string) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: { id: string; name: string }) => Promise<void> }) {
+export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPrefs, initial = '', onBuilder }: { folder: string | null; runs: Run[]; defaultId: string; onDefault: (id: string) => void; /** The workflow preferences, and the way to change them: what is switched off in this workspace is kept there. */ prefs: WorkflowPrefs; onPrefs: (w: WorkflowPrefs) => void; /** The entry to show first, as `scope:id`. */ initial?: string; /** Opens the builder; what the person typed (or asked for) is sent to it, and `editing` says which workflow is being changed. */ onBuilder: (first: string | undefined, editing?: { id: string; name: string }) => Promise<void> }) {
   const [entries, setEntries] = useState<WorkflowEntry[] | null>(null)
   const [picked, setPicked] = useState(initial)
   const [describe, setDescribe] = useState('')
@@ -61,6 +61,7 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
   const wf = shown?.workflow
   const lb = shown ? listButtons({ scope: shown.scope, isDefault: shown.id === defaultId, removedHere: defaultId === NO_WORKFLOW, hasFolder: !!folder }) : null
   const here = folder ? base(folder) : ''
+  const allOff = allOffHere(prefs, folder)
   // The list is walked with the arrow keys, Home and End, and the one it rests on is the one shown.
   const walk = (e: React.KeyboardEvent) => {
     const at = shown ? list.indexOf(shown) : 0
@@ -110,22 +111,41 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, initial = '',
       </span>
     </div>
     <div className="wfl" aria-label="Workflows">
+      <div className="wfl-sidecol">
+      {folder && (
+        <label className={`wfl-all${allOff ? ' off' : ''}`}>
+          <span><b>Workflows in this workspace</b><small>{allOff ? 'Off here · agents work freely' : 'On for agents here'}</small></span>
+          <input type="checkbox" role="switch" checked={!allOff} onChange={(e) => onPrefs(withAllOff(prefs, folder, !e.target.checked))} />
+          <i className="wfl-track" aria-hidden />
+        </label>
+      )}
       <ul className="wfl-side" role="listbox" aria-label="Workflow list" tabIndex={0} aria-activedescendant={shown ? `wfl-${shown.scope}-${shown.id}` : undefined} onKeyDown={walk}>
         {list.map((e) => {
           const key = `${e.scope}:${e.id}`
           return (
-            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={shown === e ? 'on' : ''} onClick={() => (setPicked(key), setAsking(false), setRemoving(false))}>
-              <b>{e.workflow?.name ?? `${e.id}.json`}</b>
+            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={`${shown === e ? 'on' : ''}${isOffHere(prefs, folder, e.id) ? ' wfl-offrow' : ''}`} onClick={() => (setPicked(key), setAsking(false), setRemoving(false))}>
+              <div className="wfl-line">
+              <span className="wfl-name">
+              <b>{e.workflow?.name ?? `${e.id}.json`}{isOffHere(prefs, folder, e.id) && !allOff && <span className="wfl-offtag">Disabled here</span>}</b>
               <span className="muted">
                 {e.problems ? 'Has problems' : SCOPE_LABEL[e.scope]}
                 {e.id === defaultId && !e.problems ? ' · default' : ''}
                 {e.scope === 'built-in' && defaultId === NO_WORKFLOW ? ' · removed for this project' : ''}
                 {e.skills && goneSkills(e.skills).length > 0 && <span className="sk-warn"> · {goneSkills(e.skills).length === 1 ? '1 warning' : `${goneSkills(e.skills).length} warnings`}</span>}
               </span>
+              </span>
+              {folder && !e.problems && (
+                <label className="wfl-sw" title={allOff ? 'All workflows are off in this workspace' : `${e.workflow?.name ?? e.id} for agents in this workspace`} onClick={(ev) => ev.stopPropagation()}>
+                  <input type="checkbox" role="switch" aria-label={`${e.workflow?.name ?? e.id} in this workspace`} checked={!isOffHere(prefs, folder, e.id)} disabled={allOff} onChange={(ev) => onPrefs(withOff(prefs, folder, e.id, !ev.target.checked))} />
+                  <i className="wfl-track" aria-hidden />
+                </label>
+              )}
+              </div>
             </li>
           )
         })}
       </ul>
+      </div>
       <div className="wfl-detail">
         {error && <p className="error" role="alert">{error}</p>}
         {!shown ? (
