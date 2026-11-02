@@ -9,7 +9,7 @@ set -euo pipefail
 TAG="${1:?tag, e.g. v0.8.0}"; DIR="${2:-}"
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo "not a release tag: $TAG"; exit 1; }
 VER="${TAG#v}"; REPO="${REPO:-hodkep/agent-world}"
-BUCKET="r2:agent-world-releases"; BASE="https://pub-761b6780fbbc4b30b60a22f902c0e743.r2.dev"
+BUCKET="r2:agent-world-releases"; BASE="https://dl.agent-world.in"
 FLAGS=(--s3-no-check-bucket); [ -n "${DRYRUN:-}" ] && FLAGS+=(--dry-run)
 
 if [ -z "$DIR" ]; then
