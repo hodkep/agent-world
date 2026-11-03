@@ -5,7 +5,7 @@ import { type ParsedHandoff, parseHandoff } from '../../shared/handoff'
 import type { ToolRun } from './ToolCard'
 
 export type Row =
-  | { kind: 'user'; id: string; text: string; /** When it was sent (not set on one still sending). */ at?: number; pending?: boolean; queued?: boolean; /** Waiting in Claude's own queue, which the chat did not send: typed in the terminal. */ waiting?: boolean }
+  | { kind: 'user'; id: string; text: string; /** When it was sent (not set on one still sending). */ at?: number; pending?: boolean; queued?: boolean; /** Waiting in Claude's own queue, which the chat did not send: typed in the terminal. */ waiting?: boolean; /** The newest message in Claude's queue, which carries the button that takes the queue back (sent from the chat or typed in the terminal). */ takeback?: boolean }
   | { kind: 'image'; id: string; src: string }
   | { kind: 'shell'; id: string; command: string; out?: { stdout: string; stderr: string } }
   | { kind: 'command'; id: string; name: string; args: string }
@@ -190,18 +190,20 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
   rows.splice(0, rows.length, ...gather(joined))
   // Messages sent from the composer show at once, until the transcript has them.
   // Claude may record it without the attached-file mentions, as a shell command, or as a slash command.
-  const said = new Set<string>()
+  // Each with when it was last said: the same words sent earlier do not count as this one arriving.
+  const said = new Map<string, number>()
+  const say = (text: string, at: number) => said.set(text, Math.max(said.get(text) ?? -Infinity, at))
   for (const i of items) {
-    if (i.kind === 'user') said.add(norm(i.text))
-    else if (i.kind === 'shell') said.add(norm(`!${i.command}`))
-    else if (i.kind === 'command') said.add(norm(`${i.name} ${i.args}`))
+    if (i.kind === 'user') say(norm(i.text), i.at)
+    else if (i.kind === 'shell') say(norm(`!${i.command}`), i.at)
+    else if (i.kind === 'command') say(norm(`${i.name} ${i.args}`), i.at)
   }
   for (const p of sent) {
     const n = norm(p.text)
     // A message that was only pictures is done once a newer picture shows up.
     // Claude folds sends made during one step into a single prompt, so a newer message may hold it.
     const folded = (): boolean => p.at !== undefined && items.some((i) => i.kind === 'user' && i.at >= p.at! - 2000 && norm(i.text).includes(n))
-    const done = n ? said.has(n) || folded() : items.some((i) => i.kind === 'image' && i.at >= (p.at ?? 0) - 2000)
+    const done = n ? (said.has(n) && (p.at === undefined || !(said.get(n)! < p.at - 2000))) || folded() : items.some((i) => i.kind === 'image' && i.at >= (p.at ?? 0) - 2000)
     if (!done) rows.push({ kind: 'user', id: p.id, text: p.text, pending: true, queued: p.queued })
   }
   // What waits in Claude's own queue (typed in the terminal): a dequeue takes the oldest, a remove the one it names. One the chat sent shows already.
@@ -210,6 +212,7 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     if (i.kind !== 'queue') continue
     if (i.op === 'enqueue') queue.push(i.text)
     else if (i.op === 'dequeue') queue.shift()
+    else if (i.op === 'popAll') queue.length = 0
     else {
       const k = queue.findIndex((t) => norm(t) === norm(i.text))
       if (k >= 0) queue.splice(k, 1)
@@ -220,8 +223,19 @@ export function toRows(items: ChatItem[], sent: Sent[]): Row[] {
     if (!norm(text) || shown.has(norm(text))) return
     rows.push({ kind: 'user', id: `waiting-${k}-${text.slice(0, 24)}`, text, pending: true, queued: true, waiting: true })
   })
+  // The button goes once, on the newest queued row. Claude's transcript may not show a queued message yet, so the screen decides when the button is pressed.
+  for (let k = rows.length - 1; k >= 0; k--) {
+    const r = rows[k]!
+    if (r.kind === 'user' && r.pending && r.queued) {
+      r.takeback = true
+      break
+    }
+  }
   return rows
 }
+
+/** The words of every message waiting in Claude's queue, in the order shown: what a take-back puts into the input box. */
+export const queuedTexts = (rows: Row[]): string[] => rows.flatMap((r) => (r.kind === 'user' && r.pending && r.queued && r.text.trim() ? [r.text.trim()] : []))
 
 /** A message's words without the attached-file mentions or the line breaks, to tell one saved a different way from the one that was sent. */
 export const norm = (t: string) => t.replace(/@"[^"]*"/g, '').replace(/\s+/g, ' ').trim()
