@@ -1,27 +1,66 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><title>Agent World {{version}}</title>
 <style>
-/* The look of the earlier posters: the app's palette (DESIGN.md), a faint grid, flat cards with a hard shadow. Drawn at 1280x720 and zoomed 2x. */
-:root{--bg:#12101a;--panel:#1a1726;--panel2:#221e32;--well:#0c0b12;--line:#2c3350;--text:#e4e4ee;--muted:#a4a2b8;--accent:#f2c230;--think:#6ad0e0}
+/* The look since 0.11.0: a tall brass version on the left, the changes as stacked rows on the right, each with a pixel drawing picked by its kicker (Library, Workflows, Agents, Chat, Office; anything else gets the gear). Drawn at 1280x720 and zoomed 2x. */
+:root{--bg:#12101a;--panel:#1a1726;--line:#2c3350;--text:#e4e4ee;--muted:#a4a2b8;--accent:#f2c230;--think:#6ad0e0}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,system-ui,sans-serif}
-#poster{width:1280px;height:720px;position:relative;overflow:hidden;background:var(--bg);zoom:2}
-.grid{position:absolute;inset:0;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:32px 32px;opacity:.18}
-.head{position:absolute;left:48px;top:34px}.ver{font:700 14px Menlo,monospace;letter-spacing:.2em;color:var(--accent);text-transform:uppercase}
-.title{font:800 60px/1.05 -apple-system,system-ui,sans-serif;letter-spacing:-.02em}.title em{font-style:normal;color:var(--accent)}
-.tag{position:absolute;right:48px;top:50px;width:620px;text-align:right}.tag b{display:block;font-size:30px;line-height:1.15;letter-spacing:-.01em}.tag span{display:block;margin-top:6px;font-size:16px;color:var(--muted)}
-.pcards{position:absolute;left:48px;right:48px;top:150px;height:410px;display:grid;grid-template-columns:repeat(var(--n),1fr);gap:24px}
-.pcard{background:var(--panel);box-shadow:0 5px 0 #000,inset 0 0 0 2px var(--line);padding:24px;display:flex;flex-direction:column;min-width:0}
-.psub{font:12px Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
-.pcard h3{margin:6px 0 8px;font-size:26px;line-height:1.15;letter-spacing:-.01em}.pcard p{margin:0;color:var(--muted);font-size:16px}
-.pbig{margin-top:22px;font:800 56px/1 Menlo,monospace;color:var(--accent);letter-spacing:-.02em}.pbiglabel{margin-top:6px;font:12px Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.pchips{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}.pcard .pchips{margin-top:auto;padding-top:18px}
-.pchip{font:600 12px Menlo,monospace;padding:4px 10px;background:var(--well);box-shadow:inset 0 0 0 2px var(--line);color:var(--think)}
-.palso{position:absolute;left:48px;right:48px;top:592px}.palso .psub{color:var(--muted);margin-bottom:6px}
-.foot{position:absolute;left:48px;bottom:10px;font:11px Menlo,monospace;color:var(--muted)}
+#poster{width:1280px;height:720px;position:relative;overflow:hidden;background:var(--bg);zoom:2;font-family:Futura,-apple-system,system-ui,sans-serif}
+svg{shape-rendering:crispEdges}
+.left{position:absolute;left:56px;top:40px;width:440px;height:640px}
+.brand{font:500 14px/1 Futura,sans-serif;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+.ver{margin-top:14px;font:700 150px/.95 Futura,sans-serif;letter-spacing:-.05em;color:var(--accent);white-space:nowrap}
+.pre{margin-top:10px;font:700 26px/1 Futura,sans-serif;letter-spacing:.04em;color:var(--accent)}
+.tag{margin-top:26px}.tag b{display:block;font:700 30px/1.1 Futura,sans-serif}.tag span{display:block;margin-top:8px;font:400 14.5px/1.45 -apple-system,system-ui,sans-serif;color:var(--muted)}
+.foot{position:absolute;left:0;bottom:0;font:500 12px/1 Futura,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+.pcards{position:absolute;left:560px;right:56px;top:48px;bottom:100px;display:flex;flex-direction:column;justify-content:center}
+.pcard{display:grid;grid-template-columns:150px 1fr;gap:26px;align-items:center;padding:18px 0;border-top:1px solid var(--line)}.pcard:first-child{border-top:0;padding-top:0}
+.pcard svg{width:150px;height:110px;display:block;background:var(--panel);box-shadow:inset 0 0 0 2px var(--line)}
+.pcard .psub{display:none}.pcard h3{margin:0 0 4px;font:700 22px/1.1 Futura,sans-serif}.pcard p{margin:0;font:400 13.5px/1.45 -apple-system,system-ui,sans-serif;color:var(--muted)}
+.pbig{margin-top:6px;font:700 28px/1 Futura,sans-serif;color:var(--accent)}.pbiglabel{font:500 11px/1 Futura,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.pchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.pchip{font:500 11px/1 -apple-system,system-ui,sans-serif;padding:4px 8px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);color:var(--think)}
+.palso{position:absolute;left:560px;right:56px;bottom:30px;font:400 12.5px/1.6 -apple-system,system-ui,sans-serif;color:var(--muted)}
+.palso .psub{display:inline;color:var(--think);font-weight:600}.palso .psub::after{content:" · "}.palso .pchips{display:inline;margin:0}.palso .pchip{display:inline;padding:0;background:none;box-shadow:none;color:var(--muted)}.palso .pchip::after{content:" · "}.palso .pchip:last-child::after{content:""}
 </style></head><body>
-<div id="poster"><div class="grid"></div>
- <div class="head"><div class="ver">Release</div><div class="title">Agent World <em>{{version}}</em></div></div>
- <div class="tag"><b>{{tagline}}</b><span>{{subtitle}}</span></div>
+<svg width="0" height="0" style="position:absolute"><defs>
+ <g id="d-library"><rect x="20" y="118" width="200" height="8" fill="#8e5b34"/><rect x="20" y="126" width="200" height="4" fill="#6a4124"/><rect x="28" y="54" width="22" height="64" fill="#6ad0e0"/><rect x="54" y="40" width="22" height="78" fill="#f2c230"/><rect x="80" y="62" width="22" height="56" fill="#b03f5e"/><rect x="106" y="48" width="22" height="70" fill="#5f9e5f"/><rect x="132" y="70" width="22" height="48" fill="#4a6a96"/><rect x="158" y="44" width="22" height="74" fill="#f2c230"/><rect x="184" y="58" width="22" height="60" fill="#6ad0e0"/><rect x="34" y="62" width="10" height="10" fill="#12101a"/><rect x="60" y="48" width="10" height="10" fill="#12101a"/><rect x="86" y="70" width="10" height="10" fill="#12101a"/><rect x="112" y="56" width="10" height="10" fill="#12101a"/><rect x="138" y="78" width="10" height="10" fill="#12101a"/><rect x="164" y="52" width="10" height="10" fill="#12101a"/><rect x="190" y="66" width="10" height="10" fill="#12101a"/><rect x="196" y="18" width="30" height="30" fill="#f2c230"/><rect x="208" y="24" width="6" height="18" fill="#12101a"/><rect x="202" y="30" width="18" height="6" fill="#12101a"/></g>
+ <g id="d-workflows"><rect x="20" y="70" width="36" height="24" fill="#5f9e5f"/><rect x="62" y="70" width="36" height="24" fill="#5f9e5f"/><rect x="104" y="70" width="36" height="24" fill="#5f9e5f"/><rect x="146" y="70" width="36" height="24" fill="#f2c230"/><rect x="188" y="70" width="36" height="24" fill="#2c3350"/><rect x="56" y="80" width="6" height="4" fill="#e4e4ee"/><rect x="98" y="80" width="6" height="4" fill="#e4e4ee"/><rect x="140" y="80" width="6" height="4" fill="#e4e4ee"/><rect x="182" y="80" width="6" height="4" fill="#e4e4ee"/><rect x="152" y="30" width="4" height="40" fill="#e4e4ee"/><rect x="156" y="30" width="22" height="14" fill="#f2c230"/><rect x="196" y="100" width="22" height="6" fill="#6ad0e0"/><rect x="196" y="110" width="22" height="6" fill="#6ad0e0"/><rect x="20" y="110" width="110" height="8" fill="#1a1726"/><rect x="20" y="110" width="76" height="8" fill="#5f9e5f"/></g>
+ <g id="d-agents"><rect x="30" y="80" width="180" height="40" fill="#b03f5e"/><rect x="18" y="68" width="24" height="52" fill="#b03f5e"/><rect x="198" y="68" width="24" height="52" fill="#b03f5e"/><rect x="30" y="120" width="12" height="12" fill="#6a4124"/><rect x="198" y="120" width="12" height="12" fill="#6a4124"/><rect x="60" y="56" width="26" height="26" fill="#e4e4ee"/><rect x="66" y="64" width="4" height="4" fill="#12101a"/><rect x="76" y="64" width="4" height="4" fill="#12101a"/><rect x="86" y="66" width="80" height="18" fill="#4a6a96"/><rect x="166" y="70" width="24" height="12" fill="#1a1522"/><rect x="100" y="36" width="10" height="4" fill="#6ad0e0"/><rect x="104" y="32" width="6" height="4" fill="#6ad0e0"/><rect x="100" y="28" width="10" height="4" fill="#6ad0e0"/><rect x="118" y="22" width="14" height="4" fill="#6ad0e0"/><rect x="124" y="16" width="8" height="4" fill="#6ad0e0"/><rect x="118" y="10" width="14" height="4" fill="#6ad0e0"/></g>
+ <g id="d-chat"><rect x="20" y="30" width="60" height="10" fill="#e4e4ee"/><rect x="88" y="30" width="40" height="10" fill="#e4e4ee"/><rect x="136" y="30" width="50" height="10" fill="#c4c4d2"/><rect x="20" y="52" width="46" height="10" fill="#a4a2b8"/><rect x="74" y="52" width="64" height="10" fill="#7a7890"/><rect x="146" y="52" width="36" height="10" fill="#4a4860"/><rect x="20" y="74" width="54" height="10" fill="#34324a"/><rect x="82" y="74" width="40" height="10" fill="#26243a"/><rect x="20" y="104" width="34" height="14" fill="#f2c230"/><rect x="26" y="109" width="22" height="4" fill="#12101a"/></g>
+ <g id="d-office"><rect x="40" y="90" width="160" height="10" fill="#c68e57"/><rect x="48" y="100" width="10" height="30" fill="#8e5b34"/><rect x="182" y="100" width="10" height="30" fill="#8e5b34"/><rect x="86" y="44" width="68" height="46" fill="#d9d5c8"/><rect x="94" y="52" width="52" height="30" fill="#12101a"/><rect x="100" y="60" width="26" height="4" fill="#5f9e5f"/><rect x="100" y="68" width="38" height="4" fill="#5f9e5f"/><rect x="112" y="90" width="16" height="0" fill="#d9d5c8"/><rect x="30" y="30" width="20" height="40" fill="#3f8f4f"/><rect x="36" y="70" width="8" height="20" fill="#6a4124"/></g>
+ <g id="d-other"><rect x="96" y="40" width="48" height="8" fill="#f2c230"/><rect x="96" y="102" width="48" height="8" fill="#f2c230"/><rect x="80" y="56" width="8" height="38" fill="#f2c230"/><rect x="152" y="56" width="8" height="38" fill="#f2c230"/><rect x="88" y="48" width="64" height="54" fill="#f2c230"/><rect x="108" y="66" width="24" height="18" fill="#12101a"/></g>
+</defs></svg>
+<div id="poster">
+ <div class="left"><div class="brand">Agent World</div><div class="ver">{{version}}</div><div class="tag"><b>{{tagline}}</b><span>{{subtitle}}</span></div><div class="foot">{{footer}}</div></div>
  {{cards}}
  {{also}}
- <div class="foot">{{footer}}</div>
-</div></body></html>
+</div>
+<script>
+// A pre-release tag (-beta.1) goes under the number, small; a long core version is set smaller so it stays on one line.
+const ver = document.querySelector('.ver'), [core, ...rest] = ver.textContent.split('-')
+ver.textContent = core
+// A digit is about .56em wide and a dot .3em in Futura bold: the number is set as large as its 440px column allows, up to 150px.
+const units = [...core].reduce((n, c) => n + (c === '.' ? 0.3 : 0.56), 0)
+ver.style.fontSize = Math.min(150, Math.floor(440 / units)) + 'px'
+if (rest.length) { const pre = document.createElement('div'); pre.className = 'pre'; pre.textContent = '-' + rest.join('-'); ver.after(pre) }
+// Each card's kicker names its drawing: one per area of the app, the gear for anything else. The kicker itself is not shown.
+const known = ['library', 'workflows', 'agents', 'chat', 'office']
+for (const card of document.querySelectorAll('.pcard')) {
+  const k = (card.querySelector('.psub')?.textContent || '').trim().toLowerCase()
+  const id = known.find((n) => k.includes(n)) || 'other'
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('viewBox', '0 0 240 150')
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use')
+  use.setAttribute('href', '#d-' + id)
+  svg.appendChild(use)
+  const body = document.createElement('div')
+  while (card.firstChild) body.appendChild(card.firstChild)
+  card.append(svg, body)
+}
+// Rows that would run past the frame (long titles, four chips, a big figure on every card) are scaled down together until they fit.
+const col = document.querySelector('.pcards')
+if (col) {
+  const inner = document.createElement('div')
+  while (col.firstChild) inner.appendChild(col.firstChild)
+  col.appendChild(inner)
+  if (inner.scrollHeight > col.clientHeight) inner.style.zoom = String(Math.max(0.6, col.clientHeight / inner.scrollHeight))
+}
+</script></body></html>

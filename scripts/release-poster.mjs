@@ -1,4 +1,4 @@
-// Draws a release poster (2560x1440 PNG) from a small content file, in the look of the earlier posters: the app's palette, a grid, a title and two to four cards.
+// Draws a release poster (2560x1440 PNG) from a small content file: a tall brass version on the left and two to four rows on the right, each with a pixel drawing picked by its kicker (see scripts/poster-template.html).
 //   pnpm release:poster <content.json> <out.png>      e.g. pnpm release:poster docs/images/releases/0.9.0/poster.json docs/images/releases/0.9.0/poster.png
 // Content: { version, tagline, subtitle?, cards: [{ kicker, title, text, big?, bigLabel?, chips? }] (2 to 4), also?: [string] (up to 6), footer? }. See RELEASING.md.
 // It needs Electron and Playwright, which the repo already has; nothing is downloaded. The text is escaped, so content cannot add markup.
