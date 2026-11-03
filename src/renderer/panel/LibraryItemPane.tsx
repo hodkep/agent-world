@@ -7,7 +7,7 @@ const ICON: Record<LibraryItem['kind'], IconName> = { skill: 'book', instruction
 type Tab = 'where' | 'text' | 'files' | 'used'
 
 /** The open item at the full height of the window: facts at the top, then tabs, the first being the item's own words, drawn as markdown in a viewer that says it scrolls. */
-export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onRemove }: { item: LibraryItem; usage?: { claude: number; agy: number; total: number }; /** For a skill: the panel that says where it works. */ where?: ReactNode; /** For a skill: its use in the last 30 days, under the description. */ stats?: ReactNode; /** The item's spine colour, worn by its icon. */ colour?: string; onEdit: () => void; onRemove: () => void }) {
+export function LibraryItemPane({ item, usage, where, footer, stats, colour, onEdit, onRemove }: { item: LibraryItem; usage?: { claude: number; agy: number; total: number }; /** For a skill: its overview, the first tab (where it lives, where it works, where it is used). */ where?: ReactNode; /** For a skill: the actions under it (Remove, Delete), in place of the Remove button at the top. */ footer?: ReactNode; /** For a skill: its use in the last 30 days, under the description. */ stats?: ReactNode; /** The item's spine colour, worn by its icon. */ colour?: string; onEdit: () => void; onRemove: () => void }) {
   const first: Tab = where ? 'where' : 'text'
   const [tab, setTab] = useState<Tab>(first)
   const scroller = useRef<HTMLDivElement>(null)
@@ -30,7 +30,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
     if (el && ro) ro.observe(el)
     return () => ro?.disconnect()
   }, [tab, item.id, item.body])
-  const TABS: [Tab, string][] = [...(where ? ([['where', 'Where it works']] as [Tab, string][]) : []), ['text', 'What an agent reads'], ['files', `Files${item.files.length ? ` (${item.files.length})` : ''}`], ['used', 'Used by']]
+  const TABS: [Tab, string][] = [...(where ? ([['where', 'Overview']] as [Tab, string][]) : []), ['text', 'What an agent reads'], ['files', `Files${item.files.length ? ` (${item.files.length})` : ''}`], ...(where ? [] : ([['used', 'Used by']] as [Tab, string][]))]
   const tid = (id: Tab) => `lip-tab-${id}`
   const pid = (id: Tab) => `lip-panel-${id}`
   // The tabs as one stop in the Tab order: the arrow keys, Home and End move between them, and the tab moved to is picked.
@@ -46,7 +46,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
   return (
     <div className="lip" role="group" aria-label={`${item.name} in detail`}>
       <div className="lip-top">
-        <div className="lip-title"><span className="lip-ic" style={colour ? ({ '--sk': colour } as React.CSSProperties) : undefined}><PixelIcon name={ICON[item.kind]} scale={3} /></span><h3>{item.name}</h3><small className="lib-kind">{item.kind}</small><span className="lib-sp" /><button onClick={onEdit}>Edit</button><button className="bad-text" onClick={onRemove}>Remove</button></div>
+        <div className="lip-title"><span className="lip-ic" style={colour ? ({ '--sk': colour } as React.CSSProperties) : undefined}><PixelIcon name={ICON[item.kind]} scale={3} /></span><h3>{item.name}</h3><small className="lib-kind">{item.kind}</small><span className="lib-sp" /><button onClick={onEdit}>Edit</button>{!footer && <button className="bad-text" onClick={onRemove}>Remove</button>}</div>
         <p className="lip-desc">{item.description}</p>
         {stats}
       </div>
@@ -108,6 +108,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
           </dl>
         </div>
       )}
+      {footer}
     </div>
   )
 }

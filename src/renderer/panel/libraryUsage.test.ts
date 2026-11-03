@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dustOf, meterCells, splitUsage } from './libraryUsage'
+import { byProject, dustOf, meterCells, splitUsage } from './libraryUsage'
 
 const skill = (id: string, description: number) => ({ id, name: id, kind: 'skill' as const, tokens: { description, body: 0 } })
 
@@ -7,7 +7,7 @@ describe('the Usage tab\'s skills', () => {
   it('puts used skills first, most used on top, and the unused ones apart with what those that are on cost', () => {
     const r = splitUsage(
       [skill('pdf', 10), skill('memo', 20), skill('graphify', 30), skill('db', 40), { id: 'terse', name: 'terse', kind: 'instruction' as const, tokens: { description: 5, body: 0 } }],
-      { pdf: { used: 3, last: 9, agents: ['os'], accounts: [], days: [], who: [] }, memo: { used: 9, last: 8, agents: [], accounts: [], days: [], who: [] }, db: { used: 0, last: 1, agents: [], accounts: [], days: [], who: [] } },
+      { pdf: { used: 3, last: 9, agents: ['os'], accounts: [], days: [], who: [], projects: {} }, memo: { used: 9, last: 8, agents: [], accounts: [], days: [], who: [], projects: {} }, db: { used: 0, last: 1, agents: [], accounts: [], days: [], who: [], projects: {} } },
       ['db']
     )
     expect(r.used.map((u) => [u.item.id, u.use.used])).toEqual([['memo', 9], ['pdf', 3]])
@@ -17,7 +17,7 @@ describe('the Usage tab\'s skills', () => {
   })
 
   it('picks for Clear the dust the unused skills still on for Claude, and says what turning them off saves', () => {
-    const r = splitUsage([skill('pdf', 10), skill('memo', 20), skill('db', 40)], { pdf: { used: 1, last: 9, agents: [], accounts: [], days: [], who: [] } }, ['db'])
+    const r = splitUsage([skill('pdf', 10), skill('memo', 20), skill('db', 40)], { pdf: { used: 1, last: 9, agents: [], accounts: [], days: [], who: [], projects: {} } }, ['db'])
     expect(dustOf(r)).toEqual({ ids: ['memo'], saves: 20 })
     // A skill a playbook still hands to agents is not dust: switching it off would save nothing.
     expect(dustOf(r, new Set(['memo']))).toEqual({ ids: [], saves: 0 })
@@ -30,5 +30,13 @@ describe('the start-of-session cost meter', () => {
     expect(meterCells(3, 400)).toBe(1)
     expect(meterCells(100, 400)).toBe(5)
     expect(meterCells(900, 400)).toBe(20)
+  })
+})
+
+describe('where skills are used, by project', () => {
+  it('adds up each project\'s uses over every skill, most used first, with the skills used most there, named by the project when it is known', () => {
+    const use = (projects: Record<string, number>) => ({ used: 0, last: 0, agents: [], accounts: [], days: [], who: [], projects })
+    const r = byProject({ pdf: use({ shop: 5, api: 1 }), memo: use({ shop: 2 }), tdd: use({ api: 4, gone: 1 }) }, [{ key: 'shop', path: '/w/shop', name: 'shop-app' }, { key: 'api', path: '/w/api', name: 'api' }])
+    expect(r.map((x) => [x.name, x.uses, x.top])).toEqual([['shop-app', 7, ['pdf', 'memo']], ['api', 5, ['tdd', 'pdf']], ['gone', 1, ['tdd']]])
   })
 })

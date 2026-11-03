@@ -4758,8 +4758,64 @@ main.term-side .stage-wrap.off { z-index: auto; }
 /* An agent just loaded it: three blinks down its edge and a +1 that floats off; nothing moves for those who ask for less motion. */
 .skl-row.live::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--violet); animation: skl-blink 0.4s steps(2) 3; }
 .skl-plus { position: absolute; right: 52px; top: 6px; font: 700 11px Menlo, Consolas, monospace; color: var(--violet); animation: skl-rise 1.2s steps(6) forwards; }
+/* The Skills tab: a panel for each place skills live in, and a calm row for each skill (its name, one line about it, its size). */
+.sk2 { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sk2-list { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.sk2-pnl { flex: none; border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); background: var(--panel-3); }
+.sk2-grp { display: flex; align-items: baseline; gap: 12px; padding: 12px 14px 10px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
+.sk2-grp b { font-size: 13px; font-weight: 600; }
+.sk2-path { flex: 1; min-width: 0; font: 11px Menlo, Consolas, monospace; color: var(--hint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk2-tot { flex: none; font: 700 12px Menlo, Consolas, monospace; color: var(--muted); }
+.sk2-row { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 14px; align-items: center; width: 100%; min-height: 54px; padding: 10px 16px; background: none; border: 0; border-bottom: 1px solid var(--line-soft); box-shadow: none; text-align: left; }
+.sk2-row:last-child { border-bottom: 0; }
+.sk2-row:hover:not(:disabled) { background: var(--panel-2); }
+.sk2-row.sel { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent-dim); }
+.sk2-spine { position: relative; width: 12px; height: 30px; border: 2px solid var(--ink); display: grid; place-items: end center; padding-bottom: 2px; color: var(--ink); }
+.sk2-spine::before { content: ''; position: absolute; left: 1px; right: 1px; top: 5px; height: 3px; background: var(--spine-shine); }
+.sk2-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sk2-main > b { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk2-main > small { color: var(--hint); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk2-main > small.bad { color: var(--danger-text); }
+.sk2-size { font: 700 12.5px Menlo, Consolas, monospace; color: var(--muted); }
+.sk2-size.big { color: var(--danger-text); }
+.sk2-row.found { opacity: 0.55; }
+.sk2-row.found .sk2-spine { filter: saturate(0.2); }
+/* An agent just loaded it: a few blinks down its edge and a +1 that floats off; nothing moves for those who ask for less motion. */
+.sk2-row.live::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--violet); animation: skl-blink 0.4s steps(2) 3; }
+.sk2-plus { position: absolute; right: 60px; top: 8px; font: 700 11px Menlo, Consolas, monospace; color: var(--violet); animation: skl-rise 1.2s steps(6) forwards; }
 @keyframes skl-blink { 50% { opacity: 0; } }
 @keyframes skl-rise { to { transform: translateY(-8px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sk2-row.live::after, .sk2-plus { animation: none; } .sk2-plus { display: none; } }
+
+/* The skill's reader as one calm column: sections 24px apart, a label above each value. */
+.sk2-over { flex: 1; min-height: 0; overflow: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 24px; }
+.sk2-over h5 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.sk2-kv { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.sk2-kv > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; row-gap: 2px; }
+.sk2-kv dt { grid-column: 1; color: var(--hint); font-size: 11.5px; }
+.sk2-kv dd { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; }
+.sk2-kv .mono { font: 12px Menlo, Consolas, monospace; min-width: 0; }
+.sk2-kvact { grid-column: 2; grid-row: 1; display: flex; gap: 4px; }
+.sk2-chip { flex: none; font: 11px Menlo, Consolas, monospace; padding: 0 6px; border: 2px solid var(--ink); background: var(--well); color: var(--muted); }
+.sk2-note { margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: var(--panel-2); border: 2px solid var(--ink); font-size: 12px; color: var(--muted); }
+.sk2-note > span { flex: 1; min-width: 200px; }
+.sk2-used { display: flex; flex-direction: column; gap: 8px; }
+.sk2-u { display: grid; grid-template-columns: 130px minmax(0, 1fr) 32px; gap: 12px; align-items: center; font-size: 12.5px; }
+.sk2-u span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sk2-u i { display: block; height: 10px; background: var(--violet); border: 2px solid var(--ink); }
+.sk2-u b { font: 700 12px Menlo, Consolas, monospace; text-align: right; }
+.sk2-foot { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 12px 24px; border-top: 2px solid var(--ink); background: var(--panel-3); }
+.sk2-foot.confirm { flex-direction: column; align-items: stretch; gap: 10px; background: var(--danger-well); }
+.sk2-foot.confirm p { margin: 0; font-size: 12.5px; }
+.sk2-foot.confirm p b { color: var(--danger-text); font-weight: 600; }
+.sk2-foot.confirm ul { margin: 0; padding-left: 18px; color: var(--muted); font: 11.5px Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.sk2-foot .warn { padding: 8px 10px; background: var(--panel-3); border: 2px solid var(--ink); }
+.sk2-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sk2-reader { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* In the overview, where it works is the plain list of places, without the cables. */
+.sk2-over .lip-panel.skw { background: none; padding: 0; display: block; overflow: visible; }
+.sk2-over .skw-lib, .sk2-over .skw-cables { display: none; }
+.sk2-over .skw-note { display: none; }
 .lib-sum { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 2px; font-size: 12px; }
 .lib-bar input[aria-label='Find an item'] { width: 190px; }
 
@@ -4824,7 +4880,8 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .sku-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
 @media (max-width: 900px) { .sku-grid { grid-template-columns: minmax(0, 1fr); } }
 .sku-col { padding: 12px 14px; display: flex; flex-direction: column; gap: 16px; background: var(--panel); }
-.sku-col + .sku-col { border-left: 2px solid var(--ink); background: var(--panel-3); gap: 8px; }
+.sku-col + .sku-col { border-left: 2px solid var(--ink); background: var(--panel-3); gap: 24px; }
+.sku-crew > div { display: flex; flex-direction: column; gap: 8px; }
 .sku-col h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--text); }
 .sku-col .hint { margin: 0; }
 .sku-rank { display: grid; grid-template-columns: 24px 10px minmax(0, 1fr) 140px 40px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
