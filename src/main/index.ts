@@ -630,7 +630,8 @@ async function readyAskers(): Promise<ProviderId[]> {
   askersSeen = { at: Date.now(), ready }
   return ready
 }
-const workflowsFor = (agentId: string) => !byId(agentId)?.builder && ((prefs.workflows.enabled && !noWorkflowFor(agentId)) || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
+// Offered whenever workflows are on, in a project that uses none too (task_begin then says nothing is recorded): taken away mid-conversation, a tool the agent still has from its start fails as not found.
+const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
 async function syncRunCommits(a: AgentRecord) {
   // Switched on, every agent's commits are read (an agent that never announced a task still gets a run); switched off, only agents with runs.
@@ -1614,6 +1615,8 @@ async function main() {
         return { planFirst, ...(run?.workflow && !followUp && { brief: workflowBrief(run.workflow, { fellBackFrom: missing, planFirst, skills: skillStates(run.workflow, skillSource.items(), skillSource.playbook(a?.repoPath ?? null)) }) }) }
       },
       done: (caller, summary) => {
+        // A project that uses no workflow recorded nothing when the task began, so there is nothing to finish: no error for following the usual words.
+        if (noWorkflowFor(caller) && !workflows.runs().some((r) => r.agent === caller && r.status === 'open')) return
         workflows.done(caller, summary)
         // The tasks of the board this run belongs to are finished with it, if the agent has not said so itself.
         todoService.finishLinked(caller, workflows.runs().findLast((r) => r.agent === caller)?.todos ?? [], summary ?? '')
