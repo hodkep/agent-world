@@ -7,7 +7,7 @@ import { buildCatalog } from './catalog'
 import { matchItems } from './match'
 import { GUIDE_ID } from './guide'
 import { FORMS_ID, VISUALS_ID } from './visuals'
-import { UseLog, summarize, type How, type Summary, type Use } from './uses'
+import { UseLog, skillUsage, summarize, type How, type SkillUse, type Summary, type Use } from './uses'
 
 /** The app's own items: in every agent's reach, not something the person set up. */
 const BUILT_IN = new Set([GUIDE_ID, VISUALS_ID, FORMS_ID])
@@ -17,6 +17,8 @@ export interface AgentRef {
   name: string
   repoPath: string
   provider: string
+  /** The name of the account it runs on, for a program with accounts. */
+  account?: string
   /** Its program reports what it does by hooks that call the office (agy's plugin), so silence from them means they are not getting through. */
   viaHook?: boolean
 }
@@ -40,6 +42,8 @@ interface Deps {
   workspaceKey: (repoPath: string) => string
   /** The skills named on the steps of the agent's open task's workflow: it may read them even when its playbook leaves them out. */
   grants?: (agentId: string) => string[]
+  /** Whether a skill is already linked into Claude's own skills folder, where every account reads it: it is then left out of the per-session folder, or Claude would list it twice. */
+  linkedForClaude?: (id: string) => boolean
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
   onUse?: (agentId: string, how: How, item: string) => void
   /** The clock (tests move it). */
@@ -47,6 +51,21 @@ interface Deps {
 }
 
 const MAX_FILE = 100 * 1024
+
+/** The real path of one of a skill's own files; anything outside its folder, hidden, or not a plain file is refused. */
+function fileIn(item: Item, file: string): string {
+  if (item.kind !== 'skill') throw new Error(`${item.id} has no files.`)
+  let full: string
+  try {
+    // The real path, so a link inside the skill cannot lead out of it.
+    full = realpathSync(resolve(item.dir, file))
+  } catch {
+    throw new Error(`${file} is not a file of ${item.id}.`)
+  }
+  const rel = relative(realpathSync(item.dir), full)
+  if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.split(/[\\/]/).some((p) => p.startsWith('.')) || !lstatSync(full).isFile()) throw new Error(`${file} is not a file of ${item.id}.`)
+  return full
+}
 
 /** The library as agents use it: what each one is told when it starts, what it may ask for, and a record of what it fetched. */
 export function createLibraryService(d: Deps) {
@@ -104,7 +123,7 @@ export function createLibraryService(d: Deps) {
     if (!a) return
     // Hooks see every Skill call and Read; only the library's own items count.
     if ((how === 'skill' || how === 'read') && !itemsMap().has(id)) return
-    log.add({ agent: a.id, name: a.name, provider: a.provider, workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words, reason, because, ...(related !== undefined && { related }) })
+    log.add({ agent: a.id, name: a.name, provider: a.provider, ...(a.account ? { account: a.account } : {}), workspace: d.workspaceKey(a.repoPath), id, how, mode, turn: state.get(agentId)?.turn, launch: state.get(agentId)?.launch, words, reason, because, ...(related !== undefined && { related }) })
     if (how === 'fetched' || how === 'skill' || how === 'read') state.get(agentId)?.read.add(id)
     d.onUse?.(a.id, how, id)
   }
@@ -137,7 +156,12 @@ export function createLibraryService(d: Deps) {
       // The app's own guide is in every opening text; it is not something the person set up, so on its own it does not give the agent a Library tab.
       record(a.id, '', 'started', undefined, entries.some((e) => !BUILT_IN.has(e.id)) ? core : undefined)
       for (const e of entries) if (e.mode === 'always' && !BUILT_IN.has(e.id)) record(a.id, e.id, 'delivered', e.mode)
-      return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, compiled.skills), compiled }
+      // Claude is given every skill that is on for it, not only those a playbook names: a rule set to Off still keeps one away.
+      const off = library.claudeOff()
+      const ruledOff = new Set(rulesFor(a.repoPath).filter((r) => r.mode === 'off').map((r) => r.id))
+      const given = new Set(compiled.skills.map((s) => s.id))
+      const onForClaude = library.listSync().filter((i) => i.kind === 'skill' && !given.has(i.id) && !off.has(i.id) && !ruledOff.has(i.id))
+      return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, [...compiled.skills, ...onForClaude].filter((s) => !d.linkedForClaude?.(s.id))), compiled }
     },
 
     /**
@@ -190,16 +214,7 @@ export function createLibraryService(d: Deps) {
       if (!item) throw notAllowed(id)
       let text: string
       if (file) {
-        if (item.kind !== 'skill') throw new Error(`${id} has no files.`)
-        let full = resolve(item.dir, file)
-        try {
-          // The real path, so a link inside the skill cannot lead out of it.
-          full = realpathSync(full)
-        } catch {
-          throw new Error(`${file} is not a file of ${id}.`)
-        }
-        const rel = relative(realpathSync(item.dir), full)
-        if (!rel || rel.startsWith('..') || isAbsolute(rel) || rel.split(/[\\/]/).some((p) => p.startsWith('.')) || !lstatSync(full).isFile()) throw new Error(`${file} is not a file of ${id}.`)
+        const full = fileIn(item, file)
         try {
           if (statSync(full).size > MAX_FILE) throw new Error(`${file} is too large to read here; open it by its path: ${full}`)
           text = readFileSync(full, 'utf8')
@@ -256,6 +271,18 @@ export function createLibraryService(d: Deps) {
     /** How often each item was used, by program (what the Library pane shows beside an item). */
     async usage(): Promise<Record<string, { claude: number; agy: number; total: number }>> {
       return Object.fromEntries(summarize(log.all()).top.map((i) => [i.id, { claude: i.byProvider.claude?.used ?? 0, agy: i.byProvider.agy?.used ?? 0, total: i.used }]))
+    },
+
+    /** A skill's own file, for the window to open or show in Finder (not an agent read: nothing is logged). */
+    fileOf(id: string, file: string): string {
+      const item = library.listSync().find((i) => i.id === id)
+      if (!item) throw new Error(`${id} is not in the library.`)
+      return fileIn(item, file)
+    },
+
+    /** Per item: loads and reads in the last 30 days, the last one ever, and which agents and accounts used it. */
+    usage30(): Record<string, SkillUse> {
+      return skillUsage(log.all(), now())
     },
 
     /** What the log says: per item, per program and per agent, how often it was delivered, triggered and used. */

@@ -1,8 +1,8 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-import type { ItemStats, Summary, Tally, Use } from '../../shared/library'
-export type { How, ItemStats, Summary, Tally, Use } from '../../shared/library'
+import type { ItemStats, SkillUse, Summary, Tally, Use } from '../../shared/library'
+export type { How, ItemStats, SkillUse, Summary, Tally, Use } from '../../shared/library'
 
 export class UseLog {
   constructor(private file: string) {}
@@ -65,4 +65,21 @@ export function summarize(uses: Use[]): Summary {
   }
   const top = Object.values(items).filter((i) => i.used > 0).sort((a, b) => b.used - a.used || a.id.localeCompare(b.id))
   return { items, agents, top }
+}
+
+/** Per item: how often it was loaded or read in the last `days` days, when it last was (at any time), and which agents and accounts used it then. */
+export function skillUsage(uses: Use[], now: number, days = 30): Record<string, SkillUse> {
+  const since = now - days * 86_400_000
+  const out: Record<string, SkillUse> = {}
+  for (const u of uses) {
+    if (u.how !== 'fetched' && u.how !== 'skill' && u.how !== 'read') continue
+    const s = (out[u.id] ??= { used: 0, last: 0, agents: [], accounts: [] })
+    s.last = Math.max(s.last, u.t)
+    if (u.t < since) continue
+    s.used++
+    if (!s.agents.includes(u.name)) s.agents.push(u.name)
+    if (u.account && !s.accounts.includes(u.account)) s.accounts.push(u.account)
+  }
+  for (const s of Object.values(out)) (s.agents.sort(), s.accounts.sort())
+  return out
 }

@@ -10,25 +10,36 @@ The **playbook** says how an agent gets an item. An item does nothing until a pl
 
 ## Open the library
 
-Click **Library** in the top bar. Its tabs are **Shelf**, **Playbook** and **Reached for**.
+Click **Playbook and tools** in the top bar. Its tabs are **Skills**, **Playbook** and **Usage**.
 
-If the button says **Library (off)**, open it and click **Open Settings → Features**, then turn on **Library and playbook**. Your items and playbooks are kept while it is off, and agents are told nothing from them.
+If the button says **Playbook and tools (off)**, open it and click **Open Settings → Features**, then turn on **Library and playbook**. Your items and playbooks are kept while it is off, and agents are told nothing from them.
 
-## Put items on the shelf
+## Put items in the library
 
-On the **Shelf** tab:
+On the **Skills** tab:
 
-- To copy skills you already have: click **Import…**, tick the skills you want and click **Import N selected**. It lists skills found in `~/.claude/skills`, the `~/.gemini` skill folders, the open project's `.claude/skills` and `.agents/skills`, and enabled Claude plugins. Originals stay where they are.
-- To write an instruction: click **New instruction**, fill in the name, the one line and **Text an agent reads**, then click **Save**.
+- To copy skills you already have: click **Add skill…**, tick the skills you want and click **Import N selected**. It lists skills found in `~/.claude/skills`, the `~/.gemini` skill folders, the open project's `.claude/skills` and `.agents/skills`, and enabled Claude plugins. Originals stay where they are.
+- To write an instruction: click **New instruction**, fill in **Name**, **When to use it** and **Text an agent reads**, then click **Save** (or press ⌘↵; Esc cancels).
 - To write a prompt: click **New prompt** and do the same.
 
-Click an item to read it, **Edit** to change it, or **Remove** to delete it from the library. Use **Find an item…** to search **In the box**, the items that are in no playbook. Items **On the desk** are told every time. Items **On the shelf** are pointed at.
+Click an item to read it, **Edit** to change it, or **Remove** to delete it from the library. Use **Find an item…** to search. A skill's **Files** tab lists its other files with their size in tokens: **Open** opens one in the program your Mac uses for it, and **Show in Finder** shows the skill's folder. The line above the list says how many skills are on for Claude and about how many tokens their names and descriptions add to the start of every session.
 
-<img src="../images/library.png" alt="The Shelf tab with the item commit-style open: its text, size in tokens, and the tabs What an agent reads, Files and Used by" width="720">
+## Choose where a skill works
+
+Each skill has a switch in the list, and a **Where it works** tab when you open it. One copy lives in the library; nothing is copied.
+
+- **On for every Claude account in the app**: on by default. Every Claude agent gets the skill when it starts, on every account the app has set up, and nothing is installed in an account's own folder. Switch it off to keep the skill in the library only. A skill a playbook rule names still reaches the agent, and a rule set to **Off** keeps one away.
+- **Claude (outside the app)**, **Antigravity CLI**, **Antigravity app** and **This project**: switch one on to link the skill into that program's skills folder. The link points at the library copy, so an edit shows everywhere. A place that is not installed here is greyed out. If a folder of the same name is already there, the row says **a copy** and is left as it is.
+
+A skill that is linked into **Claude (outside the app)** is not added again when an agent starts, so Claude does not list it twice.
+
+Agents already running keep the skills they started with until they restart.
+
+<img src="../images/library.png" alt="The Skills tab with the item commit-style open: its text, size in tokens, and the tabs What an agent reads, Files and Used by" width="720">
 
 ## Choose what agents are told
 
-On the **Playbook** tab:
+On the **Playbook** tab, the bookshelf at the top shows what is **On the desk** (told every time) and **On the shelf** (pointed at), and a notice appears there when the opening text is over budget. Below it:
 
 1. Pick a scope: **Everywhere**, or the button named after the open project's folder. The project's rule wins over **Everywhere** for the same item.
 2. Click **Add an item…** and click an item. It is added as **Pointed at**, soft.
@@ -71,9 +82,11 @@ An agent can read only items in its playbook. Claude Code also gets the playbook
 - In the chat, notes under a message say what the library did, such as **Told at the start**, **Rulebook sent**, or an item read or passed over. Click a note to see the exact words.
 - On an agent, the **Library** tab shows **What it was told** and **What it did**. It appears once the library has done something for that agent.
 
-## Reached for
+## Usage
 
-The **Reached for** tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
+The top of the **Usage** tab shows the library's skills over the last 30 days. **Used in 30 days** has a bar per skill, longest for the most used, with the agents and accounts that used it and when it was last used. A use is Claude loading the skill, or an agent reading it. **Not used in 30 days** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, or **Remove** to delete it from the library.
+
+Below that, the tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
 
 To fix a flagged row, click **Write a when** (**Write a narrower when** when most said no), **Make it firm** or **Make it a step**.
 

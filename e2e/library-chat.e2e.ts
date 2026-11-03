@@ -66,9 +66,9 @@ test('chat: margin notes under a message say what the library did for it, and op
     await expect(tab.getByLabel('What it did')).toContainText('Read pdf')
 
     // The top bar's Library: the item shows under "Reached for", with a verdict in words (too few pointings to judge yet).
-    await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Library' })
-    await dialog.getByRole('tab', { name: 'Reached for' }).click()
+    await page.locator('header').getByRole('button', { name: 'Playbook and tools', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
+    await dialog.getByRole('tab', { name: 'Usage' }).click()
     const rows = dialog.getByLabel('Items agents were reminded of')
     await expect(rows).toContainText('pdf')
     await expect(rows).toContainText('Too few to judge yet')

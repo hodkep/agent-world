@@ -42,8 +42,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'Settings' }).getByRole('tab', { name: 'Library' })).toHaveCount(0)
     await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Close settings' }).click()
-    await page.locator('header').getByRole('button', { name: 'Library', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Library' })
+    await page.locator('header').getByRole('button', { name: 'Playbook and tools', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
     const pane = dialog
     expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(1000)
     // Import the two skills found on this computer, and write one instruction.
@@ -54,8 +54,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await importing.getByRole('button', { name: 'Import 2 selected' }).click()
     await expect(pane.getByRole('status')).toContainText('Imported 2')
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
-    // What is in no playbook is in the box: a list that can be searched, with each item's cost beside its name.
-    const box = pane.getByRole('region', { name: 'In the box' })
+    // Every item is in one list that can be searched, with each item's cost beside its name.
+    const box = pane.getByRole('region', { name: 'Items' })
     await expect(box).toContainText('tokens')
     await box.getByLabel('Find an item').fill('cave')
     await expect(box.getByRole('button', { name: 'Open pdf' })).toHaveCount(0)
@@ -67,19 +67,20 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByLabel('Item text').fill('Talk short and plain.')
     await pane.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(pane.getByRole('button', { name: 'Open Terse' })).toBeVisible()
-    // A skill opens to its text, and says it was copied in.
+    // A skill opens to where it works: on for Claude by default. Its text, its other files and where it is used are the next tabs.
     await pane.getByRole('button', { name: 'Open pdf' }).click()
-    await expect(pane.getByRole('group', { name: 'pdf in detail' })).toContainText('Use the helper script')
-    // Its text is the first tab; its other files and where it is used are the next two.
     const detail = pane.getByRole('group', { name: 'pdf in detail' })
-    await expect(detail.getByRole('tab', { name: 'What an agent reads' })).toHaveAttribute('aria-selected', 'true')
+    await expect(detail.getByRole('tab', { name: 'Where it works' })).toHaveAttribute('aria-selected', 'true')
+    await expect(detail.getByRole('switch', { name: 'On for every Claude account in the app' })).toBeChecked()
+    await detail.getByRole('tab', { name: 'What an agent reads' }).click()
+    await expect(detail).toContainText('Use the helper script')
     await detail.getByRole('tab', { name: 'Files' }).click()
     await expect(detail).toContainText('scripts/split.sh')
     await detail.getByRole('tab', { name: 'Used by' }).click()
     await expect(detail).toContainText('Not fetched yet')
 
-    // The window has three sections, one screen each: the shelf (open now), the playbook, and what was reached for.
-    await expect(pane.getByRole('tab', { name: 'Shelf' })).toHaveAttribute('aria-selected', 'true')
+    // The window has three sections, one screen each: skills (open now), the playbook, and usage.
+    await expect(pane.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
     await pane.getByRole('tab', { name: 'Playbook' }).click()
     // The workspace playbook: Terse always (reminded each turn), PDFs on demand.
     await pane.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()

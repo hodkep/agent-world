@@ -11,16 +11,20 @@ let pushed: string[]
 let pushedItems: string[]
 // The skills each agent's open task names on its steps, as the office reports them.
 let granted: Record<string, string[]>
+// The skills the office found already linked into Claude's own skills folder.
+let linked: Set<string>
 beforeEach(async () => {
   pushed = []
   pushedItems = []
   granted = {}
+  linked = new Set()
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
-    agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
+    agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude', account: 'work' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
     grants: (id) => granted[id] ?? [],
+    linkedForClaude: (id) => linked.has(id),
     onUse: (id, how, item) => void (pushed.push(`${id}:${how}`), pushedItems.push(item))
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
@@ -36,6 +40,14 @@ beforeEach(async () => {
 afterEach(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
 const rulebook = (strength: 'soft' | 'medium' | 'hard') => svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'on-demand', when: 'working with PDFs', strength }])
 
+describe('a skill\'s file opened from the window', () => {
+  it('gives the path of a file inside the skill, and refuses one outside it or a skill that is not there', () => {
+    expect(svc.fileOf('pdf', 'scripts/split.sh')).toMatch(/library\/skills\/pdf\/scripts\/split\.sh$/)
+    expect(() => svc.fileOf('pdf', '../terse.md')).toThrow()
+    expect(() => svc.fileOf('nope', 'x')).toThrow()
+  })
+})
+
 describe('what an agent is given from the library', () => {
   it('compiles the global playbook with its workspace\'s on top, and nothing from another workspace', async () => {
     const shop = await svc.prepare('a1', true)
@@ -45,10 +57,26 @@ describe('what an agent is given from the library', () => {
     expect(other.core).toContain('Talk short.')
     expect(other.core).not.toContain('pdf')
   })
-  it('writes the plugin folder with just the skills allowed, and none when no skill is allowed', async () => {
+  it('writes the plugin folder with every skill that is on for Claude, whatever its playbook says, and none when all are off', async () => {
     const shop = await svc.prepare('a1', true)
     expect(shop.pluginDir && existsSync(join(shop.pluginDir, 'skills', 'pdf', 'SKILL.md'))).toBe(true)
+    // pdf is in no playbook of the other workspace, and is still on for Claude there.
+    const other = await svc.prepare('a3', true)
+    expect(other.pluginDir && existsSync(join(other.pluginDir, 'skills', 'pdf', 'SKILL.md'))).toBe(true)
+    svc.library.setClaude('pdf', false)
     expect((await svc.prepare('a3', true)).pluginDir).toBeNull()
+  })
+  it('leaves out of the plugin folder a skill that is already linked into Claude\'s own skills folder, so Claude does not list it twice', async () => {
+    linked.add('pdf')
+    expect((await svc.prepare('a1', true)).pluginDir).toBeNull()
+    expect((await svc.prepare('a3', true)).pluginDir).toBeNull()
+  })
+  it('keeps a skill a playbook rule names even when it is off for Claude, and drops one whose rule is Off', async () => {
+    svc.library.setClaude('pdf', false)
+    expect((await svc.prepare('a1', true)).pluginDir).not.toBeNull()
+    svc.library.setClaude('pdf', true)
+    svc.playbooks.write({ workspace: 'shop' }, [{ id: 'pdf', mode: 'off', when: '', strength: 'soft' }])
+    expect((await svc.prepare('a1', true)).pluginDir).toBeNull()
   })
   it('shows only what the playbook allows in the index, with when and size', async () => {
     const idx = await svc.index('a1')
@@ -191,6 +219,8 @@ describe('what an agent is given from the library', () => {
       svc.record('a1', 'pdf', 'skill')
       expect(svc.stats().items.terse).toMatchObject({ delivered: 1 })
       expect(svc.stats().items.pdf).toMatchObject({ used: 1 })
+      // Each use names the account the agent ran on, so the screen can say which accounts used a skill.
+      expect(svc.usage30()['pdf']).toMatchObject({ used: 1, accounts: ['work'], agents: ['csr-1'] })
       svc.record('a1', 'not-in-library', 'skill')
       expect(svc.stats().items['not-in-library']).toBeUndefined()
     })

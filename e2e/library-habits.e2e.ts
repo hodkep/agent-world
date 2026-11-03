@@ -34,8 +34,8 @@ test('the check before acting is part of the playbook, and what agents said when
     await page.setViewportSize({ width: 1400, height: 1000 })
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), project)
     await page.reload()
-    await page.getByRole('button', { name: 'Library' }).first().click()
-    const dialog = page.getByRole('dialog', { name: 'Library' })
+    await page.getByRole('button', { name: 'Playbook and tools' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
 
     // The Playbook: there is no separate switch, and the reminder always shows the check once.
     await dialog.getByRole('tab', { name: 'Playbook' }).click()
@@ -45,7 +45,7 @@ test('the check before acting is part of the playbook, and what agents said when
     expect((await reminder.textContent())!.match(/Decide silently/g)).toHaveLength(1)
 
     // Reached for: the numbers say how many said no; opening the row lists what they said, grouped, with advice.
-    await dialog.getByRole('tab', { name: 'Reached for' }).click()
+    await dialog.getByRole('tab', { name: 'Usage' }).click()
     const row = dialog.getByRole('button', { name: /resolving-merge-conflicts/ })
     // Logged before related prompts were noted: what the agents decided still says it.
     await expect(row).toContainText('said no6')
@@ -80,9 +80,9 @@ test('Reached for judges a rule on the prompts that looked related: a rule ignor
     await page.setViewportSize({ width: 1400, height: 1000 })
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), project)
     await page.reload()
-    await page.getByRole('button', { name: 'Library' }).first().click()
-    const dialog = page.getByRole('dialog', { name: 'Library' })
-    await dialog.getByRole('tab', { name: 'Reached for' }).click()
+    await page.getByRole('button', { name: 'Playbook and tools' }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
+    await dialog.getByRole('tab', { name: 'Usage' }).click()
     await expect(dialog.locator('.reach-sum')).toContainText('Reminded 30 times. On 10 prompts that looked related')
     const row = dialog.getByRole('button', { name: /tdd/ })
     await expect(row).toContainText('reminded 30×')
