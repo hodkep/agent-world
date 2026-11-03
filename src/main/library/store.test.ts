@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -30,21 +30,75 @@ describe('the library store', () => {
     expect(second.id).toBe('rules-2')
     expect((await lib.list()).length).toBe(2)
   })
-  it('copies a skill folder in with its files, leaving the original alone, and lists its files', async () => {
+  it('adds a skill folder as a link, copying nothing and writing nothing into it, and lists its files', async () => {
     const src = join(dir, 'orig', 'pdf')
     mkdirSync(join(src, 'scripts'), { recursive: true })
     writeFileSync(join(src, 'SKILL.md'), '---\nname: pdf\ndescription: Work with PDFs.\n---\n\nUse scripts/split.sh.')
     writeFileSync(join(src, 'scripts', 'split.sh'), 'echo split')
     writeFileSync(join(src, '.hidden'), 'x')
-    const item = await lib.addSkillFolder(src, '~/.claude/skills')
-    expect(item).toMatchObject({ kind: 'skill', id: 'pdf', source: '~/.claude/skills', description: 'Work with PDFs.' })
+    const item = await lib.addSkillFolder(src, '~/.claude/skills', { kind: 'global' })
+    expect(item).toMatchObject({ kind: 'skill', id: 'pdf', source: '~/.claude/skills', description: 'Work with PDFs.', place: { kind: 'global' } })
+    expect(item!.place!.real).toBe(realpathSync(src))
     expect(item!.files).toEqual(['scripts/split.sh'])
-    expect(existsSync(join(item!.dir, 'scripts', 'split.sh'))).toBe(true)
-    expect(existsSync(join(item!.dir, '.hidden'))).toBe(false)
-    expect(existsSync(join(src, 'SKILL.md'))).toBe(true)
+    expect(lstatSync(item!.dir).isSymbolicLink()).toBe(true)
     expect(readFileSync(join(item!.dir, 'SKILL.md'), 'utf8')).toContain('name: pdf')
+    // Nothing of ours is written into the person's folder, and the record is kept in the library.
+    expect(readdirSync(src).sort()).toEqual(['.hidden', 'SKILL.md', 'scripts'])
+    expect(JSON.parse(readFileSync(join(dir, 'library', 'records.json'), 'utf8')).pdf.real).toBe(realpathSync(src))
   })
-  it('leaves links out when it copies a skill in', async () => {
+  it('lists a linked skill, shows one whose folder is gone as missing, and removing a link leaves the folder', async () => {
+    const src = join(dir, 'orig', 'gone')
+    mkdirSync(src, { recursive: true })
+    writeFileSync(join(src, 'SKILL.md'), '---\nname: gone\ndescription: d\n---\nb')
+    await lib.addSkillFolder(src, 's')
+    expect((await lib.list()).map((i) => i.id)).toEqual(['gone'])
+    rmSync(src, { recursive: true })
+    expect((await lib.list())[0]).toMatchObject({ id: 'gone', missing: true })
+    await lib.remove('gone')
+    expect(await lib.list()).toEqual([])
+    expect(lib.records()).toEqual({})
+    const back = join(dir, 'orig', 'kept')
+    mkdirSync(back, { recursive: true })
+    writeFileSync(join(back, 'SKILL.md'), '---\nname: kept\ndescription: d\n---\nb')
+    await lib.addSkillFolder(back, 's')
+    await lib.remove('kept')
+    expect(existsSync(join(back, 'SKILL.md'))).toBe(true)
+  })
+  it('swaps a copy it holds for a link to the original only when every file of the copy is in the original with the same size, and frees the copy', async () => {
+    const orig = join(dir, 'orig', 'vid')
+    mkdirSync(join(orig, 'media'), { recursive: true })
+    writeFileSync(join(orig, 'SKILL.md'), '---\nname: vid\ndescription: d\n---\nb')
+    writeFileSync(join(orig, 'media', 'a.bin'), 'x'.repeat(100))
+    writeFileSync(join(orig, 'media', 'b.bin'), 'y'.repeat(100))
+    // The library holds an older, smaller copy of it.
+    const copy = join(dir, 'library', 'skills', 'vid')
+    mkdirSync(join(copy, 'media'), { recursive: true })
+    writeFileSync(join(copy, 'SKILL.md'), '---\nname: vid\ndescription: d\n---\nb')
+    writeFileSync(join(copy, 'media', 'a.bin'), 'x'.repeat(100))
+    const item = await lib.useOriginal('vid', orig, { kind: 'global' })
+    expect(item.place!.real).toBe(realpathSync(orig))
+    expect(lstatSync(copy).isSymbolicLink()).toBe(true)
+    // A copy that has something the original lacks, or a different size, is not swapped.
+    const other = join(dir, 'orig', 'odd')
+    mkdirSync(other, { recursive: true })
+    writeFileSync(join(other, 'SKILL.md'), '---\nname: odd\ndescription: d\n---\nb')
+    const odd = join(dir, 'library', 'skills', 'odd')
+    mkdirSync(odd, { recursive: true })
+    writeFileSync(join(odd, 'SKILL.md'), '---\nname: odd\ndescription: d\n---\nb')
+    writeFileSync(join(odd, 'extra.md'), 'mine')
+    await expect(lib.useOriginal('odd', other, {})).rejects.toThrow(/not in the original/)
+    expect(lstatSync(odd).isSymbolicLink()).toBe(false)
+    // The same size is not enough: a copy edited in place (one word changed) is kept, so the edit is not lost.
+    const same = join(dir, 'orig', 'same')
+    mkdirSync(same, { recursive: true })
+    writeFileSync(join(same, 'SKILL.md'), '---\nname: same\ndescription: d\n---\nabc')
+    const edited = join(dir, 'library', 'skills', 'same')
+    mkdirSync(edited, { recursive: true })
+    writeFileSync(join(edited, 'SKILL.md'), '---\nname: same\ndescription: d\n---\nxyz')
+    await expect(lib.useOriginal('same', same, {})).rejects.toThrow(/not in the original/)
+    expect(lstatSync(edited).isSymbolicLink()).toBe(false)
+  })
+  it('does not list or read a link inside a skill', async () => {
     const src = join(dir, 'src', 'linky')
     mkdirSync(src, { recursive: true })
     writeFileSync(join(src, 'SKILL.md'), '---\nname: linky\ndescription: Has a link.\n---\nbody')
@@ -52,7 +106,6 @@ describe('the library store', () => {
     symlinkSync(join(dir, 'secret.txt'), join(src, 'secret.txt'))
     const item = await lib.addSkillFolder(src, 't')
     expect(item?.files).not.toContain('secret.txt')
-    expect(existsSync(join(dir, 'library', 'skills', 'linky', 'secret.txt'))).toBe(false)
   })
   it('does not import a skill twice, and answers null for a folder that is not a skill', async () => {
     const src = join(dir, 'orig', 'x')

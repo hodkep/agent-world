@@ -8,6 +8,8 @@ import { matchItems } from './match'
 import { GUIDE_ID } from './guide'
 import { FORMS_ID, VISUALS_ID } from './visuals'
 import { UseLog, skillUsage, summarize, type How, type SkillUse, type Summary, type Use } from './uses'
+import { deleteSkill, planDelete, type DeletePlan } from './delete'
+import { measure } from './sizes'
 
 /** The app's own items: in every agent's reach, not something the person set up. */
 const BUILT_IN = new Set([GUIDE_ID, VISUALS_ID, FORMS_ID])
@@ -46,6 +48,14 @@ interface Deps {
   claudeHas?: (agentId: string, id: string) => boolean
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
   onUse?: (agentId: string, how: How, item: string) => void
+  /** Called when a skill's size has been measured, so a screen showing sizes can refresh. */
+  onSizes?: () => void
+  /** Every skills folder the app knows, global and each project's: a skill can be deleted only from one of them. */
+  skillRoots?: () => string[]
+  /** The workspaces the app knows, to count the rules that name a skill. */
+  projects?: () => string[]
+  /** Whether git tracks a project skill's folder. */
+  tracked?: (real: string, project: string) => Promise<boolean>
   /** The clock (tests move it). */
   now?: () => number
 }
@@ -90,6 +100,34 @@ export function createLibraryService(d: Deps) {
   const RULEBOOK_EVERY = 6
   const IDLE_MS = 60 * 60_000
   const now = d.now ?? Date.now
+
+  // What each linked skill's folder takes, measured in the background and kept (a skill can be gigabytes, and a measure takes a while).
+  const sizesFile = join(d.root, 'sizes.json')
+  const readSizes = (): Record<string, { bytes: number; at: number; real: string }> => {
+    try {
+      return JSON.parse(readFileSync(sizesFile, 'utf8'))
+    } catch {
+      return {}
+    }
+  }
+  const DAY = 86_400_000
+  let measuring: Promise<void> | null = null
+  const measureAll = (): Promise<void> => {
+    measuring ??= (async () => {
+      const sizes = readSizes()
+      for (const i of library.listSync()) {
+        if (i.kind !== 'skill' || i.missing) continue
+        const real = i.place?.real ?? i.dir
+        const have = sizes[i.id]
+        if (have && have.real === real && now() - have.at < DAY) continue
+        sizes[i.id] = { bytes: await measure(real), at: now(), real }
+        mkdirSync(d.root, { recursive: true })
+        writeFileSync(sizesFile, JSON.stringify(sizes))
+        d.onSizes?.()
+      }
+    })().finally(() => void (measuring = null))
+    return measuring
+  }
 
   const rulesFor = (repoPath: string): Rule[] => merge(playbooks.read('global'), playbooks.read({ workspace: d.workspaceKey(repoPath) }))
   const itemsMap = () => new Map(library.listSync().map((i) => [i.id, i]))
@@ -280,6 +318,30 @@ export function createLibraryService(d: Deps) {
     /** How often each item was used, by program (what the Library pane shows beside an item). */
     async usage(): Promise<Record<string, { claude: number; agy: number; total: number }>> {
       return Object.fromEntries(summarize(log.all()).top.map((i) => [i.id, { claude: i.byProvider.claude?.used ?? 0, agy: i.byProvider.agy?.used ?? 0, total: i.used }]))
+    },
+
+    /** The library's items with the sizes measured so far; the rest are measured in the background (onSizes says when each is). */
+    async items(): Promise<Item[]> {
+      const sizes = readSizes()
+      void measureAll()
+      return library.listSync().map((i) => (sizes[i.id] ? { ...i, size: { bytes: sizes[i.id]!.bytes, at: sizes[i.id]!.at } } : i))
+    },
+
+    /** What deleting a skill would remove, before anything is. */
+    async deletePlan(id: string): Promise<DeletePlan> {
+      const item = library.listSync().find((i) => i.id === id && i.kind === 'skill')
+      if (!item) throw new Error(`${id} is not a skill in the library.`)
+      const named = (rs: Rule[]) => rs.filter((r) => r.id === id).length
+      const rules = named(playbooks.read('global')) + (d.projects?.() ?? []).reduce((n, p) => n + named(playbooks.read({ workspace: d.workspaceKey(p) })), 0)
+      return planDelete(item, { roots: d.skillRoots?.() ?? [], rules, tracked: d.tracked ?? (async () => false) }, readSizes()[id]?.bytes)
+    },
+
+    /** Deletes a skill's real folder, the links that lead to it and its library entry; refused for a plugin's, and for a tracked project skill unless `anyway`. */
+    async deleteSkill(id: string, anyway = false): Promise<DeletePlan> {
+      const plan = await this.deletePlan(id)
+      if (plan.tracked && !anyway) throw new Error('Git tracks this skill: confirm again to delete it.')
+      await deleteSkill(plan, library)
+      return plan
     },
 
     /** A skill's own file, for the window to open or show in Finder (not an agent read: nothing is logged). */

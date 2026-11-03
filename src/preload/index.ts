@@ -86,6 +86,7 @@ const api: AwApi = {
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
   onChatItems: on('chat-items'),
   onLibraryUse: on('library-use'),
+  onLibrarySizes: on('library-sizes'),
   onTodosChanged: on('todos-changed'),
   onNotesAsk: on('notes-ask'),
   notes: {
@@ -221,6 +222,9 @@ const api: AwApi = {
     import: (folder, dirs) => ipcRenderer.invoke('library:import', folder, dirs),
     file: (id, file, action) => ipcRenderer.invoke('library:file', id, file, action),
     usage30: () => ipcRenderer.invoke('library:usage30'),
+    useOriginal: (id, dir) => ipcRenderer.invoke('library:use-original', id, dir),
+    deletePlan: (id) => ipcRenderer.invoke('library:delete-plan', id),
+    delete: (id, anyway) => ipcRenderer.invoke('library:delete', id, anyway),
     places: (folder) => ipcRenderer.invoke('library:places', folder),
     setClaude: (id, on) => ipcRenderer.invoke('library:set-claude', id, on),
     link: (id, target, on, folder) => ipcRenderer.invoke('library:link', id, target, on, folder),

@@ -1,6 +1,21 @@
 /** The shared library of skills, instructions and prompts, and the playbooks that say how agents use it. */
 export type LibraryKind = 'skill' | 'instruction' | 'prompt'
 
+/** A skill kept as a link: where its real folder is, and where it came from. The files stay where they are; the library holds only the link and this record. */
+export interface SkillPlace {
+  kind: SkillKind
+  /** The real folder (links followed). */
+  real: string
+  /** For a project's skill: the project's folder. */
+  project?: string
+  /** Where it was installed from: a repository or a plugin and its version. */
+  from?: string
+  /** The place it was found in, as it was named when it was added. */
+  label?: string
+  license?: string
+  accounts?: string[]
+}
+
 export interface LibraryItem {
   id: string
   kind: LibraryKind
@@ -17,6 +32,12 @@ export interface LibraryItem {
   /** A skill's folder in the library (absolute); empty for the others. */
   dir: string
   tokens: { description: number; body: number }
+  /** A skill that is a link to its real folder, with where that is; none for one kept in the library itself. */
+  place?: SkillPlace
+  /** A link whose real folder is gone: it can only be removed. */
+  missing?: true
+  /** What the skill's real folder takes on disk, measured in the background. */
+  size?: { bytes: number; at: number }
 }
 
 export type RuleMode = 'always' | 'on-demand' | 'step' | 'off'
@@ -38,17 +59,32 @@ export const FORCED_CHECK_TOKENS = 62
 export interface SkillPlaces {
   /** Skills switched off for Claude's sessions in the app (all others are on). */
   claudeOff: string[]
-  targets: { id: 'claude' | 'agy-cli' | 'agy-app' | 'project'; label: string; dir: string; present: boolean }[]
+  targets: { id: 'claude' | 'agy-cli' | 'agy-app' | 'project-claude' | 'project'; label: string; dir: string; present: boolean }[]
   /** Per skill, per target id: nothing there, our link, or something else of that name (left alone). */
   states: Record<string, Record<string, 'none' | 'linked' | 'copy'>>
+  /** The projects the app knows, by the key the usage log uses for each. */
+  projects: { key: string; path: string; name: string }[]
 }
 
-/** A skill folder found on this computer that can be copied into the library. */
+/** Where a skill's real folder is: the user's own global folders, a project's, or a Claude plugin's (managed by Claude). */
+export type SkillKind = 'global' | 'project' | 'plugin'
+
+/** A skill folder found on this computer that can be added to the library as a link. */
 export interface LibraryCandidate {
   source: string
   name: string
   description: string
   dir: string
+  /** The real folder, with links followed: two paths to one folder are one skill. */
+  real: string
+  kind: SkillKind
+  /** For a project's skill: the project's folder. */
+  project?: string
+  /** Where it was installed from: a repository (from the skills CLI's lock file) or a plugin and its version. */
+  from?: string
+  license?: string
+  /** For a plugin's skill: the accounts that have it. */
+  accounts?: string[]
 }
 
 /** What an agent would be told for a workspace's playbook. */
@@ -118,6 +154,8 @@ export interface SkillUse {
   days: number[]
   /** The agents that used it, by id (to draw each as its office figure) and name. */
   who: { id: string; name: string }[]
+  /** Uses in the window by project (the workspace key of the agent that used it): where it is used most. */
+  projects: Record<string, number>
 }
 export interface Summary {
   items: Record<string, ItemStats>
@@ -126,3 +164,19 @@ export interface Summary {
   top: ItemStats[]
 }
 
+
+/** What deleting a skill would remove, shown before anything is: its real folder, every link that points at it, and the rules that name it. */
+export interface DeletePlan {
+  id: string
+  name: string
+  /** The real folder to delete, with its size when known; none for a link whose folder is gone. */
+  files: { path: string; bytes?: number }[]
+  /** Links in a skills folder that lead to the skill: ours, and any the skills CLI made. They would be left broken. */
+  links: string[]
+  /** Rules in playbooks that name the skill. */
+  rules: number
+  /** A project skill that git tracks: deleting it shows as a deletion in that project. */
+  tracked: boolean
+  /** Why nothing may be deleted, when it may not. */
+  refused?: string
+}

@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createLibraryService, runsWhenOpened } from './service'
 import { FORCED_CHECK_TOKENS } from '../../shared/library'
 
@@ -42,7 +42,8 @@ const rulebook = (strength: 'soft' | 'medium' | 'hard') => svc.playbooks.write({
 
 describe('a skill\'s file opened from the window', () => {
   it('gives the path of a file inside the skill, and refuses one outside it or a skill that is not there', () => {
-    expect(svc.fileOf('pdf', 'scripts/split.sh')).toMatch(/library\/skills\/pdf\/scripts\/split\.sh$/)
+    // A skill is a link to its folder, so the file is named by its real path.
+    expect(svc.fileOf('pdf', 'scripts/split.sh')).toMatch(/pdf\/scripts\/split\.sh$/)
     expect(() => svc.fileOf('pdf', '../terse.md')).toThrow()
     expect(() => svc.fileOf('nope', 'x')).toThrow()
   })
@@ -55,6 +56,15 @@ describe('a skill\'s file opened from the window', () => {
     expect(runsWhenOpened(f('split.sh'))).toBe(true)
     expect(runsWhenOpened(f('build.py'))).toBe(true)
     expect(runsWhenOpened(f('tool', 0o755))).toBe(true)
+  })
+})
+
+describe('the sizes of the library\'s skills', () => {
+  it('are measured in the background and then come with the items, kept in the library folder', async () => {
+    const first = await svc.items()
+    expect(first.find((i) => i.id === 'pdf')!.size).toBeUndefined()
+    await vi.waitFor(async () => expect((await svc.items()).find((i) => i.id === 'pdf')!.size!.bytes).toBeGreaterThan(0))
+    expect(readFileSync(join(dir, 'library', 'sizes.json'), 'utf8')).toContain('"pdf"')
   })
 })
 

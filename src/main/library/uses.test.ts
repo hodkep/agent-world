@@ -117,6 +117,12 @@ describe('how often each skill was used', () => {
     expect(u.pdf!.who).toEqual([{ id: 'a2', name: 'charlie' }, { id: 'a1', name: 'delta' }])
   })
 
+  it('counts the uses of the last 30 days by project, each turn once, so a skill can say where it is used most', () => {
+    const at = (workspace: string, turn: number, daysAgo = 1): Use => ({ ...use('pdf', daysAgo, 'skill', 'a1', 'delta'), workspace, launch: 1, turn })
+    const u = skillUsage([at('agent-world', 1), at('agent-world', 1), at('agent-world', 2), at('nhm-csr', 3), at('agent-world', 4, 40)], now)
+    expect(u.pdf!.projects).toEqual({ 'agent-world': 2, 'nhm-csr': 1 })
+  })
+
   it('counts a skill once per turn of an agent, however many of its files it read then; uses with no turn count one each', () => {
     const at = (turn: number | undefined, how: Use['how'] = 'read'): Use => ({ ...use('pdf', 1, how), launch: 5, ...(turn !== undefined && { turn }) })
     const u = skillUsage([at(3, 'skill'), at(3), at(3), at(4), at(undefined), at(undefined)], now)
