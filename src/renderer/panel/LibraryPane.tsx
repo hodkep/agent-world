@@ -16,6 +16,8 @@ import { ago } from './addressHistory'
 import { dustOf, splitUsage } from './libraryUsage'
 import { findItems, highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
 import { SkillShelf } from './SkillShelf'
+import { SkillInstall } from './SkillInstall'
+import { AgyChip } from './AgyChip'
 import { FoundReader, SkillFooter, SkillOverview } from './SkillOverview'
 import { shelfGroups } from './skillGroups'
 import { sizeText } from '../../shared/size'
@@ -47,7 +49,7 @@ const GLOSSARY: [string, string][] = [
  * The shared library (one global store of skills, instructions and prompts), the playbooks that say how agents use it
  * (global, and for the project that is open), and a preview of what an agent would be told.
  */
-export function LibraryPane({ folder, providers }: { folder: string; providers: ProviderInfo[] }) {
+export function LibraryPane({ folder, providers, onOpenSettings }: { folder: string; providers: ProviderInfo[]; /** Opens a pane of the app's settings (Message box is 'mail'). */ onOpenSettings?: (pane: string) => void }) {
   const [items, setItems] = useState<LibraryItem[]>([])
   const [usage, setUsage] = useState<Record<string, { claude: number; agy: number; total: number }>>({})
   const [open, setOpen] = useState<string | null>(null)
@@ -55,10 +57,12 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [found, setFound] = useState<LibraryCandidate[] | null>(null)
+  const [installing, setInstalling] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [scope, setScope] = useState<'global' | 'workspace'>(folder ? 'workspace' : 'global')
   const [books, setBooks] = useState<{ global: PlaybookRule[]; workspace: PlaybookRule[] }>({ global: [], workspace: [] })
   const ready = providers.filter((p) => p.detection.state === 'ready')
+  const agyMissing = ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing'
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
@@ -242,12 +246,10 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         {SECTIONS.map(([id, label]) => (
           <button key={id} role="tab" id={`lib-tab-${id}`} aria-selected={tab === id} aria-controls={`lib-panel-${id}`} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
+        {agyMissing && <><span className="lib-sp" /><AgyChip onOpen={() => onOpenSettings?.('mail')} /></>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="lib-notices" aria-label="Things to know">
-        {ready.some((p) => p.id === 'agy') && providers.find((p) => p.id === 'agy')?.mail === 'missing' && (
-          <div className="lib-notice info" role="note"><div><b>agy is not connected.</b><span>Its agents get the always-on rules and the catalog, but no line for the message they are sent. Connect it under Message box.</span></div></div>
-        )}
         {silent.length > 0 && (
           <div className="lib-notice bad" role="note"><div><b>The library plugin could not reach the office for {silent.map((a) => a.name).join(', ')}.</b><span>agy carried on without a library line, and what it reads is not counted. Check that the plugin is installed under Message box, and that Agent World was running when the agent started.</span></div></div>
         )}
@@ -269,6 +271,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       <div className="lib-bar" role="group" aria-label="Library items">
         <input aria-label="Find an item" placeholder="Find an item…" value={find} onChange={(e) => setFind(e.target.value)} />
         <span className="lib-sp" />
+        <button aria-expanded={installing} onClick={() => setInstalling((v) => !v)}>Install skills…</button>
         <button aria-label="Import from this computer…" title="Copy skills found on this computer into the library" onClick={() => void startImport()}>Add skill…</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'instruction', name: '', description: '', body: '' }))}>New instruction</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))}>New prompt</button>
@@ -278,6 +281,15 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         const on = skills.filter((i) => !places.claudeOff.includes(i.id))
         return <p className="lib-sum"><span className="hint">{skills.length} {skills.length === 1 ? 'skill' : 'skills'} · {on.length} on for Claude · start-of-session cost</span><CostMeter tokens={on.reduce((n, i) => n + i.tokens.description, 0)} /></p>
       })()}
+
+      {installing && (
+        <SkillInstall
+          places={places}
+          onClose={() => setInstalling(false)}
+          onInstalled={async () => { await load(); refreshScan(); await loadPlaces() }}
+          onLinkClaude={(ids) => place(async () => { for (const id of ids) await window.aw.library.link(id, 'claude', true, folder || undefined) })}
+        />
+      )}
 
       {found && (
         <div className="lib-box" role="group" aria-label="Import from this computer">
@@ -321,6 +333,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
             )
           })() : undefined}
           colour={spineLook(current).colour}
+          logo={current.logo}
           where={current.kind === 'skill' && places ? (
             <SkillOverview
               item={current}

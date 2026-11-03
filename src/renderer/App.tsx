@@ -1541,7 +1541,7 @@ export function App() {
           onOpenMessage={(l) => (setTodoOpen(false), openMsg(l))}
         />
       )}
-      {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
+      {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={(pane) => (setLibraryOpen(false), setSettingsPane(pane ?? 'features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
       {settings && prefs && <Settings project={folder ? { path: folder, name: folder.split(/[\\/]/).pop() || folder } : undefined} updateAgents={updateAgents} signIns={signIns} onSignIns={setSignIns} initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }

@@ -2573,6 +2573,9 @@ aside:not(.drawer) { flex: none; }
 .lib-tabs { display: flex; gap: 2px; position: sticky; top: -4px; z-index: 8; margin: 0 -28px; padding: 0 28px; background: var(--panel); border-bottom: 2px solid var(--ink); }
 .lib-tabs button { background: none; border-color: transparent; box-shadow: none; color: var(--muted); padding: 10px 16px; font-size: 13px; }
 .lib-tabs button:hover { color: var(--text); }
+.lib-tabs .lib-chip { align-self: center; display: inline-flex; align-items: center; gap: 8px; padding: 3px 10px; font-size: 12px; background: var(--panel-2); border: 2px solid var(--ink); }
+.lib-tabs .lib-chip i { width: 8px; height: 8px; background: var(--accent); }
+.lib-tabs .lib-chip:hover { background: var(--panel-hover); }
 .lib-tabs button.on { color: var(--text); box-shadow: inset 0 -3px 0 var(--accent); }
 .lib-panel { display: flex; flex-direction: column; gap: 18px; padding-top: 6px; }
 .library-modal .lib-inline { flex-direction: row; align-items: center; align-self: flex-start; }
@@ -4937,3 +4940,27 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .lie-grow textarea { flex: 1; min-height: 140px; font: 12.5px/1.55 Menlo, Consolas, monospace; resize: vertical; }
 .lie-foot { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 2px solid var(--ink); background: var(--panel-3); }
 .lie-foot small { color: var(--dim); }
+
+/* Logos: a picture replaces the spine swatch, which stays as a stripe on its left. */
+.sk2-row.lg { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.sk2-logo { width: 24px; height: 24px; object-fit: cover; border: 2px solid var(--ink); background: var(--well); box-shadow: -4px 0 0 var(--c, var(--dim)); margin-left: 4px; }
+.lip-logo { width: 32px; height: 32px; object-fit: cover; border: 2px solid var(--ink); background: var(--well); box-shadow: -4px 0 0 var(--c, var(--dim)); margin-left: 4px; flex: none; }
+
+/* The install drawer, above the list. */
+.sk2-drawer { margin: 0 0 12px; border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); background: var(--panel-3); }
+.sk2-dh { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
+.sk2-db { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.sk2-lbl { display: flex; flex-direction: column; gap: 4px; color: var(--hint); font-size: 11.5px; }
+.sk2-lbl input { font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 6px 8px; }
+.sk2-warn { margin: 0; padding: 10px 12px; border: 2px solid var(--accent-dim); background: rgb(242 194 48 / 0.07); font-size: 12.5px; line-height: 1.5; }
+.sk2-warn b { color: var(--accent); }
+.sk2-warn .sk2-acts { margin-top: 10px; }
+.sk2-picks { display: flex; flex-direction: column; }
+.sk2-picks label.sk2-pick { display: grid; flex-direction: row; grid-template-columns: 18px minmax(0, 1fr); gap: 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+.sk2-pick:last-child { border-bottom: 0; }
+.sk2-pick input { width: 16px; min-width: 0; height: 16px; margin: 2px 0 0; padding: 0; }
+.sk2-pick > span { min-width: 0; }
+.sk2-pick b { display: block; font-size: 13px; }
+.sk2-pick small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--hint); font-size: 11.5px; }
+.sk2-log { margin: 0; max-height: 220px; overflow: auto; padding: 10px 12px; background: var(--well); border: 2px solid var(--ink); font: 11.5px/1.5 Menlo, monospace; color: var(--muted); white-space: pre-wrap; }
+.sk2-err { margin: 0; padding: 8px 12px; border: 2px solid var(--danger-text); color: var(--danger-text); font-size: 12.5px; overflow-wrap: anywhere; }
