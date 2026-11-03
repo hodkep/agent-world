@@ -213,6 +213,8 @@ describe('messages waiting in Claude\'s queue', () => {
     expect(parseTranscriptLine(q('enqueue', { content: 'done yet' }))).toMatchObject([{ kind: 'queue', op: 'enqueue', text: 'done yet' }])
     expect(parseTranscriptLine(q('dequeue'))).toMatchObject([{ kind: 'queue', op: 'dequeue', text: '' }])
     expect(parseTranscriptLine(q('remove', { content: 'done yet', reason: 'absorbed_mid_turn' }))).toMatchObject([{ kind: 'queue', op: 'remove', text: 'done yet' }])
+    // Up with nothing typed pulls every queued message into the input box.
+    expect(parseTranscriptLine(q('popAll', { content: 'one\ntwo' }))).toMatchObject([{ kind: 'queue', op: 'popAll' }])
   })
   it('ignore an operation they do not know', () => {
     expect(parseTranscriptLine(q('something-else', { content: 'x' }))).toEqual([])

@@ -2084,16 +2084,21 @@ async function main() {
     const p = sessions.get(id)
     const keys = keysOf(id)
     if (!p || !keys.editQueued) return false
-    p.write(keys.editQueued)
-    let left = 8
-    const clear = () => {
-      if (sessions.get(id) !== p || left-- <= 0) return
-      if (!ui(id).typedText?.(screens.get(id)?.text() ?? '')) return
-      p.write(keys.clearInput)
-      setTimeout(clear, 150)
-    }
-    setTimeout(clear, 400)
-    return true
+    // One key at a time, from what the screen offers: Up selects a queued message, Enter moves it into the input, and the input is emptied before the next.
+    // It answers true only when keys were pressed and the screen then shows nothing waiting, so the chat does not drop rows Claude still holds.
+    return new Promise<boolean>((resolve) => {
+      let left = 24
+      let pressed = 0
+      const step = () => {
+        if (sessions.get(id) !== p || left-- <= 0) return resolve(false)
+        const key = keys.unqueueStep?.(screens.get(id)?.text() ?? '', pressed > 0) ?? null
+        if (key === null) return resolve(pressed > 0)
+        pressed++
+        p.write(key)
+        setTimeout(step, 250)
+      }
+      step()
+    })
   })
   ipcMain.handle('get-servers', () => Object.fromEntries([...served.keys()].map((id) => [id, serversOf(id)])))
   // Only local addresses may be handed to the system browser from here.
