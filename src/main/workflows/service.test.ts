@@ -2135,10 +2135,19 @@ describe('a commit waits for the workflow\'s own Commit step', () => {
 
   it('names the step the task is on, for the reminder sent with each message', () => {
     const { wf } = open()
-    expect(wf.currentStep('a1')).toBe('Build')
+    expect(wf.currentStep('a1')).toEqual({ id: 'build', name: 'Build' })
     wf.stepDone('a1', 'build')
-    expect(wf.currentStep('a1')).toBe('Review')
+    expect(wf.currentStep('a1')).toEqual({ id: 'review', name: 'Review' })
     expect(wf.currentStep('a2')).toBeNull()
+  })
+
+  it('names the added work\'s own step while it is under way, then the shared steps again', () => {
+    const { wf } = open()
+    wf.stepDone('a1', 'build')
+    wf.addition('a1', 'Also a CSV export', false)
+    expect(wf.currentStep('a1')).toEqual({ id: 'build', name: 'Build', item: 2, title: 'Also a CSV export' })
+    wf.stepDone('a1', 'build', { item: 2 })
+    expect(wf.currentStep('a1')).toEqual({ id: 'review', name: 'Review' })
   })
 })
 

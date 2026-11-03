@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, nextStepLine, readyForAudit, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
+import { openLane, checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, nextStepLine, readyForAudit, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -521,5 +521,21 @@ describe('nextStepLine for a step the person finishes', () => {
   })
   it('is as before for any other step', () => {
     expect(nextStepLine({ id: 'commit', name: 'Commit', optional: false, start: true })).toBe(' Next step: "Commit"; it starts when the person presses Run, so change nothing until you are told.')
+  })
+})
+
+describe('the added work under way', () => {
+  const WF: RunWorkflow = { id: 's', name: 'S', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'work', name: 'Unit tests' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
+  const item = (t: number, title: string): RunEvent => ({ k: 'item', t, run: 'r1', title })
+  const step = (t: number, id: string, n?: number): RunEvent => ({ k: 'step', t, run: 'r1', round: 1, step: id, state: 'done', ...(n !== undefined && { item: n }) })
+  const lane = (events: RunEvent[]) => openLane(reduceRuns([begin(WF), ...events])[0]!, { auditOn: false })
+  it('is the newest item whose own steps are not all done, with the step it stands on', () => {
+    expect(lane([])).toBeUndefined()
+    expect(lane([step(110, 'build'), item(120, 'Also a CSV export')])).toMatchObject({ item: 2, title: 'Also a CSV export', step: { id: 'build', name: 'Build' } })
+    expect(lane([item(120, 'CSV'), step(130, 'build', 2)])).toMatchObject({ item: 2, step: { id: 'tests' } })
+    expect(lane([item(120, 'CSV'), item(125, 'PDF'), step(130, 'build', 3)])).toMatchObject({ item: 3, step: { id: 'tests' } })
+  })
+  it('is none once every item has done its own steps: the shared steps are what is left', () => {
+    expect(lane([item(120, 'CSV'), step(130, 'build', 2), step(140, 'tests', 2)])).toBeUndefined()
   })
 })

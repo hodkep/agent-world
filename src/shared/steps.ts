@@ -331,6 +331,16 @@ export function lanesOf(run: Run, ctx: StepContext): Lane[] {
   })
 }
 
+/** The work added to the run that is under way: the newest item whose own work steps are not all done or skipped, with the step it stands on. None once every item has done its own, when the shared steps are what is left. */
+export function openLane(run: Run, ctx: StepContext): { item: number; title: string; step: { id: string; name: string } } | undefined {
+  for (const lane of [...lanesOf(run, ctx)].reverse()) {
+    // Only the agent's own work: the plan is handed in with plan_submit, and the app runs a check itself.
+    const on = lane.steps.find((s) => s.kind === 'work' && s.state !== 'passed' && s.state !== 'skipped')
+    if (on) return { item: lane.item, title: lane.title, step: { id: on.id, name: on.name } }
+  }
+  return undefined
+}
+
 /** The step the person refused and has not yet said what to do about, with the names of the steps still to come after it: what the card that asks "what next?" shows. */
 export function refusedAsk(run: Run, ctx: StepContext): { id: string; name: string; rest: string[]; skippable: boolean } | undefined {
   if (run.status !== 'open' || !run.workflow) return undefined

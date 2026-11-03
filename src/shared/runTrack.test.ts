@@ -180,3 +180,12 @@ describe('a check that waits for the person after it passed', () => {
     expect(at.waiting).toBe('needs your approval')
   })
 })
+
+describe('work added to the run', () => {
+  it('says which item is under way and the step it stands on, and nothing once it has done its own steps', () => {
+    const item: RunEvent = { k: 'item', t: 450, run: 'r1', title: 'Also count lines' }
+    expect(track([submitted(), planned('approved'), done('build'), item])!.lane).toEqual({ item: 2, title: 'Also count lines', step: { id: 'build', name: 'Build' } })
+    expect(track([submitted(), planned('approved'), done('build'), item, { k: 'step', t: 460, run: 'r1', round: 1, step: 'build', state: 'done', item: 2 }])!.lane).toBeUndefined()
+    expect(track([submitted()])!.lane).toBeUndefined()
+  })
+})

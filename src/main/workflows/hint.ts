@@ -18,10 +18,11 @@ export const WORKFLOW_REMINDER =
   'Before acting: if this request changes code or takes several steps, call task_begin first (follow_up: true only for more work on the task you just finished, not for a different piece of work), and task_done when it is finished. Skip both for a question, a typo, a tiny edit, or a read-only check or lookup that changes no files: a workflow is for work that changes files and ships.'
 
 /** The step the open task is on, said every turn: what an agent was told when the task began can be lost when its conversation is summarised. */
-export const STEP_REMINDER = (step: string) =>
-  `You are on the step "${step}": do only its work, and when it is finished report it with step_done and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`
+export interface StepOn { id: string; name: string; /** Work added to the task: its number and title, when the step is that work's own. */ item?: number; title?: string }
+export const STEP_REMINDER = (step: StepOn) =>
+  `You are on the step "${step.name}"${step.item ? ` of item ${step.item} ("${step.title ?? ''}")` : ''}: do only its work, and when it is finished report it with ${step.item ? `step_done("${step.id}", item: ${step.item})` : 'step_done'} and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`
 /** The reminder for one turn: only while workflows are on and the agent (not the builder, not a subagent) has no task open, and once a task is announced it says how added work is announced and which step the task is on. */
-export const workflowRemind = (o: { enabled: boolean; subagent: boolean; builder: boolean; open: boolean; step?: string | null }): string =>
+export const workflowRemind = (o: { enabled: boolean; subagent: boolean; builder: boolean; open: boolean; step?: StepOn | null }): string =>
   o.enabled && !o.subagent && !o.builder ? (o.open ? (o.step ? `${WORKFLOW_OPEN_REMINDER} ${STEP_REMINDER(o.step)}` : WORKFLOW_OPEN_REMINDER) : WORKFLOW_REMINDER) : ''
 
 /** What task_begin answers while the plan gate is on: where the plan goes, the four sections the app checks, and that edits wait for approval. */

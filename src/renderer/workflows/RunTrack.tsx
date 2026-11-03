@@ -24,7 +24,7 @@ export function RunTrack({ track, seed, agentName, variant = 'full', landing, on
     return (
       <div className="run-track bar" role="region" aria-label={`${track.title}: where ${agentName} is`}>
         <Sprite seed={seed} cell={2} />
-        <span className="rt-title"><b title={track.title}>{track.title}</b><small>{track.workflow}{track.round > 1 ? ` · round ${track.round}` : ''}</small></span>
+        <span className="rt-title"><b title={track.title}>{track.title}</b><small>{track.workflow}{track.round > 1 ? ` · round ${track.round}` : ''}</small>{track.lane && <span className="rt-lane" title={`Item ${track.lane.item}: ${track.lane.title}`}>item {track.lane.item} · {track.lane.step.name}</span>}</span>
         <ol className="bar-st">
           {track.stations.map((s, i) => (
             <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}${s.state === 'now' && picked ? ' picked' : ''}`} title={`${s.name}: ${word(s)}`}>
