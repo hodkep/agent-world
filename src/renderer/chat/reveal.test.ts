@@ -19,6 +19,15 @@ describe('revealing a reply word by word', () => {
     expect(d.textContent).toBe(before)
     expect(d.querySelector('strong')!.textContent).toBe('reply')
   })
+  it('keeps a task named as "todo #9" in one piece, so it can still be made one link', () => {
+    const d = box('<p>See todo #9, then todo#14 and a todo.</p>')
+    revealWords(d)
+    expect([...d.querySelectorAll('.w-r')].map((x) => x.textContent)).toEqual(['See', 'todo #9,', 'then', 'todo#14', 'and', 'a', 'todo.'])
+    expect(d.textContent).toBe('See todo #9, then todo#14 and a todo.')
+    const p = box('<p>done (todo #9) ok</p>')
+    revealWords(p)
+    expect([...p.querySelectorAll('.w-r')].map((x) => x.textContent)).toEqual(['done', '(todo #9)', 'ok'])
+  })
   it('leaves code, code blocks, pictures and buttons alone', () => {
     const d = box('<p>Run <code>pnpm test</code> now</p><pre><code>a b c</code></pre><button>Copy it</button>')
     revealWords(d)

@@ -8,6 +8,9 @@ const BLUR_WORDS = 200
 /** Text that is shown as it is: code, code blocks, pictures, buttons and diagrams. */
 const SKIP = new Set(['PRE', 'CODE', 'SVG', 'SCRIPT', 'STYLE', 'BUTTON', 'TEXTAREA'])
 
+/** A word, or a task named as `todo #9` (with its space), which stays whole so the chat can still make it one link. Whitespace between words is kept as it was. */
+const PIECES = /\S*?todo ?#\d{1,6}\S*|\S+|\s+/gi
+
 const wordsIn = (el: Node, out: Text[] = []): Text[] => {
   for (const c of Array.from(el.childNodes)) {
     if (c.nodeType === 3) out.push(c as Text)
@@ -22,13 +25,13 @@ const wordsIn = (el: Node, out: Text[] = []): Text[] => {
  */
 export function revealWords(root: HTMLElement): boolean {
   const nodes = wordsIn(root)
-  const total = nodes.reduce((n, t) => n + (t.nodeValue ?? '').split(/\s+/).filter(Boolean).length, 0)
+  const total = nodes.reduce((n, t) => n + ((t.nodeValue ?? '').match(PIECES) ?? []).filter((p) => /\S/.test(p)).length, 0)
   if (total === 0 || total > MAX_WORDS) return false
   root.style.setProperty('--step', `${Math.min(STEP_MS, TOTAL_MS / total)}ms`)
   root.style.setProperty('--blur', total > BLUR_WORDS ? '0px' : '4px')
   let n = 0
   for (const t of nodes) {
-    const parts = (t.nodeValue ?? '').split(/(\s+)/)
+    const parts = (t.nodeValue ?? '').match(PIECES) ?? []
     if (!parts.some((p) => p && !/^\s+$/.test(p))) continue
     const frag = document.createDocumentFragment()
     for (const p of parts) {
