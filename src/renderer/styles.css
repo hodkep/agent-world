@@ -4526,8 +4526,10 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .rb-story .rb-line > .rb-fail { flex: 1 0 100%; }
 .rb-story .rb-tl li { align-items: center; }
 
-/* A message waiting in Claude's own queue: a quiet button to take the queue back. */
-.msg-takeback { margin-left: 10px; font-size: 11px; padding: 1px 8px; color: var(--muted); }
+/* A message waiting in Claude's own queue: an arrow and a word, with no fill, under the Queued line; a thin brass rim shows when the pointer is on it. */
+.msg-takeback { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 0 6px; background: none; box-shadow: none; border: 1px solid transparent; color: var(--muted); font: inherit; font-size: 11px; line-height: 1.3; white-space: nowrap; cursor: pointer; }
+.msg-takeback svg { width: 9px; height: 9px; flex: none; fill: currentColor; shape-rendering: crispEdges; }
+.msg-takeback:hover:not(:disabled), .msg-takeback:focus-visible { background: none; color: var(--accent); border-color: var(--accent-dim); }
 
 /* ==============================================================================================================
    The agent rail and the tab strip, in the office's own language: each agent is its own character with a speech bubble

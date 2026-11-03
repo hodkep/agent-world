@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/chat'
 import type { SubagentInfo } from '../../shared/chat'
-import { elapsedLabel, hasMarkdown, highlight, markdownSpans, isImagePath, modeLabel, rowText, spanLabel, splitMentions, subagentState, toMarkdown, toRows } from './format'
+import { elapsedLabel, hasMarkdown, highlight, markdownSpans, isImagePath, modeLabel, queuedTexts, rowText, spanLabel, splitMentions, subagentState, toMarkdown, toRows } from './format'
 
 const t0 = 1_000_000
 const user = (id: string, at: number, text: string): ChatItem => ({ kind: 'user', id, at, text })
@@ -59,6 +59,14 @@ describe('chat rows', () => {
   it('shows what was just sent until the transcript has it, marking it queued when the agent was busy', () => {
     const rows = toRows([user('u', t0, 'old')], [{ id: 'p1', text: 'new', queued: true }, { id: 'p2', text: 'old', queued: false }])
     expect(rows.map((r) => r.kind === 'user' && [r.text, r.pending, r.queued])).toEqual([['old', undefined, undefined], ['new', true, true]])
+  })
+
+  it('keeps showing a message sent again with the same words as an earlier one, until the transcript has the new one', () => {
+    const sent = [{ id: 'p1', text: 'one', at: t0 + 60_000, queued: true }]
+    const earlier = [user('u', t0, 'one')]
+    expect(toRows(earlier, sent).map((r) => r.kind === 'user' && [r.text, r.pending, r.queued])).toEqual([['one', undefined, undefined], ['one', true, true]])
+    const arrived = [...earlier, user('u2', t0 + 60_500, 'one')]
+    expect(toRows(arrived, sent).filter((r) => r.kind === 'user' && r.pending)).toEqual([])
   })
 
   it('counts a shell command, a slash command and a message with attachments as arrived', () => {
@@ -437,12 +445,34 @@ describe('a monitor, a schedule and what became of them', () => {
 })
 
 describe('messages waiting in Claude\'s queue, typed in the terminal', () => {
-  const queue = (id: string, op: 'enqueue' | 'dequeue' | 'remove', text = ''): ChatItem => ({ kind: 'queue', id, at: t0, op, text })
+  const queue = (id: string, op: 'enqueue' | 'dequeue' | 'remove' | 'popAll', text = ''): ChatItem => ({ kind: 'queue', id, at: t0, op, text })
   it('show as queued rows until Claude takes them: a dequeue takes the oldest, a remove takes the one it names', () => {
     const waiting = (items: ChatItem[]) => toRows(items, []).filter((r) => r.kind === 'user' && r.waiting).map((r) => (r as { text: string }).text)
     expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?')])).toEqual(['done yet', 'and now?'])
     expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?'), queue('3', 'dequeue')])).toEqual(['and now?'])
     expect(waiting([queue('1', 'enqueue', 'done yet'), queue('2', 'enqueue', 'and now?'), queue('3', 'remove', 'and now?')])).toEqual(['done yet'])
+  })
+  it('all leave the queue when Claude pulls them back into the input (popAll), and the ones after it still wait', () => {
+    const waiting = (items: ChatItem[]) => toRows(items, []).flatMap((r) => (r.kind === 'user' && r.waiting ? [r.text] : []))
+    expect(waiting([queue('1', 'enqueue', 'one'), queue('2', 'enqueue', 'two'), queue('3', 'popAll', 'one\ntwo')])).toEqual([])
+    expect(waiting([queue('1', 'enqueue', 'one'), queue('2', 'popAll', 'one'), queue('3', 'enqueue', 'later')])).toEqual(['later'])
+  })
+  it('offer the take-back once, on the last queued message shown, whether the chat sent it or it was typed in the terminal', () => {
+    const takeback = (items: ChatItem[], sent: { id: string; text: string; at: number; queued: boolean }[]) => toRows(items, sent).flatMap((r) => (r.kind === 'user' && r.takeback ? [r.text] : []))
+    const both = [queue('1', 'enqueue', 'typed there'), queue('2', 'enqueue', 'from chat')]
+    expect(takeback(both, [{ id: 'p', text: 'from chat', at: t0, queued: true }])).toEqual(['typed there'])
+    expect(takeback([queue('1', 'enqueue', 'from chat')], [{ id: 'p', text: 'from chat', at: t0, queued: true }])).toEqual(['from chat'])
+    expect(takeback([queue('1', 'enqueue', 'typed there')], [])).toEqual(['typed there'])
+    // Sent from the chat while the agent worked: the button shows even before Claude's transcript lists the message.
+    expect(takeback([], [{ id: 'p', text: 'not in the transcript yet', at: t0, queued: true }])).toEqual(['not in the transcript yet'])
+    // Only the newest queued row has it, and a message that is not queued (sent to a free agent) has none.
+    expect(takeback([], [{ id: 'a', text: 'first', at: t0, queued: true }, { id: 'b', text: 'second', at: t0 + 1, queued: true }])).toEqual(['second'])
+    expect(takeback([], [{ id: 'p', text: 'sent to a free agent', at: t0, queued: false }])).toEqual([])
+  })
+  it('give back the words of every queued message, in order, whether the chat sent it or it was typed in the terminal', () => {
+    const rows = toRows([queue('1', 'enqueue', 'typed there'), user('u', t0, 'old')], [{ id: 'a', text: 'from chat', at: t0, queued: true }, { id: 'b', text: 'free agent', at: t0, queued: false }])
+    expect(queuedTexts(rows)).toEqual(['from chat', 'typed there'])
+    expect(queuedTexts(toRows([user('u', t0, 'old')], []))).toEqual([])
   })
   it('are marked pending and queued, like one queued from the chat', () => {
     expect(toRows([queue('1', 'enqueue', 'done yet')], [])).toMatchObject([{ kind: 'user', text: 'done yet', pending: true, queued: true, waiting: true }])
