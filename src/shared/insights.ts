@@ -388,7 +388,7 @@ export interface RunGroup {
   /** Newest first. */
   runs: Run[]
 }
-const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Still open', trouble: 'Landed with trouble', clean: 'Landed clean', stopped: 'Stopped', unannounced: 'Not announced' }
+const GROUP_TITLES: Record<GroupKey, string> = { needs: 'Needs you', open: 'Still open', trouble: 'Landed with trouble', clean: 'Landed clean', stopped: 'Ended by you', unannounced: 'Not announced' }
 
 /**
  * The runs by what there is to do about them: those held for the person, those still going, those that finished with a gate missed or overridden, those that finished clean
@@ -404,7 +404,7 @@ export function groupKeyOf(r: Run, tiles: Tile[]): GroupKey {
 }
 
 /** How a run is said to stand, in the words of its group. */
-export const GROUP_STANDS: Record<GroupKey, string> = { needs: 'needs you', open: 'still open', trouble: 'landed with trouble', clean: 'landed clean', stopped: 'stopped', unannounced: 'not announced' }
+export const GROUP_STANDS: Record<GroupKey, string> = { needs: 'needs you', open: 'still open', trouble: 'landed with trouble', clean: 'landed clean', stopped: 'ended by you', unannounced: 'not announced' }
 
 export function groupRuns(runs: Run[], ctxFor: (run: Run) => StepContext): RunGroup[] {
   const buckets: Record<GroupKey, Run[]> = { needs: [], open: [], trouble: [], clean: [], stopped: [], unannounced: [] }

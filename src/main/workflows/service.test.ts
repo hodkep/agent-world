@@ -2063,6 +2063,43 @@ describe('skipping an optional step', () => {
   })
 })
 
+describe('the person closes the agent\'s step by hand', () => {
+  const FLOW: RunWorkflow = { id: 'm', name: 'M', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'tests', kind: 'check', name: 'Tests', run: 'true' }, { id: 'verify', kind: 'work', name: 'Verify', by: 'person', gate: 'approve' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }] }
+  const open = () => {
+    const o = make()
+    o.state.pick = () => FLOW
+    o.wf.begin('a1', 'Task')
+    return o
+  }
+  const rid = (wf: Workflows) => wf.runs()[0]!.id
+
+  it('marks the step the run stands on done as the person\'s act, and says what comes next', () => {
+    const { wf } = open()
+    expect(wf.closeStep(rid(wf), 'build')).toMatchObject({ name: 'Build', next: { id: 'tests' } })
+    const log = wf.runs()[0]!.rounds[0]!.steps.at(-1)!
+    expect(log).toMatchObject({ step: 'build', state: 'done', byPerson: true })
+  })
+
+  it('refuses a step the run is not on, one the app or the person does, one waiting for Run, and a run that ended', () => {
+    const { wf } = open()
+    expect(() => wf.closeStep(rid(wf), 'commit')).toThrow('The run is on "Build"')
+    expect(() => wf.closeStep(rid(wf), 'tests')).toThrow('not a step of the agent\'s')
+    expect(() => wf.closeStep(rid(wf), 'nope')).toThrow('No such step.')
+    wf.endRun(rid(wf), '')
+    expect(() => wf.closeStep(rid(wf), 'build')).toThrow('This run has ended.')
+    const b = open()
+    b.wf.stepDone('a1', 'build')
+    expect(() => b.wf.closeStep(rid(b.wf), 'verify')).toThrow()
+  })
+
+  it('tells the agent a plan whose gate is approve does not wait for Run before it starts; a pull request that asks first does', () => {
+    const { wf } = open()
+    const run = wf.runs()[0]!
+    expect(wf.nextAfter({ ...run, workflow: { ...FLOW, steps: [{ id: 'sync', kind: 'work', name: 'Sync' }, { id: 'plan', kind: 'plan', name: 'Plan', gate: 'approve' }] } }, 'sync')).toMatchObject({ start: false })
+    expect(wf.nextAfter({ ...run, workflow: { ...FLOW, steps: [{ id: 'push', kind: 'work', name: 'Push' }, { id: 'pr', kind: 'pr', name: 'Pull request', gate: 'approve' }] } }, 'push')).toMatchObject({ start: true })
+  })
+})
+
 describe('a commit waits for the workflow\'s own Commit step', () => {
   const FLOW: RunWorkflow = { id: 'c', name: 'C', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'work', name: 'Review', start: 'run' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }, { id: 'push', kind: 'work', name: 'Push', start: 'run' }] }
   const open = (flow = FLOW) => {

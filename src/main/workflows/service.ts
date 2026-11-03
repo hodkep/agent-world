@@ -401,6 +401,22 @@ export class Workflows {
     return left.map((s) => s.name)
   }
 
+  /** The person marks the agent's step done by hand, for one the agent never reported (it stopped, or lost track): only the step the run stands on, and only one of the agent's own. Says its name and what comes next. */
+  closeStep(runId: string, step: string): { name: string; next?: ReturnType<Workflows['nextAfter']> } {
+    const run = this.runs().find((r) => r.id === runId)
+    if (!run) throw new Error('No such run.')
+    if (run.status !== 'open') throw new Error('This run has ended.')
+    const found = run.workflow?.steps.find((s) => s.id === step)
+    if (!found) throw new Error('No such step.')
+    if (found.kind !== 'work' || found.by === 'person') throw new Error(`"${found.name}" is not a step of the agent's: the app or you do it.`)
+    const on = stepOn(this.states(run))
+    if (on?.id !== step) throw new Error(`The run is on "${on?.name ?? 'nothing'}", not "${found.name}".`)
+    if (on.toRun) throw new Error(`"${found.name}" has not started: press Run on it first.`)
+    const round = run.rounds[run.rounds.length - 1]!
+    this.append({ k: 'step', t: this.deps.now(), run: runId, round: round.n, step, state: 'done', byPerson: true, note: 'Marked done by the person.' })
+    return { name: found.name, ...this.nextOf(runId, step) }
+  }
+
   /** The person refuses a step that is not optional: it is marked failed, the steps after it do not run, and the agent is told to stop. Says its name. */
   declineStep(runId: string, step: string): string {
     const run = this.runs().find((r) => r.id === runId)
@@ -457,7 +473,8 @@ export class Workflows {
     const steps = run.workflow?.steps ?? []
     const n = steps[steps.findIndex((s) => s.id === id) + 1]
     // A step the person finishes is not waited on before it starts: its gate is their answer after the agent reports it.
-    return n && { id: n.id, name: n.name, optional: !!n.optional, start: n.start === 'run' || (n.gate === 'approve' && n.by !== 'person'), ...(n.by === 'person' && { by: 'person' as const }), ...(n.brief && { brief: n.brief }) }
+    // Only a pull request that asks first waits for the person before it starts; a plan's or a step's approval comes after the work is handed in.
+    return n && { id: n.id, name: n.name, optional: !!n.optional, start: n.start === 'run' || (n.kind === 'pr' && n.gate === 'approve'), ...(n.by === 'person' && { by: 'person' as const }), ...(n.brief && { brief: n.brief }) }
   }
 
   /** The person passes a check over: it does not hold landing. */

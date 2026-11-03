@@ -81,7 +81,7 @@ import { useWorkflows } from './workflows/useWorkflows'
 import { WorkflowTab } from './workflows/WorkflowTab'
 import { RemoteHead } from './chat/RemoteControl'
 import { StepCard } from './workflows/StepCard'
-import { RunTrack } from './workflows/RunTrack'
+import { RunBar } from './workflows/RunBar'
 import { useLandingHolds } from './workflows/useLandingHolds'
 import { GROUP_STANDS, gateTiles, groupKeyOf } from '../shared/insights'
 import { landingPill, trackOf } from '../shared/runTrack'
@@ -921,7 +921,7 @@ export function App() {
     return (
       (t || hold) && (
         <>
-          {t && <RunTrack track={t} seed={a.id} agentName={a.name} variant="bar" landing={landingPill(hold, landingKind(run?.workflow))} onReopen={() => void window.aw.landingReopen(a.id)} />}
+          {t && run && <RunBar run={run} ctx={ctxFor(run)} track={t} seed={a.id} agentName={a.name} landing={landingPill(hold, landingKind(run.workflow))} onReopen={() => void window.aw.landingReopen(a.id)} />}
         </>
       )
     )

@@ -365,7 +365,7 @@ describe('the runs grouped by what to do about them', () => {
   const groups = groupRuns(runs, () => ctx)
   it('puts first what waits on the person, then what is still going, then what landed with trouble or clean, and last what was stopped', () => {
     expect(groups.map((g) => g.key)).toEqual(['needs', 'open', 'trouble', 'clean', 'stopped'])
-    expect(groups.map((g) => g.title)).toEqual(['Needs you', 'Still open', 'Landed with trouble', 'Landed clean', 'Stopped'])
+    expect(groups.map((g) => g.title)).toEqual(['Needs you', 'Still open', 'Landed with trouble', 'Landed clean', 'Ended by you'])
   })
   it('lists the newest run first inside a group', () => {
     expect(groups.find((g) => g.key === 'clean')!.runs.map((r) => r.id)).toEqual(['clean-new', 'clean-retried', 'clean-old'])

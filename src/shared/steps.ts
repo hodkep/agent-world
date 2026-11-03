@@ -270,6 +270,9 @@ export const stepSkippedOnward = (name: string, next?: string, note?: string) =>
 export const nextStepLine = (n?: { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string }) =>
   n ? ` Next step: "${n.name}"${n.optional ? ' (optional: do it unless it clearly does not apply; to leave it out, call step_done("${n.id}", skipped, "<why>") first, never just move on)' : ''}${n.start ? '; it starts when the person presses Run, so change nothing until you are told' : ''}${n.by === 'person' ? `; it ends with the person's verdict: do what it says, then call step_done and wait for their answer` : ''}.${n.brief ? ` It is for: ${n.brief}` : ''}` : ' That was the last step.'
 
+/** What the agent is told when the person marks its step done by hand: it reports nothing for it, and goes on with what comes next. */
+export const stepClosed = (name: string, next?: Parameters<typeof nextStepLine>[0]) => `The person marked your step "${name}" done themselves: do not report it.${nextStepLine(next)}`
+
 /** What the agent is told when the person presses Run on one of its steps. */
 export const stepStarted = (name: string, note?: string) => said(`The person pressed Run: start your step "${name}" now.`, note)
 

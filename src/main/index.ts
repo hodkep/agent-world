@@ -105,7 +105,7 @@ import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
 import { troubleOf } from '../shared/trouble'
-import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepClosed, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, enabledHere, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend } from '../shared/runStats'
@@ -2406,6 +2406,13 @@ async function main() {
     const run = workflows.runs().find((r) => r.id === runId)
     const r = workflows.answerSkip(runId, !!approve)
     if (run) mailbox.fromOffice(run.agent, r.approved ? stepsSkipped(r.names, r.why, noteOf(note)) : stepsKept(r.names, noteOf(note)))
+    send('workflows')
+  })
+  // The person closes the agent's step by hand (one it never reported): it is told, and goes on with the next.
+  ipcMain.handle('workflows:close-step', (_, runId: string, step: string) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    const { name, next } = workflows.closeStep(runId, String(step))
+    if (run) mailbox.fromOffice(run.agent, stepClosed(name, next))
     send('workflows')
   })
   // The person ends a run that cannot go on: what is left is set aside, and the agent is told to stop.
