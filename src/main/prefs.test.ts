@@ -10,6 +10,19 @@ describe('preferences', () => {
     expect([w.off, w.offAll]).toEqual([{ '/p/shop': ['bug-fix'] }, ['/p/shop']])
     expect(cleanPrefs({}).workflows.off).toBeUndefined()
   })
+  it('keeps voice off with the default model and gentle defaults until it is switched on, and ignores what is not a plain model name', () => {
+    expect(cleanPrefs({}).voice).toEqual({ enabled: false, model: 'gemini-3.8-live', mode: 'ptt', speak: 'milestones', extra: '', items: [], capMinutes: 30, confirm: false, sounds: true })
+    expect(cleanPrefs({ voice: { enabled: true, model: 'gemini-3.1-flash-live-preview' } }).voice).toMatchObject({ enabled: true, model: 'gemini-3.1-flash-live-preview' })
+    expect(cleanPrefs({ voice: { enabled: 'yes', model: 'x y; rm -rf' } }).voice).toMatchObject({ enabled: false, model: 'gemini-3.8-live' })
+    expect(cleanPrefs({ voice: { model: 'm'.repeat(80) } }).voice.model).toBe('gemini-3.8-live')
+  })
+  it('keeps the voice choices that are valid and falls back on the rest', () => {
+    const v = cleanPrefs({ voice: { mode: 'open', speak: 'chatty', extra: 'Call me P.', items: ['brainstorm', 'Bad Id', 7, 'review-checklist'], capMinutes: 60, confirm: true, sounds: false } }).voice
+    expect(v).toMatchObject({ mode: 'open', speak: 'chatty', extra: 'Call me P.', items: ['brainstorm', 'review-checklist'], capMinutes: 60, confirm: true, sounds: false })
+    expect(cleanPrefs({ voice: { mode: 'shout', speak: 'loud', capMinutes: 7 } }).voice).toMatchObject({ mode: 'ptt', speak: 'milestones', capMinutes: 30 })
+    expect(cleanPrefs({ voice: { extra: 'e'.repeat(5000) } }).voice.extra).toHaveLength(2000)
+    expect(cleanPrefs({ voice: { items: Array.from({ length: 80 }, (_, i) => `item-${i}`) } }).voice.items).toHaveLength(40)
+  })
   it('start from the defaults when there is no file', () => {
     expect(loadPrefs(join(mkdtempSync(join(tmpdir(), 'aw-prefs-')), 'none.json'))).toEqual(DEFAULT_PREFS)
   })

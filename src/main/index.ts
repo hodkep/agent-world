@@ -11,6 +11,17 @@ import { editedFiles } from './todos/edited'
 import { excerptOf, type LabelColor } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
+import { keychainUsable, keyStore } from './voice/key'
+import { checkKey } from './voice/models'
+import { createVoiceHub } from './voice/hub'
+import { talkLog } from './voice/log'
+import { lastReply, recentChat } from './voice/agentChat'
+import { summarizeAgentStats, summarizeLimits, summarizeRuns, summarizeUsage } from './voice/meters'
+import { createVoiceSession, type SessionDeps } from './voice/session'
+import { fakeCheck, fakeLive } from './voice/fakeLive'
+import { fallbackSummary, lastSummary, listTalks, removeTalk, saveTalk, summarize } from './voice/memory'
+import { GoogleGenAI } from '@google/genai'
+import { keyHint } from '../shared/voiceKey'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { installedNotes } from './releaseNotes'
@@ -29,7 +40,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, safeStorage, session, shell, systemPreferences } from 'electron'
 import { isWebUrl } from './webUrl'
 import { cachedLoginPath, packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
@@ -129,6 +140,10 @@ if (HIDDEN && process.platform === 'darwin') app.dock?.hide()
 const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')))
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
+// The end-to-end test talks to a scripted Gemini through a fake microphone, which the system never asks about.
+// The scripted stand-ins for Gemini, the key check and the microphone exist for tests only: a packaged app ignores the switch.
+const voiceFake = !!process.env.AW_VOICE_FAKE && !app.isPackaged
+if (voiceFake) (app.commandLine.appendSwitch('use-fake-device-for-media-stream'), app.commandLine.appendSwitch('use-fake-ui-for-media-stream'))
 process.env.AW_APP_HOME = HOME
 // Off unless asked for: records what stalls this process, and what the page reports, in perf.log (see perf.ts). Started before any handler is registered so each call is timed.
 const PERF = process.env.AW_PERF === '1'
@@ -823,7 +838,10 @@ function comeForward(agent?: AgentRecord) {
 }
 let lastNotice: { agentId?: string; at: number } | null = null
 
+// The voice companion hears of what the agents do; it is set when the voice is wired up.
+let voiceAlert: ((kind: Alert, agent: AgentRecord | undefined, body: string) => void) | null = null
 function notify(kind: Alert, agent: AgentRecord | undefined, body: string) {
+  voiceAlert?.(kind, agent, body)
   if (HIDDEN || prefs.notifications === 'off' || (prefs.notifications === 'attention' && kind === 'finished') || !Notification.isSupported() || !shouldNotify(kind, liveWindows().some((w) => w.isFocused()))) return
   const n = new Notification({ title: agent ? `${agent.name} · Agent World` : 'Agent World', body, silent: kind === 'finished' })
   lastNotice = { agentId: agent?.id, at: Date.now() }
@@ -1243,6 +1261,16 @@ protocol.registerSchemesAsPrivileged([{ scheme: WIDGET_SCHEME, privileges: { sta
 
 async function main() {
   await app.whenReady()
+  // The microphone is for the app's own page. A page in a frame (a preview of a local server) must not get it just because the app has it.
+  const ownPage = (wc: Electron.WebContents | null, url: string) => {
+    try {
+      return !!wc && new URL(url).origin === new URL(wc.getURL()).origin
+    } catch {
+      return false
+    }
+  }
+  session.defaultSession.setPermissionRequestHandler((wc, permission, done, details) => done(permission !== 'media' || ownPage(wc, details.requestingUrl)))
+  session.defaultSession.setPermissionCheckHandler((wc, permission, origin) => permission !== 'media' || ownPage(wc, origin))
   protocol.handle(WIDGET_SCHEME, (req) => widgetResponse(chatMod.state(), req.url))
   syncFeeds()
   app.on('before-quit', () => widgetFeeds.stop())
@@ -1686,8 +1714,9 @@ async function main() {
   ipcMain.handle('roles:save', (_, r: { title: string; blurb: string; options: AgentOptions; nameHint?: string }) => saveRole(ROLES_FILE, r))
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => limitsBook.tightest())
-  ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
-    if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
+  // What the limits stand at: asked for afresh when `poll` says so ('stale' asks only if the last answer is old); the voice only reads ('never').
+  const limitsNow = async (poll: 'refresh' | 'stale' | 'never') => {
+    if (poll === 'refresh' || (poll === 'stale' && (pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS))) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
     const liveId = providers().find((p) => p.capabilities.liveLimits)?.id
@@ -1700,14 +1729,15 @@ async function main() {
     const all = [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
     snapshotLimits(all)
     return all
-  })
+  }
+  ipcMain.handle('limits:get', (_, refresh?: boolean) => limitsNow(refresh ? 'refresh' : 'stale'))
   ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
   // A message typed while the agent is still starting waits for its input box (a terminal that is not reading yet loses what is pasted into it),
   // but not for ever: past this the message goes in as it always did. Messages to one agent go in one at a time, in the order they were sent.
   const READY_WAIT_MS = 20_000
   const chatQueue = new Map<string, Promise<unknown>>()
-  ipcMain.handle('chat:send', (_, id: string, raw: string) => {
+  const queuedChat = (id: string, raw: string) => {
     const mine = (chatQueue.get(id) ?? Promise.resolve()).then(async () => {
       const until = Date.now() + READY_WAIT_MS
       while (sessions.has(id) && mailbox.isStarting(id) && Date.now() < until) await new Promise((r) => setTimeout(r, 100))
@@ -1715,7 +1745,8 @@ async function main() {
     })
     chatQueue.set(id, mine.catch(() => undefined))
     return mine
-  })
+  }
+  ipcMain.handle('chat:send', (_, id: string, raw: string) => queuedChat(id, raw))
   const sendChat = async (id: string, raw: string) => {
     const mine = byId(id)
     if (mine) touch(mine)
@@ -1808,6 +1839,120 @@ async function main() {
     refreshAttention()
     return prefs
   })
+  // The voice companion's Gemini key lives only here: the page is told whether one is kept, never what it is.
+  const keychainOk = () => keychainUsable(safeStorage.isEncryptionAvailable(), process.platform === 'linux' ? safeStorage.getSelectedStorageBackend() : undefined)
+  const voiceKey = keyStore(join(HOME, 'voice-key.bin'), { isAvailable: keychainOk, encrypt: (s) => safeStorage.encryptString(s), decrypt: (b) => safeStorage.decryptString(b) })
+  // Set means a key that can be read back: a damaged file or one from another computer counts as none, so the person is asked for it again.
+  ipcMain.handle('voice:key-state', () => {
+    const key = voiceKey.get()
+    return { set: key !== null, available: keychainOk(), hint: key ? keyHint(key) : '' }
+  })
+  ipcMain.handle('voice:key-save', async (_, key: unknown) => {
+    const check = await (voiceFake ? fakeCheck : checkKey)(typeof key === 'string' ? key : '')
+    if (check.ok) voiceKey.set((key as string).trim())
+    return check
+  })
+  ipcMain.handle('voice:key-clear', () => voiceKey.clear())
+  ipcMain.handle('voice:models', async () => {
+    const key = voiceKey.get()
+    return key ? (voiceFake ? fakeCheck : checkKey)(key) : { ok: false, reason: 'nokey' }
+  })
+  ipcMain.handle('voice:mic-status', () => (voiceFake ? 'granted' : process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'))
+  ipcMain.handle('voice:mic-access', () => (voiceFake ? true : process.platform === 'darwin' ? systemPreferences.askForMediaAccess('microphone') : true))
+  // The talk: one at a time, in the workspace of the window that started it, which is the one it speaks to.
+  const talksFile = (path: string) => join(HOME, 'voice', `${repoSlug(path)}.json`)
+  let voiceWin: BrowserWindow | undefined
+  const stateWord = (id: string) => {
+    const a = sessions.has(id) ? (lastActivity.get(id) ?? 'idle') : 'asleep'
+    return a === 'idle' ? 'idle' : a === 'asleep' ? 'asleep' : a === 'waiting' || a === 'permission' ? 'waiting for you' : 'working'
+  }
+  const workspaceAgents = (path: string) => agents.filter((a) => a.repoPath === path && !a.builder && !a.parent)
+  const liveConnect: SessionDeps['connect'] = async (o) => {
+    if (voiceFake) return fakeLive(o.callbacks)
+    const key = voiceKey.get()
+    if (!key) throw new Error('No Gemini key is saved.')
+    const live = await new GoogleGenAI({ apiKey: key }).live.connect({
+      model: o.model,
+      config: o.config as never,
+      callbacks: { onmessage: o.callbacks.onmessage, onerror: (e: unknown) => o.callbacks.onerror({ message: (e as { message?: string })?.message }), onclose: (e: unknown) => o.callbacks.onclose({ reason: (e as { reason?: string })?.reason }) }
+    })
+    return live as unknown as Awaited<ReturnType<SessionDeps['connect']>>
+  }
+  const voiceHub = createVoiceHub({
+    key: () => (voiceFake ? (voiceKey.exists() ? 'fake' : null) : voiceKey.get()),
+    prefs: () => prefs.voice,
+    agents: (path) => workspaceAgents(path).map((a) => ({ name: a.name, state: stateWord(a.id), ...(stateWord(a.id) === 'working' && lastActivity.get(a.id) ? { doing: String(lastActivity.get(a.id)) } : {}), ...(lastReply(chats.get(a.id)?.items ?? []) ? { last: lastReply(chats.get(a.id)?.items ?? [])! } : {}) })),
+    needsYou: (path) => workspaceAgents(path).filter((a) => stateWord(a.id) === 'waiting for you').map((a) => `${a.name} (${lastActivity.get(a.id)})`),
+    todos: (path, f = {}) => {
+      const q = f.query?.toLowerCase()
+      return todoService
+        .board(path)
+        .todos.filter((t) => (f.status ? t.status === f.status : t.status !== 'done') && (!f.list || t.list.toLowerCase() === f.list.toLowerCase()) && (!f.needsYou || t.needsYou) && (!q || `${t.title} ${t.notes}`.toLowerCase().includes(q)))
+        .map((t) => ({ id: t.id, title: t.title, status: t.status, list: t.list, ...(t.needsYou ? { needsYou: true } : {}), ...(t.blockedWhy ? { blockedWhy: t.blockedWhy.slice(0, 160) } : {}), ...(t.claimedBy ? { owner: t.claimedBy.name } : {}) }))
+    },
+    todo: (path, id) => {
+      const t = todoService.board(path).todos.find((x) => x.id === id)
+      return t ? { id: t.id, title: t.title, status: t.status, list: t.list, notes: t.notes.slice(0, 1000), needsYou: t.needsYou, ...(t.blockedWhy ? { blockedWhy: t.blockedWhy } : {}), ...(t.claimedBy ? { owner: t.claimedBy.name } : {}), ...(t.doneNote ? { doneNote: t.doneNote.slice(0, 400) } : {}) } : null
+    },
+    workflows: (path) => ({ enabled: prefs.workflows.enabled, workflows: enabledHere(prefs.workflows, path, workflowStore.list(path)).filter((e) => e.workflow).map((e) => ({ id: e.id, name: e.workflow!.name, ...(e.workflow!.when ? { when: e.workflow!.when } : {}) })) }),
+    runs: (path) => summarizeRuns(workflows.runs(), basename(path), Date.now()),
+    limits: async () => summarizeLimits(await limitsNow('never'), Date.now(), (provider, account) => (account ? (prefs.accounts.find((a) => a.id === account)?.name ?? account) : (prefs.ownNames[provider as ProviderId] ?? 'this computer'))),
+    usage: async (path, days) => summarizeUsage(overview(ledger.filter((ev) => (ev as { project?: string }).project === basename(path)), days, Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))), basename(path), days),
+    agentStats: (path, name) => summarizeAgentStats(workspaceAgents(path).filter((a) => !name || a.name === name).map((a) => ({ name: a.name, stats: lastStats.get(a.id) }))),
+    chat: (path, name, count) => {
+      const a = workspaceAgents(path).find((x) => x.name === name)
+      return a ? recentChat(chats.get(a.id)?.items ?? [], { count }) : null
+    },
+    notes: (path, q) => recall(loadMemory(memoryFile(path)), q).map((n) => n.text),
+    items: (ids) => libraryService.library.listSync().filter((i) => ids.includes(i.id)).map((i) => ({ id: i.id, title: i.name, text: i.body, core: i.body.length <= 600 })),
+    send: async (path, agentName, text) => {
+      const a = workspaceAgents(path).find((x) => x.name === agentName)
+      if (!a) throw new Error(`There is no agent named ${agentName}.`)
+      await queuedChat(a.id, text)
+    },
+    addTodo: (path, t) => void todoService.addByPerson(path, { title: t.title, notes: t.notes }),
+    record,
+    lastSummary: (path) => lastSummary(talksFile(path)),
+    saveTalk: (path, t) => saveTalk(talksFile(path), t),
+    summarize: (turns) => (voiceFake ? Promise.resolve(fallbackSummary(turns)) : summarize(voiceKey.get() ?? '', turns)),
+    emit: (e) => voiceWin?.webContents.send('voice:event', e),
+    now: () => Date.now(),
+    log: talkLog(join(HOME, 'voice.log')),
+    makeSession: (d) => createVoiceSession({ ...d, connect: liveConnect })
+  })
+  voiceAlert = (kind, agent, body) => {
+    if (!agent) return
+    // What it said last goes with the news, so the voice can tell the person what came of it and not only that it finished.
+    const last = lastReply(chats.get(agent.id)?.items ?? [])
+    voiceHub.alert(agent.repoPath, { kind: kind === 'finished' ? 'finished' : 'needs-you', agent: agent.name, text: `Agent ${agent.name}: ${body}${last ? ` Its last words: "${last}"` : ''}` })
+  }
+  ipcMain.handle('voice:start', async (e, folder: unknown, active: unknown) => {
+    if (typeof folder !== 'string' || !folder) return { ok: false, reason: 'nofolder' }
+    if (!prefs.voice.enabled) return { ok: false, reason: 'off' }
+    // A key that is saved but cannot be read (the keychain refused, or the file came from another computer) is not the same as no key.
+    if (!voiceFake && voiceKey.exists() && voiceKey.get() === null) return { ok: false, reason: 'unreadable' }
+    const win = BrowserWindow.fromWebContents(e.sender) ?? undefined
+    if (win !== voiceWin) {
+      voiceWin = win
+      win?.once('closed', () => {
+        if (voiceWin === win) void voiceHub.stop('its window closed')
+      })
+    }
+    return voiceHub.start(folder, basename(folder), typeof active === 'string' && active ? active : undefined)
+  })
+  ipcMain.handle('voice:stop', () => voiceHub.stop())
+  // The agent the person has open in the app, so the voice knows who "the agent" is when none is named.
+  ipcMain.handle('voice:focus', (_, name: unknown) => voiceHub.focus(typeof name === 'string' ? name : ''))
+  // A block of speech is about 100 ms (3 KB); anything else is not ours to pass on to Google.
+  ipcMain.on('voice:audio', (_, buf: unknown) => {
+    if ((buf instanceof ArrayBuffer || ArrayBuffer.isView(buf)) && buf.byteLength <= 65_536) voiceHub.audio(Buffer.from(buf instanceof ArrayBuffer ? buf : buf.buffer, buf instanceof ArrayBuffer ? 0 : buf.byteOffset, buf.byteLength).toString('base64'))
+  })
+  ipcMain.on('voice:audio-end', () => voiceHub.audioEnd())
+  ipcMain.handle('voice:mute', (_, on: unknown) => voiceHub.mute(on === true))
+  ipcMain.handle('voice:draft-send', (_, id: unknown) => voiceHub.draftSend(String(id)))
+  ipcMain.handle('voice:draft-discard', (_, id: unknown) => voiceHub.draftDiscard(String(id)))
+  ipcMain.handle('voice:talks', (_, folder: unknown) => (typeof folder === 'string' ? listTalks(talksFile(folder)) : []))
+  ipcMain.handle('voice:talk-delete', (_, folder: unknown, at: unknown) => (typeof folder === 'string' && typeof at === 'number' ? removeTalk(talksFile(folder), at) : undefined))
   const identityState = async (): Promise<IdentityState> => ({ identity, logins: parseGhLogins(await ghRun('gh', ['auth', 'status', '--json', 'hosts']).catch(() => '')) })
   ipcMain.handle('identity:state', () => identityState())
   ipcMain.handle('identity:save', async (_, next: unknown) => {

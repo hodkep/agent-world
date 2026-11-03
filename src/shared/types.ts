@@ -332,6 +332,36 @@ export interface Prefs {
   ownNames: Partial<Record<ProviderId, string>>
   /** Workflows: tasks recorded round by round, with gates. Off until the person turns them on; off hides everything that belongs to them. */
   workflows: import('./workflows').WorkflowPrefs
+  /** The voice companion (beta): off until the person turns it on with a Gemini key saved; `model` is the Live model a talk uses, changed here when Google retires one. */
+  voice: {
+    enabled: boolean
+    model: string
+    /** Open microphone, or push to talk (hold the button or Space while speaking). */
+    mode: 'ptt' | 'open'
+    /** How often the voice speaks up about what the agents do: never, only on a finish, a request for you or a failure, or on everything. */
+    speak: 'silent' | 'milestones' | 'chatty'
+    /** The person's own words added to what the voice is told (up to 2000 characters). */
+    extra: string
+    /** Library items the voice is told, by id: short ones whole, long ones when it asks. */
+    items: string[]
+    /** Minutes of talk before a session ends on its own; 0 for no limit. */
+    capMinutes: 0 | 15 | 30 | 60
+    /** Show what the voice wants to send to an agent as a draft until the person presses Send. Off: it sends what the person asked it to, at once. */
+    confirm: boolean
+    /** Short chimes when a call connects and when it ends. */
+    sounds: boolean
+  }
+}
+
+/** What asking Google about a Gemini key gave: the voice models it can use, or why not. `nokey` is only for asking without a key saved. */
+export type VoiceCheck = { ok: true; models: string[] } | { ok: false; reason: 'invalid' | 'unreachable' | 'none' | 'nokey' }
+
+/** Whether a Gemini key is kept, and whether the system keychain could keep one. The key itself never leaves the main process. */
+export interface VoiceKeyState {
+  set: boolean
+  available: boolean
+  /** The first and last four characters, to tell one key from another (empty with no key). */
+  hint: string
 }
 
 /** A login of one program kept apart from the others: its folder holds its sign-in, settings and conversations. */

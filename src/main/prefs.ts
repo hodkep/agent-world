@@ -2,9 +2,10 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname } from 'node:path'
 import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
+import { DEFAULT_LIVE_MODEL } from './voice/models'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, updateMirror: true, sleepIdleMinutes: 30, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', libraryEnabled: true, officeLife: true, updateMirror: true, sleepIdleMinutes: 30, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, defaults: {} }, voice: { enabled: false, model: DEFAULT_LIVE_MODEL, mode: 'ptt', speak: 'milestones', extra: '', items: [], capMinutes: 30, confirm: false, sounds: true } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -38,7 +39,8 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     },
     accounts: cleanAccounts(r.accounts, base.accounts),
     ownNames: cleanOwnNames(r.ownNames, base.ownNames),
-    workflows: cleanWorkflows(r.workflows, base.workflows)
+    workflows: cleanWorkflows(r.workflows, base.workflows),
+    voice: cleanVoice(r.voice, base.voice)
   }
 }
 
@@ -64,6 +66,24 @@ function cleanOff(raw: unknown): Pick<Prefs['workflows'], 'off' | 'offAll'> {
 function cleanWorkflows(raw: unknown, base: Prefs['workflows']): Prefs['workflows'] {
   const w = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   return { enabled: typeof w.enabled === 'boolean' ? w.enabled : base.enabled, dial: isDial(w.dial) ? w.dial : base.dial, since: typeof w.since === 'number' && w.since >= 0 ? w.since : base.since, defaults: cleanDefaults(w.defaults), ...cleanOff(w.off), ...(Array.isArray(w.offAll) && w.offAll.some((p) => p && typeof p === 'string') && { offAll: w.offAll.filter((p): p is string => !!p && typeof p === 'string').slice(0, 200) }) }
+}
+
+/** A model name is a plain id (letters, digits, dots, dashes); anything else is not a model Google would know. */
+function cleanVoice(raw: unknown, base: Prefs['voice']): Prefs['voice'] {
+  const v = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const model = typeof v.model === 'string' ? v.model.trim() : ''
+  const items = Array.isArray(v.items) ? v.items.filter((x): x is string => typeof x === 'string' && /^[a-z0-9][a-z0-9-]{0,79}$/.test(x)).slice(0, 40) : base.items
+  return {
+    enabled: typeof v.enabled === 'boolean' ? v.enabled : base.enabled,
+    model: /^[\w.-]{1,60}$/.test(model) ? model : base.model,
+    mode: v.mode === 'open' || v.mode === 'ptt' ? v.mode : base.mode,
+    speak: v.speak === 'silent' || v.speak === 'milestones' || v.speak === 'chatty' ? v.speak : base.speak,
+    extra: str(v.extra, 2000) ?? base.extra,
+    items,
+    confirm: typeof v.confirm === 'boolean' ? v.confirm : base.confirm,
+    sounds: typeof v.sounds === 'boolean' ? v.sounds : base.sounds,
+    capMinutes: v.capMinutes === 0 || v.capMinutes === 15 || v.capMinutes === 30 || v.capMinutes === 60 ? v.capMinutes : base.capMinutes
+  }
 }
 
 function cleanSetup(raw: unknown, base: Prefs['setup']): Prefs['setup'] {

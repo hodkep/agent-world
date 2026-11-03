@@ -368,6 +368,32 @@ export interface AwApi {
   onUpdateState(cb: (s: { state: 'off' | 'checking' | 'none' | 'available' | 'ready' | 'error'; detail?: string; latest?: string; url?: string; tag?: string; rel?: UpdateRel; current?: string; install?: InstallState; beta?: BetaState }) => void): () => void
   /** The GitHub profiles, and the one each project acts as. Saving asks gh for the logins' tokens again. */
   identity: { state(): Promise<import('./identity').IdentityState>; save(identity: import('./identity').Identity): Promise<import('./identity').IdentityState> }
+  /** The Gemini key for the voice companion. Saving checks it with Google first and keeps it only if it works; the key is never given back. */
+  voice: {
+    keyState(): Promise<import('./types').VoiceKeyState>
+    saveKey(key: string): Promise<import('./types').VoiceCheck>
+    clearKey(): Promise<void>
+    /** The voice models the saved key can use (also a check that it still works). */
+    models(): Promise<import('./types').VoiceCheck>
+    /** Asks the system for the microphone (a prompt the first time on a Mac); true when allowed. */
+    micAccess(): Promise<boolean>
+    /** The system's word for the microphone: granted, denied, restricted or not-determined. */
+    micStatus(): Promise<string>
+    /** Starts a talk in this workspace (the window's folder). */
+    start(folder: string, active?: string): Promise<{ ok: true } | { ok: false; reason: 'nokey' | 'off' | 'nofolder' | 'unreadable' }>
+    stop(): Promise<void>
+    /** The agent the person has open in the app. */
+    focus(agent: string): Promise<void>
+    /** The person's speech: 16 kHz, 16-bit PCM. Sent without waiting for an answer. */
+    audio(pcm: ArrayBuffer): void
+    audioEnd(): void
+    mute(on: boolean): Promise<void>
+    onEvent(cb: (e: import('./voiceEvent').VoiceEvent) => void): () => void
+    draftSend(id: string): Promise<void>
+    draftDiscard(id: string): Promise<void>
+    talks(folder: string): Promise<{ at: number; summary: string; turns: number }[]>
+    deleteTalk(folder: string, at: number): Promise<void>
+  }
   getPrefs(): Promise<import('./types').Prefs>
   setPrefs(prefs: import('./types').Prefs): Promise<import('./types').Prefs>
   /** POC: the look an agent wrote for the chat, a draft waiting for Keep or Undo, and the way back to the system default. */
