@@ -3,6 +3,9 @@
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { GLYPHS } from '../src/renderer/world/pixelfont.ts'
+import { characterPixels, paletteFor } from '../src/renderer/world/sprites.ts'
+import { CREW } from '../site/office.js'
 import { Marked } from 'marked'
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id'
 
@@ -48,9 +51,17 @@ const clip = (s, n) => (s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, '')
 
 /** Each page is written at depth `d` below the top, so a path from the top is reached with d times `../`. */
 const up = (d) => '../'.repeat(d)
+const hex = (n) => `#${n.toString(16).padStart(6, '0')}`
+const POSES = ['stand', 'walk1', 'walk2', 'sit']
+/** The six engineers who build the home page and the courier, the app's own characters in every view and pose with their palettes: in their own clothes (`own`), and with the crown and the cap they wear while sharing a section. Written into every page for office.js. */
+export const dressed = (k, role) => ({ pal: Object.fromEntries(Object.entries(paletteFor(k, role)).map(([c, n]) => [c, hex(n)])), front: Object.fromEntries(POSES.map((p) => [p, characterPixels(k, role, 'front', p)])), side: Object.fromEntries(POSES.map((p) => [p, characterPixels(k, role, 'side', p)])) })
+export const crewChars = () => Object.fromEntries([...CREW, 'courier'].map((k) => [k, { own: dressed(k, 'senior'), boss: dressed(k, 'boss'), intern: dressed(k, 'intern') }]))
+const BITS = JSON.stringify({ GLYPHS, CHARS: crewChars() })
+// The home page starts hidden while the crew builds it, on a screen wider than the stacked layout's (site.css, 860px); if the script never runs (blocked, old browser) the page shows itself after a while.
+const BUILDING = "<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&innerWidth>860){document.documentElement.classList.add('building');setTimeout(function(){if(!window.awCrew)document.documentElement.classList.remove('building')},6000)}</script>"
+const FONTS = '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap">'
 
-function layout({ title, description, path, depth, body, active, side = '', toc = '', head = '' }) {
-  const root = up(depth)
+function layout({ title, description, path, depth, body, active, side = '', toc = '', head = '', root = up(depth) }) {
   const nav = [['', 'Home'], ['docs/getting-started/', 'Docs']].map(([p, t]) => `<a href="${root}${p}"${active === p ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')
   const image = `${SITE}assets/docs/images/office-activities.png`
   return `<!doctype html>
@@ -61,12 +72,13 @@ function layout({ title, description, path, depth, body, active, side = '', toc 
 <meta property="og:type" content="website"><meta property="og:site_name" content="Agent World"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${SITE}${path}"><meta property="og:image" content="${image}">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%2312101a'/%3E%3Crect x='1' y='1' width='6' height='6' fill='%23f2c230'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="${root}site.css">${head}
+${FONTS}<link rel="stylesheet" href="${root}site.css">${head}
 </head><body data-root="${root}">
 <header class="top"><a class="wm" href="${root}">Agent World</a><nav aria-label="Site">${nav}<a href="${GITHUB}/releases">Releases</a><a href="${GITHUB}">GitHub</a></nav><a class="btn" href="${GITHUB}/releases/latest">Download</a></header>
 ${body.startsWith('<!--bare-->') ? body : `<div class="page${side ? '' : ' solo'}">${side}<main>${body}</main>${toc}</div>`}
 <footer class="foot"><span>© Agent World · Apache 2.0</span><a href="${GITHUB}">Repository</a><a href="${GITHUB}/releases">Releases</a><a href="${root}docs/install/">Install notes</a><a href="${root}docs/trademark/">Name and logo</a></footer>
 <script src="${root}site.js" defer></script>
+<script type="module">import { mount } from '${root === '/' ? '/office.js' : `./${root}office.js`}'; mount(document, ${BITS})</script>
 </body></html>
 `
 }
@@ -75,7 +87,7 @@ ${body.startsWith('<!--bare-->') ? body : `<div class="page${side ? '' : ' solo'
 function sidebar(pages, page, root) {
   const groups = [...new Set(pages.map((p) => p.group))]
   const links = groups.map((g) => `<h4>${g}</h4>${pages.filter((p) => p.group === g).map((p) => `<a href="${root}docs/${p.slug}/"${p === page ? ' class="on" aria-current="page"' : ''}>${esc(p.label)}</a>`).join('')}`).join('')
-  return `<aside><div class="side"><div class="search"><input type="search" placeholder="Search the docs" aria-label="Search the docs" data-search><kbd>⌘K</kbd></div><ol class="hits" data-hits hidden></ol><details class="menu" open><summary>Menu</summary><nav aria-label="Docs">${links}</nav></details></div></aside>`
+  return `<aside><div class="side"><div class="search"><input type="search" placeholder="Search the docs" aria-label="Search the docs" data-search><kbd>⌘K</kbd></div><ol class="hits" data-hits hidden></ol><details class="menu" open><summary>Menu</summary><nav aria-label="Docs">${links}</nav></details></div><canvas class="reader" data-scene="reader" width="48" height="40" aria-hidden="true"></canvas></aside>`
 }
 
 function render(md, src, pages, depth) {
@@ -125,14 +137,14 @@ export async function build(root, out) {
 
   const home = readFileSync(join(root, 'site', 'home.html'), 'utf8').replace(/\{\{version\}\}/g, version).replace(/\{\{root\}\}/g, '')
   for (const m of home.matchAll(/src="assets\/([^"]+)"/g)) assets.add(m[1])
-  write('index.html', layout({ title: 'Agent World: run your coding agents from a pixel-art office', description: 'A desktop app for running Claude Code and Antigravity agents, each on its own git branch, shown as characters at their desks in a small office.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '' }))
-  write('404.html', layout({ title: 'Page not found · Agent World', description: 'This page does not exist. Go to the home page, the user guide or the documentation.', path: '404.html', depth: 0, body: '<div class="page solo"><main><h1>Page not found</h1><p><a href="./">Back to the home page</a>, or <a href="docs/getting-started/">open the docs</a>.</p></main></div>', active: '' }))
+  write('index.html', layout({ title: 'Agent World: run your coding agents from a pixel-art office', description: 'A desktop app for running Claude Code and Antigravity agents, each on its own git branch, shown as characters at their desks in a small office.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
+  write('404.html', layout({ title: 'Page not found · Agent World', description: 'This page does not exist. Go to the home page, the user guide or the documentation.', path: '404.html', depth: 0, body: '<div class="page solo"><main><h1>Page not found</h1><p><a href="/">Back to the home page</a>, or <a href="/docs/getting-started/">open the docs</a>.</p></main></div>', active: '', root: '/' })) // shown at any missing address, so its links start at the site's top
 
   for (const a of assets) {
     mkdirSync(dirname(join(out, 'assets', a)), { recursive: true })
     copyFileSync(join(root, a), join(out, 'assets', a))
   }
-  for (const f of ['site.css', 'site.js']) copyFileSync(join(root, 'site', f), join(out, f))
+  for (const f of ['site.css', 'site.js', 'office.js']) copyFileSync(join(root, 'site', f), join(out, f))
   write('search.json', JSON.stringify(index))
   const urls = ['', ...pages.map((p) => `docs/${p.slug}/`)]
   write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${SITE}${u}</loc></url>`).join('\n')}\n</urlset>\n`)
