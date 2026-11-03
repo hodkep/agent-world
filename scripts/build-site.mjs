@@ -59,7 +59,6 @@ export const crewChars = () => Object.fromEntries([...CREW, 'courier'].map((k) =
 const BITS = JSON.stringify({ GLYPHS, CHARS: crewChars() })
 // The home page starts hidden while the crew builds it, on a screen wider than the stacked layout's (site.css, 860px); if the script never runs (blocked, old browser) the page shows itself after a while.
 const BUILDING = "<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&innerWidth>860){document.documentElement.classList.add('building');setTimeout(function(){if(!window.awCrew)document.documentElement.classList.remove('building')},6000)}</script>"
-const FONTS = '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap">'
 
 function layout({ title, description, path, depth, body, active, side = '', toc = '', head = '', root = up(depth) }) {
   const nav = [['', 'Home'], ['docs/getting-started/', 'Docs']].map(([p, t]) => `<a href="${root}${p}"${active === p ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')
@@ -72,7 +71,7 @@ function layout({ title, description, path, depth, body, active, side = '', toc 
 <meta property="og:type" content="website"><meta property="og:site_name" content="Agent World"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${SITE}${path}"><meta property="og:image" content="${image}">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Crect width='8' height='8' fill='%2312101a'/%3E%3Crect x='1' y='1' width='6' height='6' fill='%23f2c230'/%3E%3C/svg%3E">
-${FONTS}<link rel="stylesheet" href="${root}site.css">${head}
+<link rel="stylesheet" href="${root}site.css">${head}
 </head><body data-root="${root}">
 <header class="top"><a class="wm" href="${root}">Agent World</a><nav aria-label="Site">${nav}<a href="${GITHUB}/releases">Releases</a><a href="${GITHUB}">GitHub</a></nav><a class="btn" href="${GITHUB}/releases/latest">Download</a></header>
 ${body.startsWith('<!--bare-->') ? body : `<div class="page${side ? '' : ' solo'}">${side}<main>${body}</main>${toc}</div>`}
@@ -144,7 +143,10 @@ export async function build(root, out) {
     mkdirSync(dirname(join(out, 'assets', a)), { recursive: true })
     copyFileSync(join(root, a), join(out, 'assets', a))
   }
-  for (const f of ['site.css', 'site.js', 'office.js']) copyFileSync(join(root, 'site', f), join(out, f))
+  for (const f of ['site.css', 'site.js', 'office.js', 'fonts/pixelify-sans.woff2']) {
+    mkdirSync(dirname(join(out, f)), { recursive: true })
+    copyFileSync(join(root, 'site', f), join(out, f))
+  }
   write('search.json', JSON.stringify(index))
   const urls = ['', ...pages.map((p) => `docs/${p.slug}/`)]
   write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${SITE}${u}</loc></url>`).join('\n')}\n</urlset>\n`)

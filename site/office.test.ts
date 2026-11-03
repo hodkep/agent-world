@@ -3,7 +3,7 @@ import { GLYPHS } from '../src/renderer/world/pixelfont'
 // @ts-expect-error a plain .mjs script
 import { crewChars } from '../scripts/build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
-import { CREW, actionFor, armPixels, castFor, nearestPart, nextPart, scene, SCENES, tankLevel, windowRects } from './office.js'
+import { CREW, actionFor, armPixels, artWidth, castFor, helperFor, nearestPart, nextPart, scene, SCENES, tankLevel, windowRects } from './office.js'
 
 const chars = crewChars()
 const bits = { GLYPHS, CHARS: chars }
@@ -95,5 +95,20 @@ describe('the scene around the build', () => {
     const rest = scene('facade', bits, 62_000).px, open = scene('facade', bits, 62_000, { door: 'open', tanks: 0.9 }).px
     expect(open).not.toEqual(rest)
     expect(count(open, '#d83a3a')).toBeGreaterThan(count(rest, '#d83a3a'))
+  })
+})
+
+describe('the leftovers of the review', () => {
+  it('finds a free engineer to carry the other end, never the one asking and never one at work', () => {
+    const crew = [{ name: 'ada', busyNow: true }, { name: 'bolt', busyNow: false }, { name: 'cleo', busyNow: false }]
+    expect(helperFor(crew, crew[1])?.name).toBe('cleo')
+    expect(helperFor(crew, crew[2])?.name).toBe('bolt')
+    expect(helperFor([crew[0], crew[1]], crew[1])).toBeNull()
+  })
+
+  it('shows a canvas at a whole multiple of its art width, never smaller than the art', () => {
+    expect(artWidth(1152, 240)).toBe(960)
+    expect(artWidth(1200, 240)).toBe(1200)
+    expect(artWidth(100, 240)).toBe(240)
   })
 })

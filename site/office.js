@@ -114,6 +114,9 @@ export function mount(doc, bits) {
   const still = doc.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   const start = Date.now()
   const canvases = [...doc.querySelectorAll('canvas[data-scene]')].filter((c) => SIZES[c.dataset.scene])
+  // The facade and the rooms show at a whole multiple of their art size, so every art pixel is the same size.
+  // Measured at full width first, then rounded down, so a canvas in a grid column takes the column's width, not the grid's.
+  if (doc.defaultView?.ResizeObserver) for (const c of canvases) if (c.dataset.scene !== 'reader') new doc.defaultView.ResizeObserver(() => { c.style.width = '100%'; c.style.width = `${artWidth(c.clientWidth, SIZES[c.dataset.scene][0])}px` }).observe(c.parentElement)
   const paint = (c, t) => {
     const name = c.dataset.scene, [w, h] = SIZES[name]
     if (c.width !== w) (c.width = w), (c.height = h)
@@ -143,6 +146,10 @@ export function nearestPart(parts, x, y) {
   return best
 }
 /** How full the tanks are and in which colour: brass, amber past half, red near the end. */
+/** A free engineer to carry the other end: not the one asking, not one at work; null when everyone is busy. */
+export const helperFor = (crew, e) => crew.find((h) => h !== e && !h.busyNow) ?? null
+/** The width to show a canvas at: a whole multiple of its art width, never smaller than the art. */
+export const artWidth = (available, art) => Math.max(art, Math.floor(available / art) * art)
 export function tankLevel(done, total) { const level = total ? done / total : 0; return { level, tone: level >= 0.85 ? '#d83a3a' : level > 0.5 ? '#e0a030' : '#f2c230' } }
 
 // ---- The crew: six engineers who build the home page part by part as it scrolls into view.
@@ -172,6 +179,7 @@ const TOOLS = {
   hammer2: ['............', '............', '..kkkk......', '.kggggk.....', '.kggggkkk...', '..kkkkwwkk..', '......kkwwk.', '........kwk.', '.........kk.', '............', '............', '............'],
   tape: ['............', '...bbbbbb...', '..bbbbbbbb..', '..bbkkkkbb..', '..bbkppkbb..', '..bbkkkkbb..', '..bbbbbbbb..', '...bbbbbb...', '....kkkkkkkk', '............', '............', '............'],
   brush: ['.........ww.', '........wwk.', '.......wwk..', '......wwk...', '.....wwk....', '....kkk.....', '...kbbk.....', '..kbbbk.....', '..kbbk......', '..kkk.......', '............', '............'],
+  plank: ['............', '............', '............', '............', '............', 'wwwwwwwwwwww', 'kkkkkkkkkkkk', 'wwwwwwwwwwww', '............', '............', '............', '............'],
   parcel: ['............', '............', '............', '..kkkkkkkk..', '..kwwwwwwk..', '..kwwbbwwk..', '..kwwbbwwk..', '..kwwwwwwk..', '..kkkkkkkk..', '............', '............', '............'],
   none: []
 }
@@ -237,8 +245,8 @@ export function crew(doc, bits, layer) {
     const el = doc.createElement('div'); el.className = 'eng'
     const body = doc.createElement('canvas'), tool = doc.createElement('canvas'); tool.className = 'tool'
     const tag = doc.createElement('span'); tag.className = 'tag'; tag.textContent = name
-    const say = doc.createElement('span'); say.className = 'say'
-    el.append(body, tool, say, tag); layer.append(el)
+    const say = doc.createElement('span'); say.className = 'say'; const crate = doc.createElement('span'); crate.className = 'crate'
+    el.append(crate, body, tool, say, tag); layer.append(el)
     const e = { name, i, el, body, tool, say, x: -80, y: 0, view: 'front', pose: 'stand', flip: false, role: 'senior', arms: 'none', a: 0, section: null }
     e.show = (view, pose, flip = false, arms = e.arms, a = e.a) => {
       if (e.view === view && e.pose === pose && e.flip === flip && e.role === e.drawnRole && e.arms === arms && e.a === a && e.drawn) return
@@ -290,8 +298,15 @@ export function crew(doc, bits, layer) {
     } finally { nodes.forEach(([n, d]) => (n.data = d)); caret.remove(); p.el.classList.remove('typing'); e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
   }
   // A box: the frame grows nail by nail under the hammer, with its size on it.
+  // A free engineer takes the other end: it walks to the part's far side with the tool and stays until the work is done.
+  async function join(e, r, tool, wait) {
+    const h = helperFor(engineers, e); if (!h) return null
+    h.busyNow = true; h.mate = true; h.el.classList.remove('seated')
+    await walk(h, Math.min(r.x + r.w + 8, win.innerWidth - 56), r.y + Math.min(r.h, 72) - 72); h.hold(tool); h.say.textContent = wait ? '!' : 'carrying'; h.alert(!!wait)
+    return { h, done: () => { h.hold('none'); h.say.textContent = ''; h.alert(false); h.mate = false; h.busyNow = false } }
+  }
   async function hammer(e, p) {
-    const r = pageY(p.el); await walk(e, Math.max(0, r.x - 40), r.y - 60); e.say.textContent = 'hammering'
+    const r = pageY(p.el); const mate = await join(e, r, 'plank'); await walk(e, Math.max(0, r.x - 40), r.y - 60); e.say.textContent = 'hammering'
     const g = ghostAt(r), size = doc.createElement('span'); size.className = 'size'; const fill = doc.createElement('span'); fill.className = 'fill'; g.append(fill, size)
     const blows = 8
     try {
@@ -304,20 +319,20 @@ export function crew(doc, bits, layer) {
         await sleep(110)
       }
       await sleep(120)
-    } finally { g.remove(); e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
+    } finally { g.remove(); e.hold('none'); e.show('front', 'stand', false, 'none', 0); mate?.done() }
   }
   // A picture: the spot is measured with a tape, then the picture is carried in from the page's edge and hung.
   async function hang(e, p) {
-    const r = pageY(p.el); await walk(e, Math.max(0, r.x - 56), r.y - 72); e.hold('tape'); e.say.textContent = 'measuring'
+    const r = pageY(p.el); const mate = await join(e, r, 'parcel', true); await walk(e, Math.max(0, r.x - 56), r.y - 72); e.hold('tape'); e.say.textContent = 'measuring'
     const tape = doc.createElement('div'); tape.className = 'tape'; tape.style.cssText = `left:${r.x}px;top:${r.y - 8}px;width:0`; const size = doc.createElement('span'); size.className = 'size'; tape.append(size); layer.append(tape)
     try {
       for (let i = 1; i <= 10; i++) { tape.style.width = `${(r.w * i) / 10}px`; size.textContent = `${Math.round((r.w * i) / 10)} × ${Math.round(r.h)}`; await sleep(60) }
-      await sleep(200); tape.remove(); e.hold('none'); e.say.textContent = 'carrying'
+      await sleep(200); tape.remove(); e.hold('none'); e.say.textContent = 'carrying'; if (mate) { mate.h.say.textContent = 'carrying'; mate.h.alert(false) }
       const from = -(r.x + r.w + 60), steps = 16
       p.el.style.transform = `translateX(${from}px)`; p.el.classList.add('in')
-      for (let i = 1; i <= steps; i++) { const x = from * (1 - i / steps); p.el.style.transform = `translateX(${x}px)`; e.put(r.x + x - 50, r.y + Math.min(r.h, 72) - 72); e.show('side', i % 2 ? 'walk1' : 'walk2'); await sleep(55) }
+      for (let i = 1; i <= steps; i++) { const x = from * (1 - i / steps); p.el.style.transform = `translateX(${x}px)`; e.put(r.x + x - 50, r.y + Math.min(r.h, 72) - 72); e.show('side', i % 2 ? 'walk1' : 'walk2'); if (mate && x > -40) mate.h.show('front', 'stand', false, 'wave', i % 2); await sleep(55) }
       p.el.style.transform = 'rotate(-1.5deg)'; e.say.textContent = 'straightening'; e.hold('hammer1'); e.show('front', 'stand', false, 'hammer', 1); await sleep(260); e.hold('hammer2'); e.show('front', 'stand', false, 'hammer', 0); p.el.style.transform = ''; await sleep(200)
-    } finally { tape.remove(); p.el.style.transform = ''; e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
+    } finally { tape.remove(); p.el.style.transform = ''; e.hold('none'); e.show('front', 'stand', false, 'none', 0); mate?.done() }
   }
   // A scene: painted in bands from the top, the brush moving down the left edge.
   async function paint(e, p) {
@@ -331,11 +346,10 @@ export function crew(doc, bits, layer) {
 
   // Nothing to do: the engineer walks off the left edge and waits there, out of the page's way, and comes back in for the next part.
   async function idle(e) {
-    e.say.textContent = ''
+    e.say.textContent = ''; e.hold('none')
     const d = doorRect(stage()), onScreen = d.y + d.h > win.scrollY && d.y < win.scrollY + win.innerHeight
-    if (onScreen) await walk(e, d.x + d.w + 20 + e.i * 44, d.y + d.h - 72)
-    else await walk(e, -70, win.scrollY + win.innerHeight - 130 - e.i * 6)
-    await sleep(500 + Math.random() * 700)
+    if (onScreen) { await walk(e, d.x + d.w + 20 + e.i * 44, d.y + d.h - 72); e.show('front', 'sit'); e.el.classList.add('seated') } else await walk(e, -70, win.scrollY + win.innerHeight - 130 - e.i * 6)
+    try { await sleep(500 + Math.random() * 700) } finally { e.el.classList.remove('seated') }
   }
   // The opening: the lights are on, the door opens, and each engineer steps out of it.
   async function enter(e) {
@@ -363,6 +377,7 @@ export function crew(doc, bits, layer) {
       await enter(e)
       for (;;) {
         passed()
+        if (e.mate) { await sleep(150); continue }
         if (e.redo != null) { const j = e.redo; e.redo = null; const p = parts[j]; e.busyNow = true; p.el.classList.remove('in'); try { await work[actionFor(p.kind)](e, p) } finally { p.el.classList.add('in'); e.busyNow = false; e.say.textContent = '' } continue }
         const i = nextPart(parts, win.scrollY + win.innerHeight * 1.15, taken)
         if (i < 0) { if (done >= parts.length) { finish().catch((err) => err !== STOP && console.error(err)); return } await idle(e); continue }
@@ -370,7 +385,7 @@ export function crew(doc, bits, layer) {
         const p = parts[i], section = p.el.closest('section')
         // A box is nailed up only once its section's words are in: until then the engineer waits for them, as an agent waits for you.
         const run = session
-        e.role = castFor(working, section); if (e.role === 'intern') for (const w of working) if (w.section === section) { w.e.role = 'boss'; w.e.drawn = false; w.e.show(w.e.view, w.e.pose, w.e.flip) }
+        e.role = castFor(working, section); if (e.role === 'intern') { const w = working.find((w) => w.section === section); if (w.e.role !== 'boss') { w.e.role = 'boss'; w.e.drawn = false; w.e.show(w.e.view, w.e.pose, w.e.flip) } }
         working.push({ section, name: e.name, e }); e.drawn = false; e.busyNow = true
         try {
           if (p.kind === 'box') {
@@ -389,7 +404,7 @@ export function crew(doc, bits, layer) {
   const passed = () => { parts.forEach((p, j) => { Object.assign(p, pageY(p.el)); if (!taken.has(j) && p.y + p.el.offsetHeight < win.scrollY - 40) { taken.add(j); p.el.classList.add('in'); done++ } }); status(); if (done >= parts.length) html.classList.remove('building') }
   win.addEventListener('scroll', () => session && passed(), { passive: true })
   const start = () => { session++; taken = new Set(); done = 0; busy = 0; working.length = 0; status(); engineers.forEach((e) => loop(e)) }
-  const skip = () => { session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.show('front', 'stand'); e.busyNow = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
+  const skip = () => { session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.alert(false); e.el.classList.remove('seated'); e.show('front', 'stand'); e.busyNow = false; e.mate = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
   const replay = () => { ended = false; doc.querySelectorAll('.btn .parcel').forEach((t) => t.remove()); if (theCourier) theCourier.el.style.visibility = 'hidden'; parts.forEach((p) => { p.el.classList.remove('in'); p.el.style.transform = ''; p.el.style.clipPath = '' }); html.classList.add('building'); win.scrollTo({ top: 0, behavior: 'instant' }); setScene({ door: 'closed', quiet: false, tanks: 0 }); start() }
   bar.querySelector('[data-skip]').onclick = skip
   bar.querySelector('[data-replay]').onclick = replay
