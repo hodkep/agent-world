@@ -1,6 +1,6 @@
 import type { LibraryItem, SkillUse } from '../../shared/library'
 
-const NONE: SkillUse = { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(30).fill(0), who: [] }
+const NONE: SkillUse = { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(30).fill(0), who: [], projects: {} }
 
 type Skill = Pick<LibraryItem, 'id' | 'name' | 'kind' | 'tokens'>
 export interface SkillRow<T extends Skill> {
@@ -31,4 +31,13 @@ export const METER_CELLS = 20
 export function meterCells(tokens: number, budget = SKILL_BUDGET): number {
   if (tokens <= 0) return 0
   return Math.min(METER_CELLS, Math.max(1, Math.round((tokens / budget) * METER_CELLS)))
+}
+
+/** Where skills are used: each project's uses over every skill, most used first, with the skills used most there. A project the app no longer knows keeps its key as its name. */
+export function byProject(usage: Record<string, SkillUse>, projects: { key: string; path: string; name: string }[]): { key: string; name: string; uses: number; top: string[] }[] {
+  const per = new Map<string, Map<string, number>>()
+  for (const [id, u] of Object.entries(usage)) for (const [key, n] of Object.entries(u.projects ?? {})) per.set(key, (per.get(key) ?? new Map()).set(id, n))
+  return [...per.entries()]
+    .map(([key, skills]) => ({ key, name: projects.find((p) => p.key === key)?.name ?? key, uses: [...skills.values()].reduce((a, b) => a + b, 0), top: [...skills.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 3).map(([id]) => id) }))
+    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
 }

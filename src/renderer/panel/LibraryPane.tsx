@@ -15,6 +15,10 @@ import { CostMeter, DayStrip, Heads } from './SkillBits'
 import { ago } from './addressHistory'
 import { dustOf, splitUsage } from './libraryUsage'
 import { findItems, highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
+import { SkillShelf } from './SkillShelf'
+import { FoundReader, SkillFooter, SkillOverview } from './SkillOverview'
+import { shelfGroups } from './skillGroups'
+import { sizeText } from '../../shared/size'
 
 const SECTIONS: ['skills' | 'playbook' | 'reach', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['reach', 'Usage']]
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
@@ -63,6 +67,10 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [places, setPlaces] = useState<SkillPlaces | null>(null)
   const [busy, setBusy] = useState(false)
   const [usage30, setUsage30] = useState<Record<string, SkillUse>>({})
+  // Every skill found on this computer (global folders, every project, every account's plugins), to show beside what the library holds.
+  const [scan, setScan] = useState<LibraryCandidate[]>([])
+  const refreshScan = useCallback(() => void window.aw.library.sources(folder || undefined).then(setScan, () => setScan([])), [folder])
+
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
   const stale = holders.filter((h) => h.stale)
   const [silent, setSilent] = useState<{ id: string; name: string }[]>([])
@@ -75,6 +83,14 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   }, [])
   const loadPlaces = useCallback(() => window.aw.library.places(folder || undefined).then(setPlaces, (e) => setError(clean(e))), [folder])
   useEffect(() => void load().catch((e) => setError(clean(e))), [load])
+  // Opening the tab reads both again: a folder may have been installed, moved or deleted since.
+  useEffect(() => {
+    if (tab !== 'skills') return
+    refreshScan()
+    void load().catch(() => undefined)
+  }, [tab, refreshScan, load])
+  // A skill's size was measured: the list is read again, which brings the sizes.
+  useEffect(() => window.aw.onLibrarySizes(() => void load()), [load])
   useEffect(() => void loadPlaces(), [loadPlaces, items])
   const loadUsage = useCallback(() => window.aw.library.usage30().then(setUsage30, (e) => setError(clean(e))), [])
   useEffect(() => void loadUsage(), [loadUsage, items])
@@ -178,6 +194,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       setNotice(`Imported ${r.added.length}${r.skipped.length ? `, skipped ${r.skipped.length} already here` : ''}.`)
       setFound(null)
       await load()
+      refreshScan()
     } catch (e) {
       setError(clean(e))
     }
@@ -200,8 +217,23 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
     setOpen(null)
     setDraft(null)
     await load()
+    refreshScan()
   }
+  const shelf = useMemo(() => shelfGroups(items, scan, ''), [items, scan])
   const current = open ? byId.get(open) : undefined
+  const foundCurrent = open && !current ? scan.find((c) => c.dir === open) : undefined
+  // Adds a found skill to the library as a link, and opens it.
+  const addFound = async (c: LibraryCandidate) => {
+    setError('')
+    try {
+      const r = await window.aw.library.import(folder || undefined, [c.dir])
+      await load()
+      refreshScan()
+      setOpen(r.added[0] ?? null)
+    } catch (e) {
+      setError(clean(e))
+    }
+  }
   const edit = (i: LibraryItem) => setDraft({ id: i.id, kind: i.kind, name: i.name, description: i.description, body: i.body })
 
   return (
@@ -264,72 +296,43 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       )}
 
-      {items.length === 0 && <p className="hint">Nothing here yet. Add skills from this computer, or write an instruction.</p>}
-      {items.length > 0 && (() => {
-        const hits = findItems(items, find)
-        const split = splitUsage(hits, usage30, places?.claudeOff ?? [])
-        const groups: { key: string; label: string; rows: LibraryItem[]; clear?: boolean }[] = [
-          { key: 'used', label: 'Used this month', rows: split.used.map((r) => r.item) },
-          { key: 'dust', label: 'Gathering dust', rows: split.unused.filter((r) => r.on).map((r) => r.item), clear: true },
-          { key: 'off', label: 'Off for Claude', rows: split.unused.filter((r) => !r.on).map((r) => r.item) },
-          { key: 'other', label: 'Instructions and prompts', rows: hits.filter((i) => i.kind !== 'skill') }
-        ]
-        const dust = dustOf(split, named)
-        return (
-          <section className="drawer skl" aria-label="Items">
-            <div className="drawer-list lib-scrollbar">
-              {groups.filter((g) => g.rows.length).map((g) => (
-                <div key={g.key} role="group" aria-label={g.label}>
-                  <div className="skl-grp"><span>{g.label} · {g.rows.length}</span><span className="lib-sp" />{g.clear && dust.ids.length > 0 && <button disabled={busy} title={`Turn them off for Claude and save ${dust.saves} tokens at the start of every session`} onClick={() => turnOff(dust.ids)}>Clear the dust</button>}</div>
-                  {g.rows.map((i) => {
-                    const use = usage30[i.id]
-                    const skill = i.kind === 'skill'
-                    return (
-                      <button key={i.id} className={`skl-row${open === i.id ? ' sel' : ''}${g.key === 'dust' ? ' dusty' : ''}${g.key === 'off' ? ' off' : ''}${live.has(i.id) ? ' live' : ''}`} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} title={i.description} onClick={() => (setOpen(i.id), setDraft(null))}>
-                        <span className="skl-spine" style={{ background: spineLook(i).colour }} aria-hidden>{!skill && <PixelIcon name={KIND_ICON[i.kind]} scale={1} />}</span>
-                        <span className="skl-main">
-                          <b>{i.name}</b>
-                          {skill ? (
-                            <span className="skl-meta">
-                              <DayStrip days={use?.days ?? Array<number>(30).fill(0)} />
-                              {use?.who.length ? <Heads who={use.who} /> : <small>{g.key === 'off' ? 'off for Claude' : use?.last ? `last used ${ago(use.last, Date.now())}` : 'never used'}</small>}
-                            </span>
-                          ) : <small className="skl-desc">{i.kind} · {i.description}</small>}
-                        </span>
-                        <span className="skl-n">{skill ? `${use?.used ?? 0}×` : ''}<small>{skill ? i.tokens.description : i.tokens.body} tok</small></span>
-                        {live.has(i.id) && <span className="skl-plus" aria-hidden>+1</span>}
-                      </button>
-                    )
-                  })}
-                </div>
-              ))}
-              {hits.length === 0 && <p className="hint">Nothing matches.</p>}
-            </div>
-          </section>
-        )
-      })()}
+      {items.length === 0 && scan.length === 0 && <p className="hint">Nothing here yet. Add skills from this computer, or write an instruction.</p>}
+      {(items.length > 0 || scan.length > 0) && (
+        <SkillShelf groups={shelfGroups(items, scan, find)} others={findItems(items.filter((i) => i.kind !== 'skill'), find)} open={open} live={live} onOpen={(key) => (setOpen(key), setDraft(null))} />
+      )}
       </div>
 
       <div className="lib-read">
-      {!current && !draft && <div className="lib-box lib-pick"><p className="hint">Pick an item to read it here, or write a new instruction.</p></div>}
+      {!current && !foundCurrent && !draft && <div className="lib-box lib-pick"><p className="hint">Pick an item to read it here, or write a new instruction.</p></div>}
+      {foundCurrent && !draft && <FoundReader c={foundCurrent} busy={busy} onAdd={() => void addFound(foundCurrent)} />}
       {current && !draft && (
         <LibraryItemPane
           item={current}
           usage={usage[current.id]}
           stats={current.kind === 'skill' ? (() => {
             const u = usage30[current.id]
+            const n = Object.keys(u?.projects ?? {}).length
             return (
               <div className="lip-stats" aria-label={`${current.name} in the last 30 days`}>
-                <span><b>{u?.used ?? 0}×</b> in 30 days</span>
-                <DayStrip days={u?.days ?? Array<number>(30).fill(0)} />
-                <span>{u?.last ? `last used ${ago(u.last, Date.now())}` : 'never used'}</span>
-                {u?.who.length ? <span className="lip-who"><Heads who={u.who} /><span>{u.agents.join(' · ')}</span></span> : null}
+                {current.size && <span><b>{sizeText(current.size.bytes)}</b> on disk</span>}
+                <span>{u?.used ? <>used <b>{u.used}×</b> in {n} {n === 1 ? 'project' : 'projects'}{u.last ? `, last ${ago(u.last, Date.now())}` : ''}</> : 'not used in 30 days'}</span>
                 <span className="lip-tok" title="What its name and description add to every Claude session">{current.tokens.description} tok each session</span>
               </div>
             )
           })() : undefined}
           colour={spineLook(current).colour}
-          where={current.kind === 'skill' && places ? <SkillWhere id={current.id} colour={spineLook(current).colour} dir={current.dir} places={places} busy={busy} onClaude={(on) => void place(() => window.aw.library.setClaude(current.id, on))} onLink={(t, on) => void place(() => window.aw.library.link(current.id, t, on, folder || undefined))} /> : undefined}
+          where={current.kind === 'skill' && places ? (
+            <SkillOverview
+              item={current}
+              use={usage30[current.id]}
+              places={places}
+              busy={busy}
+              original={shelf.find((g) => g.kind === 'library')?.rows.find((r) => r.key === current.id)?.original}
+              onUseOriginal={(dir) => void place(async () => { await window.aw.library.useOriginal(current.id, dir); await load(); refreshScan() })}
+              where={<SkillWhere id={current.id} colour={spineLook(current).colour} dir={current.place?.real ?? current.dir} places={places} busy={busy} onClaude={(on) => void place(() => window.aw.library.setClaude(current.id, on))} onLink={(t, on) => void place(() => window.aw.library.link(current.id, t, on, folder || undefined))} />}
+            />
+          ) : undefined}
+          footer={current.kind === 'skill' ? <SkillFooter item={current} busy={busy} onRemove={() => void remove(current.id)} onDeleted={() => (setOpen(null), void load(), refreshScan())} /> : undefined}
           onEdit={() => edit(current)}
           onRemove={() => void remove(current.id)}
         />
@@ -479,7 +482,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       )}
       {tab === 'reach' && (
       <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
-      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => void remove(id)} />}
+      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} projects={places.projects} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => void remove(id)} />}
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
       </div>
       )}

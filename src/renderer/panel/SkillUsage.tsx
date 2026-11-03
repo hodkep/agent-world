@@ -1,11 +1,11 @@
 import type { LibraryItem, SkillUse } from '../../shared/library'
 import { ago } from './addressHistory'
-import { dustOf, splitUsage } from './libraryUsage'
+import { byProject, dustOf, splitUsage } from './libraryUsage'
 import { spineLook } from './libraryShelf'
 import { CostMeter, Heads } from './SkillBits'
 
 /** The Usage tab's skills: a ranking of those used in the last 30 days, those gathering dust with what they cost, and which agent reached for what. */
-export function SkillUsage({ items, usage, claudeOff, named, busy, onClaude, onClear, onRemove }: { items: LibraryItem[]; usage: Record<string, SkillUse>; claudeOff: string[]; named: Set<string>; busy: boolean; onClaude: (id: string, on: boolean) => void; onClear: (ids: string[]) => void; onRemove: (id: string) => void }) {
+export function SkillUsage({ items, usage, claudeOff, named, projects, busy, onClaude, onClear, onRemove }: { items: LibraryItem[]; usage: Record<string, SkillUse>; claudeOff: string[]; /** The projects the app knows, by the key the usage log uses. */ projects: { key: string; path: string; name: string }[]; named: Set<string>; busy: boolean; onClaude: (id: string, on: boolean) => void; onClear: (ids: string[]) => void; onRemove: (id: string) => void }) {
   const now = Date.now()
   const split = splitUsage(items, usage, claudeOff)
   const { used, unused } = split
@@ -20,6 +20,7 @@ export function SkillUsage({ items, usage, claudeOff, named, busy, onClaude, onC
     a.skills.push(item)
     agents.set(w.id, a)
   }
+  const where = byProject(usage, projects)
   const crew = [...agents.entries()].sort((a, b) => b[1].skills.length - a[1].skills.length || a[1].name.localeCompare(b[1].name))
   return (
     <section className="sku" aria-label="Skills in the last 30 days">
@@ -65,17 +66,30 @@ export function SkillUsage({ items, usage, claudeOff, named, busy, onClaude, onC
             )}
           </div>
         </div>
-        <div className="sku-col sku-crew" role="group" aria-label="Who reached for what">
-          <h4>Who reached for what</h4>
-          {crew.length === 0 && <p className="hint">No agent used a skill in the last 30 days.</p>}
-          {crew.map(([id, a]) => (
-            <div key={id} className="sku-ag">
-              <Heads who={[{ id, name: a.name }]} />
-              <b>{a.name}</b>
-              <span className="sku-ag-skills">{a.skills.map((s) => <span key={s.id} className="sku-spine sm" title={s.name} style={{ background: spineLook(s).colour }} />)}</span>
-              <small>{a.skills.length} {a.skills.length === 1 ? 'skill' : 'skills'}</small>
-            </div>
-          ))}
+        <div className="sku-col sku-crew">
+          <div role="group" aria-label="Used in each project">
+            <h4>Used in each project</h4>
+            {where.length === 0 && <p className="hint">No skill was used in a project in the last 30 days.</p>}
+            {where.map((w) => (
+              <div key={w.key} className="sku-ag">
+                <b title={w.key}>{w.name}</b>
+                <span className="sku-ag-skills">{w.top.join(' · ')}</span>
+                <small>{w.uses}×</small>
+              </div>
+            ))}
+          </div>
+          <div role="group" aria-label="Who reached for what">
+            <h4>Who reached for what</h4>
+            {crew.length === 0 && <p className="hint">No agent used a skill in the last 30 days.</p>}
+            {crew.map(([id, a]) => (
+              <div key={id} className="sku-ag">
+                <Heads who={[{ id, name: a.name }]} />
+                <b>{a.name}</b>
+                <span className="sku-ag-skills">{a.skills.map((s) => <span key={s.id} className="sku-spine sm" title={s.name} style={{ background: spineLook(s).colour }} />)}</span>
+                <small>{a.skills.length} {a.skills.length === 1 ? 'skill' : 'skills'}</small>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
