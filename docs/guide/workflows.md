@@ -38,10 +38,10 @@ In the **Workflows** tab of the window, the switch **Workflows in this workspace
 
 ## Enforced and only asked
 
-Announcing a task, handing in a plan, reporting steps and saying done are only asked. The app holds:
+Announcing a task, handing in a plan, reporting steps and saying done are only asked. While a task is open, every message an agent is sent names the step its task is on and tells it to do only that step's work, so the rule holds after a long conversation is summarised. The app holds:
 
 - Edits until the plan is approved: by a hook for Claude agents, by a plugin for agy agents. A shell command such as `sed -i` is caught at the commit instead.
-- Commits until the plan is approved, and, while the gate holds it, a push of its branch (a **Pull request** step) or a merge into the base branch (a **Land** step): by git, for every program.
+- Commits until the plan is approved, and in a workflow with a **Commit** step, until that step has started: an agent still on an earlier step (one you have not closed, say) cannot commit ahead of it. And, while the gate holds it, a push of its branch (a **Pull request** step) or a merge into the base branch (a **Land** step): by git, for every program.
 - Checks and the review: the app runs them.
 - **The pull request**: git holds the push unless the gate is met or you **Set aside** what holds it. A push that goes through ends the run.
 - **Approval**: a step that asks first (a pull request step set to **Asks me first**, or a plan whose gate is not auto) shows the same card as any step you approve, with **Approve** and **Send back**. Nothing is pushed and the agent is not told to push until you approve; a commit made after your approval asks again. With gate **auto** the app acts at once and the bar says what it is doing. A merge needs no second approval: your click on Land is it.

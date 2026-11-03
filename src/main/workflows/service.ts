@@ -71,6 +71,9 @@ export function parseRuns(text: string): RunEvent[] {
 }
 
 /** Tasks agents report through the office tools, kept in an append-only log the way the ledger is. */
+/** The step a run stands on: the first one not yet done or skipped. */
+const stepOn = <T extends { state: string }>(states: T[]): T | undefined => states.find((s) => s.state !== 'passed' && s.state !== 'skipped')
+
 export class Workflows {
   /** Audits being asked for right now, by run and head, so two views of the same head share one model call. */
   private auditing = new Map<string, Promise<void>>()
@@ -812,7 +815,22 @@ export class Workflows {
   commitBlock(agentId: string, cwd: string, files: string[]): string | null {
     const code = files.filter((f) => f.split('/')[0] !== PLAN_DIR)
     if (files.length > 0 && code.length === 0) return null
-    return this.editBlock(agentId, join(cwd, code[0] ?? 'commit'), cwd)
+    const held = this.editBlock(agentId, join(cwd, code[0] ?? 'commit'), cwd)
+    if (held) return held
+    // A workflow with a Commit step commits there and nowhere before it: a step left open (one the person never closed, say) must not let a commit through.
+    const run = this.deps.enabled() ? this.openRun(agentId) : undefined
+    if (!run || run.auto) return null
+    const states = this.states(run)
+    const commit = states.find((s) => s.kind === 'work' && (s.id === 'commit' || /^commit\b/i.test(s.name)))
+    if (!commit || (commit.state !== 'pending' && commit.state !== 'waiting')) return null
+    const on = stepOn(states)
+    return on && on.id !== commit.id ? `Not yet: commits wait for "${commit.name}"; the task is on "${on.name}". Do only that step's work.` : null
+  }
+
+  /** The step the agent's open task is on (the first not yet done or skipped), for the reminder it is sent with each message. */
+  currentStep(agentId: string): string | null {
+    const run = this.deps.enabled() ? this.openRun(agentId) : undefined
+    return (run && stepOn(this.states(run))?.name) ?? null
   }
 
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */

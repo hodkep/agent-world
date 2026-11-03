@@ -2063,6 +2063,48 @@ describe('skipping an optional step', () => {
   })
 })
 
+describe('a commit waits for the workflow\'s own Commit step', () => {
+  const FLOW: RunWorkflow = { id: 'c', name: 'C', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Plan', gate: 'auto' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'work', name: 'Review', start: 'run' }, { id: 'commit', kind: 'work', name: 'Commit', start: 'run' }, { id: 'push', kind: 'work', name: 'Push', start: 'run' }] }
+  const open = (flow = FLOW) => {
+    const o = make()
+    o.state.pick = () => flow
+    o.wf.begin('a1', 'Task')
+    return o
+  }
+  const rid = (wf: Workflows) => wf.runs()[0]!.id
+
+  it('holds a commit while an earlier step is under way, even one already started, and says which step the task is on', () => {
+    const { wf } = open()
+    expect(wf.editBlock('a1', '/w/src/a.ts', '/w')).toBeNull()
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toBe('Not yet: commits wait for "Commit"; the task is on "Build". Do only that step\'s work.')
+    wf.stepDone('a1', 'build')
+    wf.startStep(rid(wf), 'review')
+    // The step before is open and nothing waits for Run: this is where a commit used to get through.
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toContain('the task is on "Review"')
+    wf.stepDone('a1', 'review')
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toContain('has not pressed Run on "Commit"')
+    wf.startStep(rid(wf), 'commit')
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toBeNull()
+    // Once it is reported, the next step's own Run holds again, as for any step that starts on Run.
+    wf.stepDone('a1', 'commit')
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toContain('has not pressed Run on "Push"')
+  })
+
+  it('lets through a commit of the plan\'s own folder alone, and any commit in a workflow with no Commit step', () => {
+    expect(open().wf.commitBlock('a1', '/w', ['.agent-world/plan.md'])).toBeNull()
+    const { wf } = open({ ...FLOW, steps: FLOW.steps.filter((s) => s.id !== 'commit') })
+    expect(wf.commitBlock('a1', '/w', ['src/a.ts'])).toBeNull()
+  })
+
+  it('names the step the task is on, for the reminder sent with each message', () => {
+    const { wf } = open()
+    expect(wf.currentStep('a1')).toBe('Build')
+    wf.stepDone('a1', 'build')
+    expect(wf.currentStep('a1')).toBe('Review')
+    expect(wf.currentStep('a2')).toBeNull()
+  })
+})
+
 describe('a plan or a build that starts when the person presses Run', () => {
   const FLOW: RunWorkflow = { id: 'g', name: 'G', hash: 'h1', scope: 'project', steps: [{ id: 'plan', kind: 'plan', name: 'Generate plan', start: 'run', gate: 'approve' }, { id: 'build', kind: 'work', name: 'Build', start: 'run' }] }
   const open = () => {

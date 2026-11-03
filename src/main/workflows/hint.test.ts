@@ -127,6 +127,8 @@ describe('the reminder to announce a task, said at the start of a turn', () => {
     expect(workflowRemind({ ...ask, subagent: true })).toBe('')
     // With a task open, the turn is told how more work is added to it.
     expect(workflowRemind({ ...ask, open: true })).toBe(WORKFLOW_OPEN_REMINDER)
+    // The step the task is on is said every turn, so it holds after the conversation is summarised.
+    expect(workflowRemind({ ...ask, open: true, step: 'Review' })).toBe(`${WORKFLOW_OPEN_REMINDER} You are on the step "Review": do only its work, and when it is finished report it with step_done and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`)
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/task_begin/)
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/do not .*reopen/i)
   })
