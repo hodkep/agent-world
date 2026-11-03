@@ -23,8 +23,8 @@ export function SkillShelf({ groups, others, open, live, onOpen }: { groups: She
               <span className="sk2-tot">{g.kind === 'found' ? g.rows.length : size(g.measured || g.bytes ? g.bytes : undefined, g.measured)}</span>
             </div>
             {g.rows.map((r) => (
-              <button key={r.key} className={`sk2-row${open === r.key ? ' sel' : ''}${r.found ? ' found' : ''}${live.has(r.key) ? ' live' : ''}`} aria-label={`Open ${r.name}`} aria-pressed={open === r.key} onClick={() => onOpen(r.key)}>
-                <span className="sk2-spine" style={{ background: spineLook({ name: r.name, tokens: { description: 0, body: 0 } }, true).colour }} aria-hidden />
+              <button key={r.key} className={`sk2-row${r.logo ? ' lg' : ''}${open === r.key ? ' sel' : ''}${r.found ? ' found' : ''}${live.has(r.key) ? ' live' : ''}`} aria-label={`Open ${r.name}`} aria-pressed={open === r.key} onClick={() => onOpen(r.key)}>
+                {r.logo ? <img className="sk2-logo" src={r.logo} alt="" style={{ '--c': spineLook({ name: r.name, tokens: { description: 0, body: 0 } }, true).colour } as React.CSSProperties} /> : <span className="sk2-spine" style={{ background: spineLook({ name: r.name, tokens: { description: 0, body: 0 } }, true).colour }} aria-hidden />}
                 <span className="sk2-main"><b>{r.name}</b><small className={r.warn ? 'bad' : ''}>{r.warn ?? r.fact}</small></span>
                 <span className={`sk2-size${(r.bytes ?? 0) >= 1024 ** 3 ? ' big' : ''}`}>{r.found ? '' : size(r.bytes)}</span>
                 {live.has(r.key) && <span className="sk2-plus" aria-hidden>+1</span>}

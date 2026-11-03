@@ -68,6 +68,22 @@ describe('the sizes of the library\'s skills', () => {
   })
 })
 
+describe('the logos of the library\'s skills', () => {
+  it('come with the items once asked for: the picture of the GitHub owner, fetched through the service\'s fetch and kept in the library folder', async () => {
+    const real = join(dir, 'elsewhere', 'tidy')
+    mkdirSync(real, { recursive: true })
+    writeFileSync(join(real, 'SKILL.md'), '---\nname: tidy\ndescription: Tidy up.\n---\nb')
+    await svc.library.addSkillFolder(real, 't', { kind: 'global', from: 'vercel-labs/skills' })
+    expect((await svc.items()).find((i) => i.id === 'tidy')!.logo).toBeUndefined()
+    const png = Buffer.from('89504e470d0a1a0a', 'hex')
+    const fetch = vi.fn(async () => ({ ok: true, headers: { get: () => 'image/png' }, arrayBuffer: async () => png.buffer.slice(png.byteOffset, png.byteOffset + png.length) }))
+    const withFetch = createLibraryService({ root: join(dir, 'library'), agent: () => undefined, workspaceKey: (p) => p, fetch })
+    await withFetch.addLogos(['tidy'])
+    expect(fetch).toHaveBeenCalledWith('https://github.com/vercel-labs.png?size=64', expect.anything())
+    expect((await svc.items()).find((i) => i.id === 'tidy')!.logo).toMatch(/^data:image\/png;base64,/)
+  })
+})
+
 describe('what an agent is given from the library', () => {
   it('compiles the global playbook with its workspace\'s on top, and nothing from another workspace', async () => {
     const shop = await svc.prepare('a1', true)

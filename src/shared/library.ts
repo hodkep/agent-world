@@ -38,6 +38,8 @@ export interface LibraryItem {
   missing?: true
   /** What the skill's real folder takes on disk, measured in the background. */
   size?: { bytes: number; at: number }
+  /** The skill's logo as a data link (a plugin's icon or its GitHub owner's picture); none when it has none. */
+  logo?: string
 }
 
 export type RuleMode = 'always' | 'on-demand' | 'step' | 'off'

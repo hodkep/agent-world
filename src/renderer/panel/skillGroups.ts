@@ -13,6 +13,8 @@ export interface ShelfRow {
   /** For a copy the library holds whose original was found: that original's folder. */
   original?: string
   candidate?: LibraryCandidate
+  /** The skill's logo (a data link), when it has one. */
+  logo?: string
 }
 
 export interface ShelfGroup {
@@ -79,7 +81,7 @@ export function shelfGroups(items: LibraryItem[], found: LibraryCandidate[], que
   const rowOf = (i: LibraryItem): ShelfRow => {
     const p = i.place
     const fact = i.missing ? 'The folder is gone' : !p ? 'Kept in the library' : p.kind === 'plugin' ? [p.from, p.license].filter(Boolean).join(' · ') : p.kind === 'project' ? skillFolder(i) : (p.from ?? homeFolder((p.real.split('/').slice(0, -1).join('/')) || p.real))
-    return { key: i.id, name: i.name, fact, ...(i.size && { bytes: i.size.bytes }), ...(i.missing && { warn: 'The folder is gone' }) }
+    return { key: i.id, name: i.name, fact, ...(i.size && { bytes: i.size.bytes }), ...(i.logo && { logo: i.logo }), ...(i.missing && { warn: 'The folder is gone' }) }
   }
   const mine = skills.filter((i) => match(i.name, i.description))
   add('global', 'global', 'Global', '~/.claude · ~/.agents', mine.filter((i) => i.place?.kind === 'global').map(rowOf))
