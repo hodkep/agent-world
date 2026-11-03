@@ -716,6 +716,7 @@ const stoppedAt = new Map<string, number>()
 const todoService = createTodoService({
   dir: join(HOME, 'todos'),
   workspaceKey: repoSlug,
+  maxLists: () => prefs.todoListLimit,
   agent: (id) => {
     const a = byId(id)
     if (!a) return undefined

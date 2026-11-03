@@ -21,6 +21,8 @@ const make = () => {
     c1: { id: 'c1', name: 'cy', provider: 'claude', repoPath: '/work/other' },
     h1: { id: 'h1', name: 'helper', provider: 'agy', repoPath: '/work/shop', forMain: 'ada' }
   }
+  /** The most lists an agent may make; 0 is no limit, as the setting is by default. */
+  const limit = { n: 0 }
   const svc = createTodoService({
     dir,
     workspaceKey: (p) => p.split('/').pop()!,
@@ -34,9 +36,10 @@ const make = () => {
     ask: async (prompt) => { asked.push(prompt); return answer.text },
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
+    maxLists: () => limit.n,
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work }
+  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work, limit }
 }
 
 describe('the todo service', () => {
@@ -210,7 +213,8 @@ describe('the todo service', () => {
   })
 
   it('keeps the board to a few lists by area: an agent\'s list name is matched to an existing one, a generic one is refused, and too many are refused', () => {
-    const { svc } = make()
+    const { svc, limit } = make()
+    limit.n = 12
     svc.addByAgent('a1', { title: 'one', list: 'Library' })
     svc.addByAgent('a1', { title: 'two', list: 'library' })
     svc.addByAgent('a1', { title: 'three', list: 'Libraries' })
@@ -219,9 +223,18 @@ describe('the todo service', () => {
     expect(() => svc.addByAgent('a1', { title: 'x', list: 'Requests' })).toThrow(/Library/)
     for (const l of ['Canvas', 'Release', 'Terminal', 'Settings', 'Agents', 'Usage', 'Chat', 'Providers', 'Workflows', 'Preview', 'Code']) svc.addByAgent('a1', { title: l, list: l })
     expect(svc.board('/work/shop').lists).toHaveLength(12)
-    expect(() => svc.addByAgent('a1', { title: 'y', list: 'Brand new area' })).toThrow(/already has 12 lists/)
+    expect(() => svc.addByAgent('a1', { title: 'y', list: 'Brand new area' })).toThrow(/already has 12 lists.*limit is 12.*Settings/)
     expect(svc.addByAgent('a1', { title: 'z', list: 'canvas' }).list).toBe('Canvas')
     expect(svc.listsOf('a1')).toHaveLength(12)
+  })
+  it('has no limit on lists unless one is set, and a lower limit stops new lists without taking away the ones there are', () => {
+    const { svc, limit } = make()
+    for (const l of ['Canvas', 'Release', 'Terminal', 'Settings', 'Agents', 'Usage', 'Chat', 'Providers', 'Workflows', 'Preview', 'Code', 'Library', 'Billing', 'Search']) svc.addByAgent('a1', { title: l, list: l })
+    expect(svc.board('/work/shop').lists).toHaveLength(14)
+    limit.n = 5
+    expect(() => svc.addByAgent('a1', { title: 'x', list: 'Brand new area' })).toThrow(/limit is 5/)
+    expect(svc.board('/work/shop').lists).toHaveLength(14)
+    expect(svc.addByAgent('a1', { title: 'again', list: 'chat' }).list).toBe('Chat')
   })
 
   it('a task added with no list waits in the Inbox, and an agent names and sorts it with an update or when it finishes', () => {

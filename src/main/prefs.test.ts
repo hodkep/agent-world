@@ -97,5 +97,11 @@ describe('opening pages in the app', () => {
     expect(cleanPrefs({}).todoTracking).toBe('deferred')
     expect(cleanPrefs({ todoTracking: 'full' }).todoTracking).toBe('full')
     expect(cleanPrefs({ todoTracking: 'everything' }).todoTracking).toBe('deferred')
+    // The most lists an agent may make: none (0) unless a whole number of at least 1 is set.
+    expect(cleanPrefs({}).todoListLimit).toBe(0)
+    expect(cleanPrefs({ todoListLimit: 8 }).todoListLimit).toBe(8)
+    for (const bad of [-1, 2.5, '8', null, 100000]) expect(cleanPrefs({ todoListLimit: bad }).todoListLimit).toBe(0)
+    // Clearing the limit saves no limit, whatever was set before.
+    expect(cleanPrefs({ todoListLimit: 0 }, { ...DEFAULT_PREFS, todoListLimit: 6 }).todoListLimit).toBe(0)
   })
 })

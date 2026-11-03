@@ -9,7 +9,7 @@ import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  INBOX, MAX_LISTS, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, lastTaskOf, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, lastTaskOf, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -38,6 +38,8 @@ export interface TodoDeps {
   /** Waits (ms); tests give one that does not. */
   pause?: (ms: number) => Promise<void>
   now?: () => number
+  /** The most lists an agent may make on a board before it must use one it has (the person's setting); 0 or not set is no limit. */
+  maxLists?: () => number
   onChange: (workspace: string) => void
 }
 
@@ -49,6 +51,7 @@ const APP: Actor = { kind: 'human', name: 'app' }
 export function createTodoService(d: TodoDeps) {
   const now = d.now ?? Date.now
   const cache = new Map<string, TodoBoard>()
+  const maxLists = () => d.maxLists?.() || Infinity
   mkdirSync(d.dir, { recursive: true })
   const fileOf = (key: string) => join(d.dir, `${key.replace(/[^a-zA-Z0-9._-]/g, '_')}.json`)
 
@@ -194,7 +197,7 @@ export function createTodoService(d: TodoDeps) {
       if (area) {
         // A feature named from its own files is a list even when the word would be a catch-all elsewhere ("Todos" in a project about todos); the cap still holds.
         const areaList = resolveList(b.lists, area)
-        list = b.lists.includes(areaList) || b.lists.filter((l) => l !== INBOX).length < MAX_LISTS ? areaList : undefined
+        list = b.lists.includes(areaList) || b.lists.filter((l) => l !== INBOX).length < maxLists() ? areaList : undefined
       } else {
         try {
           list = answer.list ? listFor(b, answer.list) : undefined
@@ -220,7 +223,7 @@ export function createTodoService(d: TodoDeps) {
     if (b.lists.includes(existing) && existing !== INBOX) return existing
     if (isGenericList(name)) throw new Error(`“${name}” says nothing about the area. Put it in a list for the part of the project it belongs to, or name a new area.${have}`)
     const list = resolveList(b.lists, name)
-    if (!b.lists.includes(list) && areas.length >= MAX_LISTS) throw new Error(`The board already has ${areas.length} lists; use one of them for this.${have}`)
+    if (!b.lists.includes(list) && areas.length >= maxLists()) throw new Error(`The board already has ${areas.length} lists and the limit is ${maxLists()}; use one of them for this. The person can change the limit in Settings.${have}`)
     return list
   }
   const lastTodo = (b: TodoBoard, id: string) => b.todos.find((t) => t.id === id)!

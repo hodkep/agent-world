@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { INBOX, MAX_LISTS, currentTodoOf, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, subtasksOf, addLabel, renameLabel, recolorLabel, removeLabel, LABEL_PRESETS, type Actor, type MessageLink } from './todos'
+import { INBOX, currentTodoOf, isGenericList, resolveList, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, excerptOf, knowledgeLine, markStale, doneTodo, emptyBoard, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo, subtasksOf, addLabel, renameLabel, recolorLabel, removeLabel, LABEL_PRESETS, type Actor, type MessageLink } from './todos'
 
 const you: Actor = { kind: 'human', name: 'you' }
 const ada: Actor = { kind: 'agent', id: 'a1', name: 'ada', provider: 'claude' }
@@ -228,7 +228,6 @@ describe('resolveList', () => {
     for (const n of ['Requests', 'misc', 'Other', 'General', 'To do', 'Tasks', 'stuff', 'Todo', 'Backlog']) expect(isGenericList(n), n).toBe(true)
     expect(isGenericList('Canvas')).toBe(false)
     expect(isGenericList(INBOX)).toBe(false)
-    expect(MAX_LISTS).toBeGreaterThanOrEqual(6)
   })
 })
 
