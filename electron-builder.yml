@@ -27,6 +27,8 @@ mac:
   # certificate (CSC_LINK / CSC_KEY_PASSWORD, APPLE_* for notarisation) replaces this when there is one.
   identity: "-"
   hardenedRuntime: true
+  extendInfo:
+    NSMicrophoneUsageDescription: Agent World listens through the microphone only while you talk to the voice companion.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   # The git the app uses when the computer has none (a fresh Mac has none until Apple's tools are installed): the one for the processor being built, from scripts/fetch-git.mjs.
