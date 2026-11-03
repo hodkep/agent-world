@@ -9,7 +9,7 @@ import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo, RemoteState } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
-import { type Row, type Sent, highlight, markdownSpans, norm, rowText, spanLabel, toMarkdown, toRows } from './format'
+import { type Row, type Sent, highlight, markdownSpans, norm, queuedTexts, rowText, spanLabel, toMarkdown, toRows } from './format'
 import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
 import { AgentIdContext } from '../files/context'
@@ -744,7 +744,14 @@ export function ChatView({
           if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
-          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} formOf={(id) => { for (let i = rows.length - 1; i >= 0; i--) { const x = rows[i]!; if (x.kind === 'assistant') { const s = surfaceIn(x.text, id); if (s) return s } } return undefined }} />
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} onTakeBack={() => {
+            const words = queuedTexts(allRows)
+            void window.aw.chatUnqueue(agentId).then((ok) => {
+              if (!ok) return
+              setSent((cur) => cur.filter((x) => !x.queued))
+              window.dispatchEvent(new CustomEvent('aw:composer-add', { detail: { agentId, text: words.join('\n') } }))
+            })
+          }} formOf={(id) => { for (let i = rows.length - 1; i >= 0; i--) { const x = rows[i]!; if (x.kind === 'assistant') { const s = surfaceIn(x.text, id); if (s) return s } } return undefined }} />
           if (!lb || (!lb.starts.length && !lb.slips.length && !lb.refresh)) return withNote(row)
           // A message with notes gets a wrapper that adds nothing to a narrow chat and gives a wide one a margin for them; the others are left as they were (the chat's selectors count on it).
           return (
@@ -1012,7 +1019,7 @@ function JumpButtons() {
   )
 }
 
-export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind, formOf }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void; /** The form (by its surface id) an answer in this chat was given to, so the answer is drawn in its words. */ formOf?: (surfaceId: string) => Surface | undefined }) {
+export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind, onTakeBack, formOf }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void; onTakeBack?: () => void; /** The form (by its surface id) an answer in this chat was given to, so the answer is drawn in its words. */ formOf?: (surfaceId: string) => Surface | undefined }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
@@ -1053,9 +1060,12 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
             </div>
           )}
           {r.pending && <span className="msg-meta">{r.queued ? 'Queued: sends when the agent finishes its current step' : 'Sending…'}</span>}
-          {r.waiting && (
-            <button className="msg-takeback" title="Takes every queued message back and empties the input box: Claude has no way to take back just one" onClick={() => void window.aw.chatUnqueue(agentId)}>
-              Take back the queue
+          {r.takeback && (
+            <button className="msg-takeback" title="Take every queued message back into the input box: Claude has no way to take back just one" onClick={onTakeBack}>
+              <svg viewBox="0 0 9 9" aria-hidden="true">
+                <path d="M2 1h1v1H2zM1 2h1v1H1zM0 3h1v1H0zM1 4h1v1H1zM2 5h1v1H2zM1 3h5v1H1zM5 3h2v1H5zM6 4h2v1H6zM7 5h1v2H7zM5 7h2v1H5z" />
+              </svg>
+              Take back
             </button>
           )}
         </div>
@@ -1436,6 +1446,19 @@ function Composer({
     const on = (e: Event) => (e as CustomEvent<{ agentId: string }>).detail.agentId === agentId && (unsentAt.current = Date.now())
     window.addEventListener('aw:unsend', on)
     return () => window.removeEventListener('aw:unsend', on)
+  }, [agentId])
+  // Messages taken back from Claude's queue join what is already typed, on a new line, so a draft is never lost.
+  const textNow = useRef(text)
+  textNow.current = text
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ agentId: string; text: string }>).detail
+      if (d.agentId !== agentId || !d.text) return
+      edit(textNow.current.trim() ? `${textNow.current.replace(/\s+$/, '')}\n${d.text}` : d.text)
+      box.current?.focus()
+    }
+    window.addEventListener('aw:composer-add', on)
+    return () => window.removeEventListener('aw:composer-add', on)
   }, [agentId])
   useEffect(
     () =>
