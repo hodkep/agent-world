@@ -24,6 +24,7 @@ Features change what agents are told and add text to messages, so each switch sh
 
 - **Library and playbook:** on at first. See [Library and playbook](library-and-playbook.md).
 - **Track every request as a todo:** off at first. See [Todos](todos.md).
+- **Most lists an agent may create:** empty at first, which is no limit. A number stops agents from adding more lists to a board than that, so a board keeps to a few lists by area. It cannot be lower than the lists the Todos screen has, and the lists you add yourself never count. See [Todos](todos.md).
 - **Workflows:** off at first. It adds the Workflow tab and the **Workflows** button in the top bar. Turning it off while runs are open asks you to choose **Let them finish, then hide**, **Stop them now** or **Cancel**. See [Workflows](workflows.md).
 - **Economy**, **Balanced** (the starting level) and **Max:** how much care a workflow takes. The line under the choice says what each does.
 
