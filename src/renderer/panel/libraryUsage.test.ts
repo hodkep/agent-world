@@ -13,12 +13,14 @@ describe('the Usage tab\'s skills', () => {
     expect(r.used.map((u) => [u.item.id, u.use.used])).toEqual([['memo', 9], ['pdf', 3]])
     expect(r.unused.map((u) => [u.item.id, u.on, u.use.last])).toEqual([['db', false, 1], ['graphify', true, 0]])
     // Only an unused skill that is still on for Claude costs anything.
-    expect(r.unusedCost).toBe(30)
+    expect(dustOf(r).saves).toBe(30)
   })
 
   it('picks for Clear the dust the unused skills still on for Claude, and says what turning them off saves', () => {
     const r = splitUsage([skill('pdf', 10), skill('memo', 20), skill('db', 40)], { pdf: { used: 1, last: 9, agents: [], accounts: [], days: [], who: [] } }, ['db'])
     expect(dustOf(r)).toEqual({ ids: ['memo'], saves: 20 })
+    // A skill a playbook still hands to agents is not dust: switching it off would save nothing.
+    expect(dustOf(r, new Set(['memo']))).toEqual({ ids: [], saves: 0 })
   })
 })
 

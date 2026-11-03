@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createLibraryService } from './service'
+import { createLibraryService, runsWhenOpened } from './service'
 import { FORCED_CHECK_TOKENS } from '../../shared/library'
 
 let dir: string
@@ -45,6 +45,16 @@ describe('a skill\'s file opened from the window', () => {
     expect(svc.fileOf('pdf', 'scripts/split.sh')).toMatch(/library\/skills\/pdf\/scripts\/split\.sh$/)
     expect(() => svc.fileOf('pdf', '../terse.md')).toThrow()
     expect(() => svc.fileOf('nope', 'x')).toThrow()
+  })
+  it('says a script or a program would run if opened, so the window shows it in Finder instead; text and pictures open', () => {
+    const d = mkdtempSync(join(tmpdir(), 'aw-run-'))
+    const f = (name: string, mode = 0o644) => (writeFileSync(join(d, name), 'x'), chmodSync(join(d, name), mode), join(d, name))
+    expect(runsWhenOpened(f('notes.md'))).toBe(false)
+    expect(runsWhenOpened(f('shot.png'))).toBe(false)
+    expect(runsWhenOpened(f('go.command'))).toBe(true)
+    expect(runsWhenOpened(f('split.sh'))).toBe(true)
+    expect(runsWhenOpened(f('build.py'))).toBe(true)
+    expect(runsWhenOpened(f('tool', 0o755))).toBe(true)
   })
 })
 

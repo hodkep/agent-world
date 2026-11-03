@@ -12,7 +12,10 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
   const [tab, setTab] = useState<Tab>(first)
   const scroller = useRef<HTMLDivElement>(null)
   const [more, setMore] = useState(false)
-  useEffect(() => setTab(first), [item.id, first])
+  // Why Open, Show in Finder or Copy did not work, said under the files.
+  const [fail, setFail] = useState('')
+  const act = (p: Promise<unknown>) => void p.then(() => setFail(''), (e: unknown) => setFail(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e)))
+  useEffect(() => (setTab(first), setFail('')), [item.id, first])
   const lines = item.body.split('\n').length
   const file = item.kind === 'skill' ? `${item.id}/SKILL.md` : `${item.id}.md`
   const check = () => {
@@ -65,7 +68,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
                         <span className={`lif-ic lif-${ext}`} aria-hidden>{f.includes('.') ? ext.slice(0, 3).toUpperCase() : '—'}</span>
                         <span className="lif-n" title={f}>{f}</span>
                         {sizes[f] !== undefined && <small>≈{sizes[f]} tok</small>}
-                        <button onClick={() => void window.aw.library.file(item.id, f, 'open').catch(() => undefined)} aria-label={`Open ${f}`}>Open</button>
+                        <button onClick={() => act(window.aw.library.file(item.id, f, 'open'))} aria-label={`Open ${f}`}>Open</button>
                       </li>
                     )
                   })}
@@ -77,10 +80,11 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
             <div className="lif-kept">
               <span>Kept at</span>
               <code title={item.dir}>{item.dir}</code>
-              <button onClick={() => void navigator.clipboard.writeText(item.dir)}>Copy</button>
-              <button onClick={() => void window.aw.library.file(item.id, null, 'show').catch(() => undefined)}>Show in Finder</button>
+              <button onClick={() => act(navigator.clipboard.writeText(item.dir))}>Copy</button>
+              <button onClick={() => act(window.aw.library.file(item.id, null, 'show'))}>Show in Finder</button>
             </div>
           )}
+          {fail && <p className="error" role="alert">{fail}</p>}
         </div>
       )}
       {tab === 'used' && (

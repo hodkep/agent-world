@@ -53,6 +53,15 @@ interface Deps {
 const MAX_FILE = 100 * 1024
 
 /** The real path of one of a skill's own files; anything outside its folder, hidden, or not a plain file is refused. */
+// Files the Mac hands to a program that runs them (Terminal, Script Editor, the installer): a skill's file like this is shown in Finder, never opened.
+const RUNS = new Set(['command', 'tool', 'sh', 'bash', 'zsh', 'fish', 'csh', 'ksh', 'py', 'rb', 'pl', 'php', 'js', 'mjs', 'cjs', 'ts', 'scpt', 'applescript', 'workflow', 'terminal', 'app', 'jar', 'pkg', 'mpkg', 'dmg', 'webloc', 'inetloc', 'fileloc'])
+
+/** Whether opening this file with its default program could run it: a script, an app or installer, a link file, or anything marked executable. */
+export function runsWhenOpened(path: string): boolean {
+  const ext = path.includes('.') ? path.split('.').pop()!.toLowerCase() : ''
+  return RUNS.has(ext) || (statSync(path).mode & 0o111) !== 0
+}
+
 function fileIn(item: Item, file: string): string {
   if (item.kind !== 'skill') throw new Error(`${item.id} has no files.`)
   let full: string
