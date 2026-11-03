@@ -57,6 +57,10 @@ describe('the chips on a step', () => {
     expect(words(step('check', { run: 'npm test', gate: 'pass' }))).toEqual(['must pass', '2 retries'])
     expect(words(step('pr', { gate: 'approve' }))).toEqual(['you confirm'])
   })
+  it('warn on a step whose brief asks for your approval though it never stops for it', () => {
+    expect(words(step('work', { brief: 'The person tries it. Approve moves on.' }))).toEqual(['asks you, never stops'])
+    expect(chipsOf(step('work', { brief: 'The person tries it. Approve moves on.' }))[0]!.tone).toBe('warn')
+  })
   it('say nothing for a step that just goes on', () => {
     expect(words(step('work'))).toEqual([])
     expect(words(step('audit'))).toEqual([])

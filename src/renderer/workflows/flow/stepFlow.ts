@@ -1,6 +1,6 @@
 import { DEFAULT_RETRIES } from '../../../shared/steps'
 import type { SkillState } from '../../../shared/skills'
-import type { Step, StepKind } from '../../../shared/workflow'
+import { type Step, type StepKind, asksYouButNever } from '../../../shared/workflow'
 
 /** Who does a step: the agent, a command the app runs, a model that reviews, or the person. */
 export type Actor = 'agent' | 'command' | 'reviewer' | 'you'
@@ -37,7 +37,7 @@ export function loopsOf(steps: Step[]): Loop[] {
 
 export interface Chip {
   text: string
-  tone: 'stop' | 'pass' | 'run' | 'plain'
+  tone: 'stop' | 'pass' | 'run' | 'plain' | 'warn'
   /** A skill chip: how that skill stands in this project, when it is not simply ready. */
   skill?: SkillState
 }
@@ -47,6 +47,8 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 export function chipsOf(s: Step, states: Record<string, SkillState> = {}): Chip[] {
   const out: Chip[] = []
   const landing = s.kind === 'pr' || s.kind === 'merge'
+  // The brief asks the person to decide, but the step never stops for them: the agent would wait for an answer nobody is asked for.
+  if (asksYouButNever(s)) out.push({ text: 'asks you, never stops', tone: 'warn' })
   if (s.kind === 'work' && s.by === 'person') out.push({ text: 'you finish it', tone: 'stop' })
   else if (s.kind === 'approve' || (s.gate === 'approve' && (s.kind === 'work' || s.kind === 'audit')) || (s.kind === 'plan' && s.gate !== 'auto')) out.push({ text: 'you approve', tone: 'stop' })
   else if (landing && (s.gate === 'approve' || s.kind === 'merge')) out.push({ text: 'you confirm', tone: 'stop' })

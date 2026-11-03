@@ -3449,6 +3449,7 @@ svg.pxg { display: block; flex: none; }
 .fl-chips { display: flex; gap: 5px; flex-wrap: wrap; min-height: 15px; }
 .fl-chip { background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 6px; font-size: 10px; color: var(--muted); }
 .fl-chip.stop { color: var(--violet); }
+.fl-chip.warn { color: var(--danger-text); box-shadow: 0 0 0 1px var(--danger-text); }
 .fl-chip.pass { color: var(--ok-text); }
 .fl-chip.run { color: var(--accent); }
 .fl-chip.granted { color: var(--accent); }
@@ -4714,5 +4715,13 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .rbar-card p { margin: 0; color: var(--muted); font-size: 12px; }
 .rbar-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rbar-sp { flex: 1; }
+.rbar-card p.rbar-warn { color: var(--danger-text); }
 .rbar-acts button.ghost { background: none; border-color: transparent; box-shadow: none; }
 .rbar-end { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; background: var(--danger-well); border: 2px solid var(--ink); font-size: 12px; }
+
+/* A step whose brief asks for the person's approval though it never stops for it: what is wrong, and the two ways to put it right. */
+.si-warn { display: flex; flex-direction: column; gap: 8px; margin: 0 0 10px; padding: 8px 10px; background: var(--danger-well); border: 2px solid var(--ink); font-size: 12px; }
+.si-warn p { margin: 0; color: var(--muted); }
+.si-warn p b { color: var(--danger-text); font-weight: 600; }
+.si-warn-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.si-warn-acts button { padding: 2px 10px; font-size: 12px; }
