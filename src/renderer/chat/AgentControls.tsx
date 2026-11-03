@@ -5,6 +5,7 @@ import { type Role, isCurrentRole } from '../../shared/roles'
 import type { Capabilities, Effort } from '../../shared/types'
 import { type UsageLimits, limitView, tokenLabel } from '../../shared/usage'
 import { EFFORTS, MODELS } from '../panel/HireForm'
+import { OutlineIcon } from '../panel/IconButton'
 import { PixelIcon } from './PixelIcon'
 
 /** What the controls under the message box show about the agent. */
@@ -21,6 +22,10 @@ export interface AgentInfo {
   branch: string | null
   /** Model and effort can only change between turns. */
   canSwitch: boolean
+  /** The agent's program is already stopped: nothing to put to sleep. */
+  asleep?: boolean
+  /** Why it cannot be put to sleep now (a turn in progress, agents working for it), if it cannot. */
+  sleepBlock?: string
   started: boolean
   /** The job stored in the agent's options (a role's title), if any. */
   role?: string
@@ -59,6 +64,8 @@ export interface AgentActions {
   group: () => void
   /** Start the agent's program again on the same conversation (asks first). */
   restart: () => void
+  /** Stop the agent's program on demand; Wake starts it again. */
+  sleep: () => void
   remove: () => void
 }
 
@@ -236,52 +243,55 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
         <div className="cb-pop right more" role="menu" aria-label="More actions">
           {page === 'main' && (
             <>
+              <div className="cb-group">
               <div className="cb-tiles">
                 {info.branch && (
                   <button className="cb-tile" role="menuitem" title="Ask a peer to look at the branch" onClick={() => setPage('review')}>
-                    <PixelIcon name="review" />
+                    <OutlineIcon name="search" />
                     Review
                   </button>
                 )}
                 {info.can?.clone !== false && (
                   <button className="cb-tile" role="menuitem" disabled={!info.started} onClick={() => setPage('clone')} title={info.started ? 'Fork this chat into a new branch' : 'Nothing to copy until the conversation has started'}>
-                    <PixelIcon name="clone" />
+                    <OutlineIcon name="clone" />
                     Clone
                   </button>
                 )}
                 {info.branch && (
                   <button className="cb-tile" role="menuitem" title={info.handbook ?? 'CLAUDE.md'} onClick={run(actions.handbook)}>
-                    <PixelIcon name="book" />
+                    <OutlineIcon name="library" />
                     Handbook
                   </button>
                 )}
                 <button className="cb-tile" role="menuitem" title="Notes every agent in this project shares" onClick={run(actions.memory)}>
-                  <PixelIcon name="tag" />
+                  <OutlineIcon name="memory" />
                   Memory
                 </button>
               </div>
+              </div>
               {info.branch && (
-                <>
+                <div className="cb-group">
                   <h6>Hand over</h6>
                   <button className="cb-row" role="menuitem" onClick={run(actions.handoff)}>
-                    <PixelIcon name="handoff" />
+                    <OutlineIcon name="handoff" />
                     <span className="cb-text">
                       <span className="cb-name">Hand off…</span>
                       <small>Give this branch to another agent</small>
                     </span>
                   </button>
-                </>
+                </div>
               )}
+              <div className="cb-group">
               <h6>Manage</h6>
               <button className="cb-row" role="menuitem" onClick={run(actions.rename)}>
-                <PixelIcon name="pencil" />
+                <OutlineIcon name="pencil" />
                 <span className="cb-text">
                   <span className="cb-name">Rename</span>
                 </span>
               </button>
               {info.can?.changeRole !== false && (
                 <button className="cb-row" role="menuitem" disabled={!info.canSwitch} title={info.canSwitch ? '' : 'Wait until it finishes its turn'} onClick={() => setPage('role')}>
-                  <PixelIcon name="tag" />
+                  <OutlineIcon name="tag" />
                   <span className="cb-text">
                     <span className="cb-name">Change role…</span>
                     <small>Now: {info.role ?? 'no role'}</small>
@@ -289,27 +299,38 @@ export function MoreMenu({ info, actions }: { info: AgentInfo; actions: AgentAct
                 </button>
               )}
               <button className="cb-row" role="menuitem" onClick={run(actions.group)}>
-                <PixelIcon name="group" />
+                <OutlineIcon name="grid" />
                 <span className="cb-text">
                   <span className="cb-name">Group…</span>
                   <small>A label to group it under in the list</small>
                 </span>
               </button>
+              </div>
+              <div className="cb-group">
               <h6>Session</h6>
+              {!info.asleep && (
+                <button className="cb-row" role="menuitem" disabled={!!info.sleepBlock} title={info.sleepBlock ?? ''} onClick={run(actions.sleep)}>
+                  <OutlineIcon name="moon" />
+                  <span className="cb-text">
+                    <span className="cb-name">Put to sleep</span>
+                    <small>Stop it; Wake starts it again</small>
+                  </span>
+                </button>
+              )}
               <button className="cb-row" role="menuitem" onClick={run(actions.restart)}>
-                <PixelIcon name="restart" />
+                <OutlineIcon name="reload" />
                 <span className="cb-text">
                   <span className="cb-name">Restart agent</span>
                   <small>Same conversation, fresh program</small>
                 </span>
               </button>
-              <div className="cb-sep roomy" />
               <button className="cb-row danger" role="menuitem" onClick={run(actions.remove)}>
-                <PixelIcon name="x" />
+                <OutlineIcon name="cross" />
                 <span className="cb-text">
                   <span className="cb-name">Remove agent</span>
                 </span>
               </button>
+              </div>
             </>
           )}
           {page === 'review' && (

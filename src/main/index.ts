@@ -21,7 +21,7 @@ import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
-import { sleepIdle } from './sleepIdle'
+import { type SleepDeps, quietSince, sleepBlocker, sleepIdle } from './sleepIdle'
 import { startPerf } from './perf'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -258,6 +258,8 @@ const screens = new Map<string, Screen>()
 const lastActivity = new Map<string, Activity>()
 // When each agent was last working (not idle, waiting or asleep): the library uses it to tell a program whose hooks do not reach the office from one that is idle.
 const busyAt = new Map<string, number>()
+// When the person last typed into each agent's terminal: with its work, what keeps it from idle sleep.
+const typedAt = new Map<string, number>()
 const lastCost = new Map<string, number>()
 // The subscription's 5-hour and weekly windows, from whichever agent reported last. Kept on disk so the last
 // reading is still there after a restart, until the next reply refreshes it.
@@ -1142,6 +1144,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
     mailbox.gone(a.id)
     runClock(a, 'asleep')
     lastActivity.delete(a.id)
+    typedAt.delete(a.id)
     lastCost.delete(a.id)
     refreshAttention()
     if (trustOpen.delete(a.id)) send('trust-prompt', a.id, null)
@@ -3187,7 +3190,10 @@ async function main() {
     return { hiredAt: hired.at, hiredEstimated: hired.estimated, workedMs: workedNow(clock, Date.now()), ...profileCounts(items), subagents: providerOf(a).transcript.subagents(a).length + subagents.infos(a.id).length, commits }
   })
   ipcMain.handle('pty-buffer', (_, id: string) => buffers.get(id) ?? { text: '', end: 0 })
-  ipcMain.on('pty-write', (_, id: string, data: string) => (sessions.get(id) ?? shells.get(id))?.write(data))
+  ipcMain.on('pty-write', (_, id: string, data: string) => {
+    if (sessions.has(id)) typedAt.set(id, Date.now())
+    ;(sessions.get(id) ?? shells.get(id))?.write(data)
+  })
   ipcMain.on('pty-resize', (_, id: string, cols: number, rows: number) => {
     if (shells.has(id)) return void shells.get(id)!.resize(cols, rows)
     sizes.set(id, { cols, rows })
@@ -3313,24 +3319,35 @@ async function main() {
     // A subagent's parent was waiting on its answer, and that wait ended with the app: it stays as it was, stopped, and is not started again.
     if (a && !a.parent && !sessions.has(id)) spawn(a, env)
   }
+  const sleepDeps = (now: number, after: number): SleepDeps => ({
+    ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
+    activity: (id) => lastActivity.get(id),
+    quietSince: (id) => quietSince({ busy: busyAt.get(id), spawned: spawnedAt.get(id), typed: typedAt.get(id) }),
+    hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
+    pending: (id) => mailbox.pending(id),
+    inRun: (id) => workflows.runs().some((r) => r.agent === id && r.status === 'open'),
+    procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
+    sleep: (id) => sessions.get(id)?.kill(),
+    now,
+    after
+  })
+  // Put to sleep, from the agent's menu: the same stop as idle sleep, at the person's word, refused with a reason when something depends on the agent.
+  ipcMain.handle('agent:sleep', async (_, id: string) => {
+    const a = byId(id)
+    if (!a) throw new Error('No such agent.')
+    if (a.parent) throw new Error('A helper agent goes to sleep with the agent that started it.')
+    if (!sessions.has(id)) return
+    const why = await sleepBlocker(sleepDeps(Date.now(), 0), id)
+    if (why) throw new Error(why)
+    sessions.get(id)?.kill()
+  })
   const heartbeat = setInterval(noteRunning, 2000)
   // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
   let sleeping = false
   const sleeper = setInterval(() => {
     if (sleeping) return
     sleeping = true
-    void sleepIdle({
-      ids: agents.filter((a) => sessions.has(a.id) && !a.parent).map((a) => a.id),
-      activity: (id) => lastActivity.get(id),
-      quietSince: (id) => Math.max(lastOutput.get(id) ?? 0, busyAt.get(id) ?? 0, spawnedAt.get(id) ?? 0),
-      hasChildren: (id) => agents.some((c) => c.parent === id && sessions.has(c.id)),
-      pending: (id) => mailbox.pending(id),
-      inRun: (id) => workflows.runs().some((r) => r.agent === id && r.status === 'open'),
-      procs: async (id) => (await listProcs(sessions.get(id)?.pid ?? 0)).length,
-      sleep: (id) => sessions.get(id)?.kill(),
-      now: Date.now(),
-      after: (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000
-    })
+    void sleepIdle(sleepDeps(Date.now(), (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000))
       .catch(() => {})
       .finally(() => (sleeping = false))
   }, (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)

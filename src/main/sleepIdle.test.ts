@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sleepIdle, type SleepDeps } from './sleepIdle'
+import { quietSince, sleepBlocker, sleepIdle, type SleepDeps } from './sleepIdle'
 
 const MIN = 60_000
 const NOW = 10_000 * MIN
@@ -87,5 +87,29 @@ describe('putting idle agents to sleep', () => {
     const { deps, slept } = world({ ids: ['a', 'b', 'c'], quietSince: (id) => NOW - (id === 'b' ? 5 : 90) * MIN })
     await sleepIdle(deps)
     expect(slept).toEqual(['a', 'c'])
+  })
+})
+
+describe('quietSince', () => {
+  it('is the latest of its work, its start and the last typing, so a redraw of the terminal is not activity', () => {
+    expect(quietSince({ busy: 5, spawned: 9, typed: 7 })).toBe(9)
+    expect(quietSince({ busy: 12, spawned: 9 })).toBe(12)
+    expect(quietSince({ spawned: 3, typed: 8 })).toBe(8)
+    expect(quietSince({})).toBe(0)
+  })
+})
+
+describe('sleepBlocker (Put to sleep, on demand)', () => {
+  it('is empty for an idle agent with nothing depending on it, however recent its work', async () => {
+    expect(await sleepBlocker(world({ quietSince: () => NOW }).deps, 'a')).toBe('')
+  })
+
+  it('says why not for each thing that holds an agent up', async () => {
+    expect(await sleepBlocker(world({ activity: () => 'thinking' }).deps, 'a')).toMatch(/finishes its turn/)
+    expect(await sleepBlocker(world({ activity: () => 'waiting' }).deps, 'a')).toMatch(/waiting for you/)
+    expect(await sleepBlocker(world({ hasChildren: () => true }).deps, 'a')).toMatch(/agents working for it/)
+    expect(await sleepBlocker(world({ pending: () => 2 }).deps, 'a')).toMatch(/message/)
+    expect(await sleepBlocker(world({ inRun: () => true }).deps, 'a')).toMatch(/workflow/)
+    expect(await sleepBlocker(world({ procs: async () => 1 }).deps, 'a')).toMatch(/command/)
   })
 })

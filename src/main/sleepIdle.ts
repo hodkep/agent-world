@@ -3,7 +3,7 @@ import type { Activity } from '../shared/types'
 export interface SleepDeps {
   ids: string[]
   activity: (id: string) => Activity | undefined
-  /** When the agent last wrote anything to its terminal or was last at work. */
+  /** When the agent was last at work, started, or typed to (see quietSince). */
   quietSince: (id: string) => number
   hasChildren: (id: string) => boolean
   pending: (id: string) => number
@@ -15,6 +15,21 @@ export interface SleepDeps {
   now: number
   /** Milliseconds idle before sleeping; 0 is off. */
   after: number
+}
+
+/** When an agent was last really in use: at work, started, or typed to. Terminal output is left out: a redraw after the laptop wakes or the pane resizes is not use. */
+export const quietSince = (t: { busy?: number; spawned?: number; typed?: number }) => Math.max(t.busy ?? 0, t.spawned ?? 0, t.typed ?? 0)
+
+/** Why an agent cannot be put to sleep now, in words for the person; empty when it can. Time is not part of it: the person asked. */
+export async function sleepBlocker(d: SleepDeps, id: string): Promise<string> {
+  const act = d.activity(id)
+  if (act === 'waiting') return 'It is waiting for you; answer it first.'
+  if (act && act !== 'idle') return 'Wait until it finishes its turn.'
+  if (d.hasChildren(id)) return 'It has agents working for it.'
+  if (d.pending(id)) return 'It has a message it has not read yet.'
+  if (d.inRun(id)) return 'It is part of an open workflow run.'
+  const n = await d.procs(id)
+  return n ? `${n === 1 ? 'A command it left running' : `${n} commands it left running`} would stop.` : ''
 }
 
 /** Puts to sleep the running agents that have sat idle for `after` ms with nothing depending on them; returns who went. */
