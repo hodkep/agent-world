@@ -31,17 +31,17 @@ The list groups skills as **Used this month**, **Gathering dust** (on for Claude
 Open a skill: its **Where it works** tab shows the library copy, a socket for each place and a cable to each place the skill reaches. Click a socket to switch it. One copy lives in the library; nothing is copied.
 
 - **Claude in the app**: on by default. Every Claude agent gets the skill when it starts, on every account the app has set up, and nothing is installed in an account's own folder. Switch it off to keep the skill in the library only. A skill a playbook rule names still reaches the agent, and a rule set to **Off** keeps one away.
-- **Claude (outside the app)**, **Antigravity CLI**, **Antigravity app** and **This project**: click one marked **plug in** to link the skill into that program's skills folder; it then says **linked**. The link points at the library copy, so an edit shows everywhere. A place that is not installed here says **not here** and is greyed out. If a folder of the same name is already there, the socket says **a copy** and is left as it is.
+- **Claude (outside the app)**, **Antigravity CLI**, **Antigravity app** and **This project**: click one marked **plug in** to link the skill into that program's skills folder; it then says **linked**. The link points at the library copy, so an edit shows everywhere. A place that is not installed here says **not here** and is greyed out. If a folder of the same name is already there, the socket says **a copy** and is left as it is. On **Claude (outside the app)** that copy is the one Claude uses, so the app does not add the library's as well.
 
-A skill that is linked into **Claude (outside the app)** is not added again when an agent starts, so Claude does not list it twice.
+A skill the agent's own Claude skills folder already has (linked or a copy) is not added again when it starts, so Claude does not list it twice. An account with a skills folder of its own still gets every skill.
 
 Agents already running keep the skills they started with until they restart.
 
-<img src="../images/library.png" alt="The Skills tab with the item commit-style open: its text, size in tokens, and the tabs What an agent reads, Files and Used by" width="720">
+<img src="../images/library.png" alt="The Skills tab: skills grouped as gathering dust, each with its spine, its 30 days and its cost; commit-style open on Where it works, with the library copy, a cable to each place and a socket for each" width="720">
 
 ## Choose what agents are told
 
-On the **Playbook** tab, the bookshelf at the top shows what is **On the desk** (told every time) and **On the shelf** (pointed at), and a notice appears there when the opening text is over budget. Below it:
+On the **Playbook** tab, the bookshelf at the top shows what is **On the desk** (told every time) and **On the shelf** (pointed at); click a book to open the item on the **Skills** tab. A notice appears there when the opening text is over budget. Below it:
 
 1. Pick a scope: **Everywhere**, or the button named after the open project's folder. The project's rule wins over **Everywhere** for the same item.
 2. Click **Add an item…** and click an item. It is added as **Pointed at**, soft.
@@ -86,7 +86,7 @@ An agent can read only items in its playbook. Claude Code also gets the playbook
 
 ## Usage
 
-The top of the **Usage** tab shows the library's skills over the last 30 days, with the start-of-session cost meter. **Most used** ranks them with a bar each, the faces of the agents that used them, the accounts and when each was last used. A use is Claude loading the skill, or an agent reading it. **Gathering dust** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, **Remove** to delete it from the library, or **Clear the dust** to turn them all off for Claude. **Who reached for what** shows each agent with the skills it used.
+The top of the **Usage** tab shows the library's skills over the last 30 days, with the start-of-session cost meter. **Most used** ranks them with a bar each, the faces of the agents that used them, the accounts and when each was last used. A use is Claude loading the skill, or an agent reading it, counted once per turn however many of its files it reads then. Only use by agents in the app is counted. **Gathering dust** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, **Remove** to delete it from the library, or **Clear the dust** to turn them all off for Claude. **Who reached for what** shows each agent with the skills it used.
 
 Below that, the tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
 

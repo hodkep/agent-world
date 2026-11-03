@@ -31,6 +31,18 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
     return () => ro?.disconnect()
   }, [tab, item.id, item.body])
   const TABS: [Tab, string][] = [...(where ? ([['where', 'Where it works']] as [Tab, string][]) : []), ['text', 'What an agent reads'], ['files', `Files${item.files.length ? ` (${item.files.length})` : ''}`], ['used', 'Used by']]
+  const tid = (id: Tab) => `lip-tab-${id}`
+  const pid = (id: Tab) => `lip-panel-${id}`
+  // The tabs as one stop in the Tab order: the arrow keys, Home and End move between them, and the tab moved to is picked.
+  const keys = (e: React.KeyboardEvent) => {
+    const at = TABS.findIndex(([id]) => id === tab)
+    const to = e.key === 'ArrowRight' ? (at + 1) % TABS.length : e.key === 'ArrowLeft' ? (at - 1 + TABS.length) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : -1
+    if (to < 0) return
+    e.preventDefault()
+    const id = TABS[to]![0]
+    setTab(id)
+    e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[to]?.focus()
+  }
   return (
     <div className="lip" role="group" aria-label={`${item.name} in detail`}>
       <div className="lip-top">
@@ -38,12 +50,12 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
         <p className="lip-desc">{item.description}</p>
         {stats}
       </div>
-      <div className="lip-tabs" role="tablist" aria-label={`About ${item.name}`}>
-        {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+      <div className="lip-tabs" role="tablist" aria-label={`About ${item.name}`} onKeyDown={keys}>
+        {TABS.map(([id, label]) => <button key={id} id={tid(id)} role="tab" aria-selected={tab === id} aria-controls={pid(id)} tabIndex={tab === id ? 0 : -1} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
-      {tab === 'where' && where}
+      {tab === 'where' && <div className="lip-tp" role="tabpanel" id={pid('where')} aria-labelledby={tid('where')}>{where}</div>}
       {tab === 'text' && (
-        <div className="lip-view" role="tabpanel" aria-label="What an agent reads">
+        <div className="lip-view" role="tabpanel" id={pid('text')} aria-labelledby={tid('text')}>
           <div className="lip-bar"><PixelIcon name="book" scale={2} /><b>{file}</b><span>{lines} {lines === 1 ? 'line' : 'lines'} · about {item.tokens.body} tokens</span><span className="lib-sp" /><span>the item's own words</span></div>
           <div className="lip-scroll lib-scrollbar" ref={scroller} onScroll={check} tabIndex={0} aria-label="The item's text, scrolls">
             <Markdown text={item.body} />
@@ -53,7 +65,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
         </div>
       )}
       {tab === 'files' && (
-        <div className="lip-panel" role="tabpanel" aria-label="Files">
+        <div className="lip-panel" role="tabpanel" id={pid('files')} aria-labelledby={tid('files')}>
           {item.files.length ? (() => {
             const sizes = item.fileTokens ?? {}
             const total = item.files.reduce((n, f) => n + (sizes[f] ?? 0), 0)
@@ -88,7 +100,7 @@ export function LibraryItemPane({ item, usage, where, stats, colour, onEdit, onR
         </div>
       )}
       {tab === 'used' && (
-        <div className="lip-panel" role="tabpanel" aria-label="Used by">
+        <div className="lip-panel" role="tabpanel" id={pid('used')} aria-labelledby={tid('used')}>
           <dl className="lip-facts">
             <div><dt>From</dt><dd>{item.source}</dd></div>
             <div><dt>Costs</dt><dd>about {item.tokens.body} tokens to read, {item.tokens.description} to list</dd></div>

@@ -401,9 +401,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                     {row.map((i) => {
                       const look = spineLook(i, true)
                       return (
-                        <span key={i.id} className="spine" data-name={i.name} aria-label={i.name} style={{ height: look.height, background: look.colour }}>
+                        <button key={i.id} className="spine" data-name={i.name} aria-label={`Open ${i.name}`} style={{ height: look.height, background: look.colour }} onClick={() => (setTab('skills'), setFind(''), setDraft(null), setOpen(i.id))}>
                           <PixelIcon name={KIND_ICON[i.kind]} scale={1} />
-                        </span>
+                        </button>
                       )
                     })}
                   </div>
