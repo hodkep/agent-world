@@ -1,5 +1,6 @@
 import { copyIconMarkup, runIconMarkup, tickIconMarkup } from '../panel/IconButton'
 import { RUN_EVENT, runnable } from './runnable'
+import { revealWords } from './reveal'
 import DOMPurify from 'dompurify'
 import 'katex/dist/katex.min.css'
 import { type RendererThis, type Token, type TokenizerAndRendererExtension, type TokenizerThis, type Tokens, marked } from 'marked'
@@ -7,7 +8,7 @@ import markedAlert from 'marked-alert'
 import markedFootnote from 'marked-footnote'
 import { gfmHeadingId } from 'marked-gfm-heading-id'
 import markedKatex from 'marked-katex-extension'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { type Root, createRoot } from 'react-dom/client'
 import { A2uiView } from './A2uiView'
 import { Diagram } from './Diagram'
@@ -110,7 +111,7 @@ async function drawMermaid(pre: HTMLElement, source: string, agentId: string | u
 }
 
 /** Assistant text as sanitized HTML; code blocks get Monaco's colouring afterwards; links open outside the app. */
-export function Markdown({ text, agentId }: { text: string; agentId?: string }) {
+export function Markdown({ text, agentId, reveal }: { text: string; agentId?: string; /** A reply that has just arrived: its words fade in one after another (not for people who ask for less motion). */ reveal?: boolean }) {
   // Tables sit in a box of their own that scrolls sideways, so a wide one keeps its column names readable.
   const html = useMemo(
     () =>
@@ -120,6 +121,11 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
     [text]
   )
   const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!reveal || !el || el.querySelector('.w-r') || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    revealWords(el)
+  }, [html, reveal])
   const a2roots = useRef<Root[]>([])
   // The surfaces drawn into this reply go with it when its text changes.
   useEffect(
