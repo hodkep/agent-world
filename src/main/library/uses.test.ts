@@ -116,4 +116,11 @@ describe('how often each skill was used', () => {
     expect(u.pdf!.days.reduce((a, b) => a + b, 0)).toBe(u.pdf!.used)
     expect(u.pdf!.who).toEqual([{ id: 'a2', name: 'charlie' }, { id: 'a1', name: 'delta' }])
   })
+
+  it('counts a skill once per turn of an agent, however many of its files it read then; uses with no turn count one each', () => {
+    const at = (turn: number | undefined, how: Use['how'] = 'read'): Use => ({ ...use('pdf', 1, how), launch: 5, ...(turn !== undefined && { turn }) })
+    const u = skillUsage([at(3, 'skill'), at(3), at(3), at(4), at(undefined), at(undefined)], now)
+    expect(u.pdf!.used).toBe(4)
+    expect(u.pdf!.days.reduce((a, b) => a + b, 0)).toBe(4)
+  })
 })

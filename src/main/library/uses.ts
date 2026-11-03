@@ -67,12 +67,19 @@ export function summarize(uses: Use[]): Summary {
   return { items, agents, top }
 }
 
-/** Per item: how often it was loaded or read in the last `days` days, when it last was (at any time), and which agents and accounts used it then. */
+/** Per item: in how many agent turns it was loaded or read in the last `days` days, when it last was (at any time), and which agents and accounts used it then. */
 export function skillUsage(uses: Use[], now: number, days = 30): Record<string, SkillUse> {
   const since = now - days * 86_400_000
   const out: Record<string, SkillUse> = {}
+  // One use per agent turn: loading a skill and reading three of its files in the same turn is one use of it.
+  const seen = new Set<string>()
   for (const u of uses) {
     if (u.how !== 'fetched' && u.how !== 'skill' && u.how !== 'read') continue
+    if (u.turn !== undefined) {
+      const key = `${u.agent}|${u.launch ?? ''}|${u.turn}|${u.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+    }
     const s = (out[u.id] ??= { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(days).fill(0), who: [] })
     s.last = Math.max(s.last, u.t)
     if (u.t < since) continue
