@@ -4972,3 +4972,12 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .md .w-r { display: inline-block; opacity: 0; animation: w-r-in 550ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards; animation-delay: calc(var(--i) * var(--step, 30ms)); }
 @keyframes w-r-in { from { opacity: 0; filter: blur(var(--blur, 4px)); } to { opacity: 1; filter: blur(0); } }
 @media (prefers-reduced-motion: reduce) { .md .w-r { animation: none; opacity: 1; filter: none; } }
+
+/* The Settings row for the most todo lists an agent may create: a number box, empty for no limit. */
+.set-num { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.set-num-in { display: flex; align-items: center; gap: 10px; }
+.set-num-in input { width: 110px; font: inherit; color: var(--text); background: var(--well); border: 2px solid var(--ink); padding: 5px 8px; border-radius: 0; }
+.set-num-in input[aria-invalid='true'] { border-color: var(--danger-text); }
+.set-num-in span { color: var(--muted); }
+.set-num small { color: var(--muted); font-size: 11px; max-width: 62ch; }
+.set-num small.set-num-err { color: var(--danger-text); }

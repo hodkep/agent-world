@@ -101,6 +101,10 @@ Everyone sees the same board. **Activity** says who changed what. A finished tas
 
 `todo#14` in a chat message, yours or an agent's, becomes a link showing the task's title and state. Click it to open the **Todos** window on that task. A bare `#14` is left alone.
 
+## Limit the lists agents make
+
+By default an agent may add as many lists as it likes (it still has to name the area, and a list that is already there is used as it is). To keep a board to a few lists, go to **Settings** > **Features** and type a number in **Most lists an agent may create**. An agent that wants one more is told the limit and to use a list the board has. The number cannot be lower than the lists the Todos screen has now, lowering it removes no list, and the lists you add yourself never count. Empty means no limit.
+
 ## Track every request
 
 By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists. A plain git order (commit, push, rebase, open a PR) makes no task; a follow-up to a task (a fix to its review, more work on it) is told which task the agent was on last, so it goes under it as a subtask.

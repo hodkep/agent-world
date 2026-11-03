@@ -13,6 +13,7 @@ import { useProviderSetup } from './useProviderSetup'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
 import { TrackingCost } from '../todos/TrackingCost'
+import { ListLimitRow } from './ListLimitRow'
 import { LibraryCostBox } from './LibraryCostBox'
 import { switchWorkflows } from '../../shared/workflows'
 import { WorkflowCost } from '../workflows/WorkflowCost'
@@ -118,6 +119,12 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
   // The program new agents use: the one chosen here, else the one chosen in setup, else the first that is ready.
   const startWith = ready.find((p) => p.id === (prefs.defaults.provider || prefs.setup.defaultProvider)) ?? ready[0]
   const [pane, setPane] = useState<Pane>(PANES.some((p) => p.id === initialPane) ? (initialPane as Pane) : 'general')
+  // The lists on the open project's Todos screen (not the Inbox): the limit on lists agents make cannot be set lower.
+  const [boardLists, setBoardLists] = useState(0)
+  useEffect(() => {
+    if (pane !== 'features' || !project) return
+    void window.aw.todos.get(project.path).then((r) => setBoardLists(r.board.lists.filter((l) => l !== 'Inbox').length), () => undefined)
+  }, [pane, project])
   const connectable = providers.filter((p) => p.detection.state === 'ready' && (p.mail === 'connected' || p.mail === 'missing'))
   const panes = PANES.filter((p) => (p.id !== 'mail' || connectable.length > 0) && (p.group !== 'This project' || project))
   const modes = startWith?.hireModes ?? []
@@ -177,6 +184,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
               <LibraryCostBox />
               <Switch checked={prefs.todoTracking === 'full'} onChange={(on) => set({ todoTracking: on ? 'full' : 'deferred' })} title="Track every request as a todo" hint="Each message you send becomes a task on the project's Todos board that the agent works on and marks done. Off: agents record only what is put off. Takes effect for agents started from now on and for each new message." />
               <TrackingCost full={prefs.todoTracking === 'full'} />
+              <ListLimitRow value={prefs.todoListLimit} lists={boardLists} onChange={(todoListLimit) => set({ todoListLimit })} />
               <Switch role="switch" checked={prefs.workflows.enabled} onChange={(enabled) => (enabled ? setWorkflows(true) : void turnOff())} title="Workflows" hint="Agents follow the steps of a workflow in order, each step says whether you are asked first, and every task is recorded round by round. Shows the Workflow tab and the Workflows button in the top bar." />
               {asking && (
                 <WorkflowOffConfirm
