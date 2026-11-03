@@ -31,6 +31,7 @@ export function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: str
       </button>
       {open && (
         <div className="pop-menu right chat-pop" role="menu" aria-label="Conversation tools">
+          <div className="menu-group">
           <div className="menu-label">Conversation</div>
           <button role="menuitem" title="Find in the conversation" onClick={() => (setOpen(false), onSearch())}>
             <span className="l">
@@ -62,14 +63,17 @@ export function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: str
               Copy as Markdown
             </span>
           </button>
-          <div className="menu-sep" />
-          <div className="menu-label">Look of the app</div>
-          <LookRows close={() => setOpen(false)} />
+          </div>
+          <div className="menu-group">
+            <div className="menu-label">Look of the app</div>
+            <LookRows close={() => setOpen(false)} />
+          </div>
           {remote && (
             <>
-              <div className="menu-sep" />
+              <div className="menu-group">
               <div className="menu-label">Remote</div>
               <RemoteRows state={remote} onToggle={() => askRemote(agentId, remote.state === 'off' ? 'on' : 'off')} onCopy={() => askRemote(agentId, 'link')} onQr={() => askRemote(agentId, 'qr')} close={() => setOpen(false)} />
+              </div>
             </>
           )}
         </div>

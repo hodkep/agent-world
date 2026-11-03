@@ -24,6 +24,13 @@ describe('the conversation menu', () => {
     expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation', 'Look of the app', 'Remote'])
   })
 
+  it('keeps each group in its own well, and draws every row with an outline icon', async () => {
+    const { menu } = await open({ state: 'off' })
+    expect(menu.querySelectorAll('.menu-group').length).toBe(3)
+    expect(menu.querySelectorAll('.menu-sep').length).toBe(0)
+    for (const r of menu.querySelectorAll('[role="menuitem"]')) expect(r.querySelector('svg'), r.textContent ?? '').not.toBeNull()
+  })
+
   it('has no Remote group for a program that cannot be continued from a phone', async () => {
     const { menu } = await open(undefined)
     expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation', 'Look of the app'])
