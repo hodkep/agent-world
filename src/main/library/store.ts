@@ -1,4 +1,4 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { parseDoc, renderDoc, slug, tokens } from './doc'
 
@@ -8,6 +8,22 @@ export type Item = LibraryItem
 
 const FOLDER: Record<Exclude<Kind, 'skill'>, string> = { instruction: 'instructions', prompt: 'prompts' }
 const SAFE = /^[a-z0-9][a-z0-9-]*$/
+
+/** What reading each of a skill's other files costs: text files under 100 KB only (others are left out). */
+function fileTokens(dir: string, files: string[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const f of files) {
+    try {
+      const p = join(dir, f)
+      if (statSync(p).size > 100 * 1024) continue
+      const text = readFileSync(p, 'utf8')
+      if (!text.includes('\u0000')) out[f] = tokens(text)
+    } catch {
+      /* unreadable: no size */
+    }
+  }
+  return out
+}
 
 /** Everything the app keeps for agents to use: skills (folders), instructions and prompts (files), in one global folder. */
 export class Library {
@@ -46,7 +62,8 @@ export class Library {
         return 'unknown'
       }
     })()
-    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files: this.skillFiles(dir), dir, tokens: { description: tokens(d.description), body: tokens(d.body) } }
+    const files = this.skillFiles(dir)
+    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files, fileTokens: fileTokens(dir, files), dir, tokens: { description: tokens(d.description), body: tokens(d.body) } }
   }
 
   private readFile(kind: Exclude<Kind, 'skill'>, id: string): Item | null {
@@ -136,6 +153,24 @@ export class Library {
     if (!item) return
     if (item.kind === 'skill') rmSync(this.skillDir(id), { recursive: true, force: true })
     else rmSync(this.file(item.kind, id), { force: true })
+  }
+
+  /** The skills switched off for Claude. Every skill is on until it is listed here. */
+  claudeOff(): Set<string> {
+    try {
+      return new Set((JSON.parse(readFileSync(join(this.root, 'claude-off.json'), 'utf8')) as string[]).filter((id) => SAFE.test(id)))
+    } catch {
+      return new Set()
+    }
+  }
+
+  setClaude(id: string, on: boolean): void {
+    if (!SAFE.test(id)) throw new Error(`Not a library item: ${id}`)
+    const off = this.claudeOff()
+    if (on) off.delete(id)
+    else off.add(id)
+    mkdirSync(this.root, { recursive: true })
+    writeFileSync(join(this.root, 'claude-off.json'), JSON.stringify([...off].sort()))
   }
 
   has(id: string) {

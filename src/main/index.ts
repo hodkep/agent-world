@@ -11,6 +11,8 @@ import { editedFiles } from './todos/edited'
 import { excerptOf, type LabelColor } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
 import { isRule } from './library/playbook'
+import { ownName } from '../shared/ownAccount'
+import { link as linkSkill, linkState, targets as skillTargets, unlink as unlinkSkill } from './library/links'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
 import { installedNotes } from './releaseNotes'
@@ -647,11 +649,16 @@ const libraryService = createLibraryService({
   root: LIBRARY_DIR,
   agent: (id) => {
     const a = byId(id)
-    return a ? { id: a.id, name: a.name, repoPath: a.repoPath, provider: providerOf(a).id, viaHook: !!providerOf(a).libraryHook } : undefined
+    if (!a) return undefined
+    const p = providerOf(a)
+    // The account by its name: its own when it has one, else the program's own login (only for a program with accounts).
+    const account = p.capabilities.accounts ? (a.account ? prefs.accounts.find((x) => x.id === a.account)?.name : ownName(prefs.ownNames, p.id)) : undefined
+    return { id: a.id, name: a.name, repoPath: a.repoPath, provider: p.id, account, viaHook: !!p.libraryHook }
   },
   workspaceKey: repoSlug,
   // The skills the steps of an agent's open task name are its to read, whatever its playbook says.
   grants: (id) => workflows.skillsOf(id),
+  linkedForClaude: (id) => linkState(LIBRARY_DIR, id, skillTargets(userHome())[0]!) === 'linked',
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
@@ -2504,6 +2511,17 @@ async function main() {
   ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
   ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
   ipcMain.handle('library:stats', () => libraryService.stats())
+  // Opens one of a skill's own files in the program the Mac uses for it, or shows it (or the skill's folder, with no file) in Finder. Only paths inside that skill.
+  ipcMain.handle('library:file', async (_, id: string, file: string | null, action: 'open' | 'show') => {
+    const path = file ? libraryService.fileOf(String(id), String(file)) : libraryService.library.listSync().find((i) => i.id === String(id) && i.kind === 'skill')?.dir
+    if (!path) throw new Error(`${id} is not a skill in the library.`)
+    if (process.env.AW_REVEAL_LOG && !app.isPackaged) return void appendFileSync(process.env.AW_REVEAL_LOG, `${action} ${path}\n`)
+    if (action === 'open' && file) {
+      const err = await shell.openPath(path)
+      if (err) throw new Error(err)
+    } else shell.showItemInFolder(path)
+  })
+  ipcMain.handle('library:usage30', () => libraryService.usage30())
   ipcMain.handle('library:save', (_, i: { id?: string; kind: 'skill' | 'instruction' | 'prompt'; name: string; description: string; body: string }) => libraryService.library.save({ id: i.id, kind: i.kind, name: String(i.name ?? '').slice(0, 100), description: String(i.description ?? '').slice(0, 500), body: String(i.body ?? '').slice(0, 200_000) }))
   ipcMain.handle('library:remove', (_, id: string) => libraryService.library.remove(String(id)))
   ipcMain.handle('library:sources', (_, folder?: string) => scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined }))
@@ -2511,6 +2529,18 @@ async function main() {
   ipcMain.handle('library:import', async (_, folder: string | undefined, dirs: string[]) => {
     const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined })
     return importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
+  })
+  ipcMain.handle('library:places', (_, folder?: string) => {
+    const ts = skillTargets(userHome(), folder && isDir(folder) ? folder : undefined)
+    const skills = libraryService.library.listSync().filter((i) => i.kind === 'skill')
+    const states = Object.fromEntries(skills.map((i) => [i.id, Object.fromEntries(ts.map((t) => [t.id, linkState(libraryService.library.root, i.id, t)]))]))
+    return { claudeOff: [...libraryService.library.claudeOff()], targets: ts, states }
+  })
+  ipcMain.handle('library:set-claude', (_, id: string, on: boolean) => libraryService.library.setClaude(String(id), !!on))
+  ipcMain.handle('library:link', (_, id: string, target: string, on: boolean, folder?: string) => {
+    const t = skillTargets(userHome(), folder && isDir(folder) ? folder : undefined).find((x) => x.id === target)
+    if (!t) throw new Error('Not a place skills can be linked into.')
+    return on ? linkSkill(libraryService.library.root, String(id), t) : unlinkSkill(libraryService.library.root, String(id), t)
   })
   ipcMain.handle('playbook:get', (_, folder?: string) => ({ global: libraryService.playbooks.read('global'), workspace: folder ? libraryService.playbooks.read({ workspace: repoSlug(folder) }) : [] }))
   ipcMain.handle('playbook:set', (_, scope: string | null, rules: unknown[]) => {

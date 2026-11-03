@@ -12,6 +12,8 @@ export interface LibraryItem {
   source: string
   /** A skill's other files, relative to its folder. */
   files: string[]
+  /** What reading each of those files costs, in tokens (text files under 100 KB). */
+  fileTokens?: Record<string, number>
   /** A skill's folder in the library (absolute); empty for the others. */
   dir: string
   tokens: { description: number; body: number }
@@ -31,6 +33,15 @@ export interface PlaybookRule {
 
 /** What the forced check adds to a message, in tokens, as shown to people before it is on (a test keeps it near the real sentence). */
 export const FORCED_CHECK_TOKENS = 62
+
+/** Where each skill works: off for Claude, and its state in each place that reads skills from a folder. */
+export interface SkillPlaces {
+  /** Skills switched off for Claude's sessions in the app (all others are on). */
+  claudeOff: string[]
+  targets: { id: 'claude' | 'agy-cli' | 'agy-app' | 'project'; label: string; dir: string; present: boolean }[]
+  /** Per skill, per target id: nothing there, our link, or something else of that name (left alone). */
+  states: Record<string, Record<string, 'none' | 'linked' | 'copy'>>
+}
 
 /** A skill folder found on this computer that can be copied into the library. */
 export interface LibraryCandidate {
@@ -72,6 +83,8 @@ export interface Use {
   words?: string
   /** For triggered: the prompt looked related to the item when the reminder was given (only that yes or no is kept, never the prompt). */
   related?: boolean
+  /** The Claude account the agent ran on, when it had one of its own (entries before this was kept have none). */
+  account?: string
   /** For skipped: why the agent passed the item over, in its words. */
   reason?: string
   /** For triggered by something the agent met rather than a message: what, in a few words ("merge conflict, 2 files"). */
@@ -94,6 +107,13 @@ export interface ItemStats extends Tally {
   /** What agents said when they passed it over, oldest first. */
   reasons: string[]
   byProvider: Record<string, Tally>
+}
+/** One item's use: loads and reads in the last 30 days, the time of the last one ever (0 if none), and who used it in those days. */
+export interface SkillUse {
+  used: number
+  last: number
+  agents: string[]
+  accounts: string[]
 }
 export interface Summary {
   items: Record<string, ItemStats>

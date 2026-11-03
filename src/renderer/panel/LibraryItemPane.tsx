@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { LibraryItem } from '../../shared/library'
 import { Markdown } from '../chat/markdown'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
 
 const ICON: Record<LibraryItem['kind'], IconName> = { skill: 'book', instruction: 'flag', prompt: 'pencil' }
-type Tab = 'text' | 'files' | 'used'
+type Tab = 'where' | 'text' | 'files' | 'used'
 
 /** The open item at the full height of the window: facts at the top, then tabs, the first being the item's own words, drawn as markdown in a viewer that says it scrolls. */
-export function LibraryItemPane({ item, usage, onEdit, onRemove }: { item: LibraryItem; usage?: { claude: number; agy: number; total: number }; onEdit: () => void; onRemove: () => void }) {
-  const [tab, setTab] = useState<Tab>('text')
+export function LibraryItemPane({ item, usage, where, onEdit, onRemove }: { item: LibraryItem; usage?: { claude: number; agy: number; total: number }; /** For a skill: the panel that says where it works. */ where?: ReactNode; onEdit: () => void; onRemove: () => void }) {
+  const first: Tab = where ? 'where' : 'text'
+  const [tab, setTab] = useState<Tab>(first)
   const scroller = useRef<HTMLDivElement>(null)
   const [more, setMore] = useState(false)
-  useEffect(() => setTab('text'), [item.id])
+  useEffect(() => setTab(first), [item.id, first])
   const lines = item.body.split('\n').length
   const file = item.kind === 'skill' ? `${item.id}/SKILL.md` : `${item.id}.md`
   const check = () => {
@@ -26,7 +27,7 @@ export function LibraryItemPane({ item, usage, onEdit, onRemove }: { item: Libra
     if (el && ro) ro.observe(el)
     return () => ro?.disconnect()
   }, [tab, item.id, item.body])
-  const TABS: [Tab, string][] = [['text', 'What an agent reads'], ['files', `Files${item.files.length ? ` (${item.files.length})` : ''}`], ['used', 'Used by']]
+  const TABS: [Tab, string][] = [...(where ? ([['where', 'Where it works']] as [Tab, string][]) : []), ['text', 'What an agent reads'], ['files', `Files${item.files.length ? ` (${item.files.length})` : ''}`], ['used', 'Used by']]
   return (
     <div className="lip" role="group" aria-label={`${item.name} in detail`}>
       <div className="lip-top">
@@ -36,6 +37,7 @@ export function LibraryItemPane({ item, usage, onEdit, onRemove }: { item: Libra
       <div className="lip-tabs" role="tablist" aria-label={`About ${item.name}`}>
         {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
       </div>
+      {tab === 'where' && where}
       {tab === 'text' && (
         <div className="lip-view" role="tabpanel" aria-label="What an agent reads">
           <div className="lip-bar"><PixelIcon name="book" scale={2} /><b>{file}</b><span>{lines} {lines === 1 ? 'line' : 'lines'} · about {item.tokens.body} tokens</span><span className="lib-sp" /><span>the item's own words</span></div>
@@ -48,8 +50,36 @@ export function LibraryItemPane({ item, usage, onEdit, onRemove }: { item: Libra
       )}
       {tab === 'files' && (
         <div className="lip-panel" role="tabpanel" aria-label="Files">
-          {item.files.length ? <ul className="lip-files">{item.files.map((f) => <li key={f}>{f}</li>)}</ul> : <p className="hint">{item.kind === 'skill' ? 'This skill is one text; it has no other files.' : 'This item is one text.'}</p>}
-          {item.dir && <p className="hint">Kept at <code>{item.dir}</code></p>}
+          {item.files.length ? (() => {
+            const sizes = item.fileTokens ?? {}
+            const total = item.files.reduce((n, f) => n + (sizes[f] ?? 0), 0)
+            return (
+              <>
+                <h5 className="lif-head">{item.files.length} {item.files.length === 1 ? 'file' : 'files'}{total ? ` · ≈${total} tokens if all are read` : ''}</h5>
+                <ul className="lif-list">
+                  {item.files.map((f) => {
+                    const ext = (f.split('.').pop() ?? '').toLowerCase()
+                    return (
+                      <li key={f}>
+                        <span className={`lif-ic lif-${ext}`} aria-hidden>{f.includes('.') ? ext.slice(0, 3).toUpperCase() : '—'}</span>
+                        <span className="lif-n" title={f}>{f}</span>
+                        {sizes[f] !== undefined && <small>≈{sizes[f]} tok</small>}
+                        <button onClick={() => void window.aw.library.file(item.id, f, 'open').catch(() => undefined)} aria-label={`Open ${f}`}>Open</button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            )
+          })() : <p className="hint">{item.kind === 'skill' ? 'This skill is one text; it has no other files.' : 'This item is one text.'}</p>}
+          {item.dir && (
+            <div className="lif-kept">
+              <span>Kept at</span>
+              <code title={item.dir}>{item.dir}</code>
+              <button onClick={() => void navigator.clipboard.writeText(item.dir)}>Copy</button>
+              <button onClick={() => void window.aw.library.file(item.id, null, 'show').catch(() => undefined)}>Show in Finder</button>
+            </div>
+          )}
         </div>
       )}
       {tab === 'used' && (

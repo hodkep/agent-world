@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { UseLog, summarize, type Use } from './uses'
+import { UseLog, skillUsage, summarize, type Use } from './uses'
 
 const u = (over: Partial<Use>): Use => ({ t: 1, agent: 'a1', name: 'Ann', provider: 'claude', workspace: 'w', id: 'tdd', how: 'fetched', ...over })
 
@@ -85,5 +85,25 @@ describe('the log file', () => {
     const { appendFileSync } = await import('node:fs')
     appendFileSync(join(dir, 'sub', 'uses.jsonl'), '{"t":')
     expect(log.all().map((x) => x.id)).toEqual(['x', 'y'])
+  })
+})
+
+describe('how often each skill was used', () => {
+  const DAY = 86_400_000
+  const now = 100 * DAY
+  const use = (id: string, daysAgo: number, how: Use['how'], agent = 'a1', name = 'delta', account?: string): Use => ({ t: now - daysAgo * DAY, agent, name, provider: 'claude', workspace: 'w', id, how, account })
+  it('counts the loads and reads of the last 30 days, says when the last one was, and who used it with which account', () => {
+    const u = skillUsage([
+      use('pdf', 1, 'skill', 'a1', 'delta', 'work'),
+      use('pdf', 2, 'fetched', 'a2', 'charlie'),
+      use('pdf', 3, 'read', 'a1', 'delta', 'work'),
+      use('pdf', 4, 'triggered'),
+      use('pdf', 40, 'skill', 'a3', 'os', 'rushikesh'),
+      use('memo', 45, 'skill')
+    ], now)
+    expect(u.pdf).toEqual({ used: 3, last: now - DAY, agents: ['charlie', 'delta'], accounts: ['work'] })
+    // Used only long ago: none in 30 days, but its last use is kept.
+    expect(u.memo).toEqual({ used: 0, last: now - 45 * DAY, agents: [], accounts: [] })
+    expect(u.graphify).toBeUndefined()
   })
 })

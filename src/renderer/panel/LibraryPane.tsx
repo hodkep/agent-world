@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { describeReminder } from './libraryReminder'
 import { groupTokens } from './libraryCost'
-import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode } from '../../shared/library'
+import type { LibraryCandidate, LibraryItem, LibraryKind, LibraryPreview, PlaybookRule, RuleMode, SkillPlaces, SkillUse } from '../../shared/library'
 import type { ProviderId, ProviderInfo } from '../../shared/types'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
 import { AddItemMenu } from './AddItemMenu'
@@ -9,15 +9,11 @@ import { LibraryItemPane } from './LibraryItemPane'
 import { LibraryReach, type Fix } from './LibraryReach'
 import { LibraryRule } from './LibraryRule'
 import { ProviderTag } from './ProviderTag'
+import { SkillWhere } from './SkillWhere'
+import { SkillUsage } from './SkillUsage'
 import { findItems, highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
 
-const KINDS: { value: LibraryKind | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'skill', label: 'Skills' },
-  { value: 'instruction', label: 'Instructions' },
-  { value: 'prompt', label: 'Prompts' }
-]
-const SECTIONS: ['shelf' | 'playbook' | 'reach', string][] = [['shelf', 'Shelf'], ['playbook', 'Playbook'], ['reach', 'Reached for']]
+const SECTIONS: ['skills' | 'playbook' | 'reach', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['reach', 'Usage']]
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 const CORE_BUDGET = 300
@@ -47,7 +43,6 @@ const GLOSSARY: [string, string][] = [
 export function LibraryPane({ folder, providers }: { folder: string; providers: ProviderInfo[] }) {
   const [items, setItems] = useState<LibraryItem[]>([])
   const [usage, setUsage] = useState<Record<string, { claude: number; agy: number; total: number }>>({})
-  const [kind, setKind] = useState<LibraryKind | 'all'>('all')
   const [open, setOpen] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ id?: string; kind: LibraryKind; name: string; description: string; body: string } | null>(null)
   const [error, setError] = useState('')
@@ -60,8 +55,11 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
-  const [tab, setTab] = useState<'shelf' | 'playbook' | 'reach'>('shelf')
+  const [tab, setTab] = useState<'skills' | 'playbook' | 'reach'>('skills')
   const [find, setFind] = useState('')
+  const [places, setPlaces] = useState<SkillPlaces | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [usage30, setUsage30] = useState<Record<string, SkillUse>>({})
   const [holders, setHolders] = useState<{ id: string; name: string; provider: string; stale: boolean }[]>([])
   const stale = holders.filter((h) => h.stale)
   const [silent, setSilent] = useState<{ id: string; name: string }[]>([])
@@ -72,7 +70,22 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
     setItems(r.items)
     setUsage(r.usage)
   }, [])
+  const loadPlaces = useCallback(() => window.aw.library.places(folder || undefined).then(setPlaces, (e) => setError(clean(e))), [folder])
   useEffect(() => void load().catch((e) => setError(clean(e))), [load])
+  useEffect(() => void loadPlaces(), [loadPlaces, items])
+  useEffect(() => void (tab === 'reach' && window.aw.library.usage30().then(setUsage30, (e) => setError(clean(e)))), [tab, items])
+  // One change at a time, so two quick clicks cannot cross; the switches show what is on disk afterwards.
+  const place = async (go: () => Promise<void>) => {
+    setBusy(true)
+    setError('')
+    try {
+      await go()
+    } catch (e) {
+      setError(clean(e))
+    }
+    await loadPlaces()
+    setBusy(false)
+  }
   useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
   const refreshStale = useCallback(() => (folder ? window.aw.library.holders(folder).then(setHolders, () => setHolders([])) : Promise.resolve(setHolders([]))), [folder])
   useEffect(() => void refreshStale(), [refreshStale, books])
@@ -97,7 +110,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
   const refreshPreview = useCallback(() => (folder ? window.aw.library.preview(folder, who).then(setPreview, () => setPreview(null)) : Promise.resolve()), [folder, who])
   useEffect(() => void refreshPreview(), [refreshPreview, books, items])
 
-  const shown = items.filter((i) => kind === 'all' || i.kind === kind)
+  const shown = items
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items])
   const rules = books[scope]
   const effective = useMemo(() => [...new Map([...books.global, ...(folder ? books.workspace : [])].map((r) => [r.id, r])).values()], [books, folder])
@@ -199,26 +212,24 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
             </div>
           </div>
         )}
-        {preview?.overBudget && (
-          <div className="lib-notice warn" role="note"><div><b>The opening text is over budget: {preview.coreTokens} of {CORE_BUDGET} tokens.</b><span>Every agent pays this on every message. Move something to "Pointed at", or shorten it.</span></div></div>
-        )}
       </div>
 
-      {tab === 'shelf' && (
-      <div role="tabpanel" id="lib-panel-shelf" aria-labelledby="lib-tab-shelf" className="lib-panel lib-panel-shelf">
+      {tab === 'skills' && (
+      <div role="tabpanel" id="lib-panel-skills" aria-labelledby="lib-tab-skills" className="lib-panel lib-panel-shelf">
       <div className="lib-col">
       {notice && <p className="mc-done" role="status">{notice}</p>}
       <div className="lib-bar" role="group" aria-label="Library items">
-        <div className="lib-kinds" role="group" aria-label="Show">
-          {KINDS.map((k) => (
-            <button key={k.value} aria-pressed={kind === k.value} className={kind === k.value ? 'on' : ''} onClick={() => setKind(k.value)}>{k.label}</button>
-          ))}
-        </div>
+        <input aria-label="Find an item" placeholder="Find an item…" value={find} onChange={(e) => setFind(e.target.value)} />
         <span className="lib-sp" />
-        <button aria-label="Import from this computer…" title="Copy skills found on this computer into the library" onClick={() => void startImport()}>Import…</button>
+        <button aria-label="Import from this computer…" title="Copy skills found on this computer into the library" onClick={() => void startImport()}>Add skill…</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'instruction', name: '', description: '', body: '' }))}>New instruction</button>
         <button onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))}>New prompt</button>
       </div>
+      {places && (() => {
+        const skills = items.filter((i) => i.kind === 'skill')
+        const on = skills.filter((i) => !places.claudeOff.includes(i.id))
+        return <p className="hint lib-sum">{skills.length} {skills.length === 1 ? 'skill' : 'skills'} · {on.length} on for Claude · about {on.reduce((n, i) => n + i.tokens.description, 0)} tokens at the start of every session</p>
+      })()}
 
       {found && (
         <div className="lib-box" role="group" aria-label="Import from this computer">
@@ -237,11 +248,101 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
         </div>
       )}
 
-      {shown.length === 0 && <p className="hint">Nothing here yet. Import skills from this computer, or write an instruction.</p>}
-      {shown.length > 0 && (
-        <div className="shelf low" aria-label="Items">
+      {items.length === 0 && <p className="hint">Nothing here yet. Add skills from this computer, or write an instruction.</p>}
+      {items.length > 0 && (() => {
+        const hits = findItems(items, find)
+        return (
+          <section className="drawer skl" aria-label="Items">
+            <div className="drawer-list lib-scrollbar">
+              {hits.map((i) => (
+                <div key={i.id} className={`skl-row${open === i.id ? ' sel' : ''}`}>
+                  <button className="drawer-item" aria-label={`Open ${i.name}`} aria-pressed={open === i.id} onClick={() => (setOpen(i.id), setDraft(null))}>
+                    <PixelIcon name={KIND_ICON[i.kind]} scale={1} /><span>{i.name}</span><small>{i.kind === 'skill' ? `${i.tokens.body} tokens` : i.kind}</small>
+                  </button>
+                  {i.kind === 'skill' && places && (
+                    <label className="wfl-sw" title="On for every Claude account in the app">
+                      <input type="checkbox" role="switch" aria-label={`${i.name} on for Claude`} checked={!places.claudeOff.includes(i.id)} disabled={busy} onChange={(e) => void place(() => window.aw.library.setClaude(i.id, e.target.checked))} />
+                      <i className="wfl-track" aria-hidden />
+                    </label>
+                  )}
+                </div>
+              ))}
+              {hits.length === 0 && <p className="hint">Nothing matches.</p>}
+            </div>
+          </section>
+        )
+      })()}
+      </div>
+
+      <div className="lib-read">
+      {!current && !draft && <div className="lib-box lib-pick"><p className="hint">Pick an item to read it here, or write a new instruction.</p></div>}
+      {current && !draft && (
+        <LibraryItemPane
+          item={current}
+          usage={usage[current.id]}
+          where={current.kind === 'skill' && places ? <SkillWhere id={current.id} places={places} busy={busy} onClaude={(on) => void place(() => window.aw.library.setClaude(current.id, on))} onLink={(t, on) => void place(() => window.aw.library.link(current.id, t, on, folder || undefined))} /> : undefined}
+          onEdit={() => edit(current)}
+          onRemove={() => void remove(current.id)}
+        />
+      )}
+      {draft && (() => {
+        const KIND_LABEL: Record<LibraryKind, string> = { skill: 'skill', instruction: 'instruction', prompt: 'prompt' }
+        const ABOUT: Record<LibraryKind, string> = {
+          skill: 'A skill is a folder an agent loads when its work needs it. A playbook says which agents get it, and when.',
+          instruction: 'An instruction is told to agents as written. A playbook says which agents, and when.',
+          prompt: 'A prompt is text an agent reads when its work calls for it. A playbook says which agents, and when.'
+        }
+        const ok = !!draft.name.trim() && !!draft.body.trim()
+        const keys = (e: React.KeyboardEvent) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && ok) (e.preventDefault(), void saveDraft())
+          else if (e.key === 'Escape') (e.preventDefault(), e.stopPropagation(), setDraft(null))
+        }
+        const len = draft.description.length
+        return (
+          <div className="lib-box lie" role="group" aria-label="Edit item" onKeyDown={keys}>
+            <div className="lie-head">
+              <h3>{draft.id ? `Edit ${draft.name || draft.id}` : `New ${KIND_LABEL[draft.kind]}`}</h3>
+              <small className="lib-kind">{draft.kind}</small>
+              <p>{ABOUT[draft.kind]}</p>
+            </div>
+            <div className="lie-body">
+              <label className="lie-f">
+                <span className="lie-lb"><b>Name</b></span>
+                <input autoFocus value={draft.name} maxLength={100} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label="Item name" />
+              </label>
+              <label className="lie-f">
+                <span className="lie-lb"><b>When to use it</b><small className={len > 160 ? 'over' : ''}>{len} / 160</small></span>
+                <input value={draft.description} maxLength={500} placeholder="before committing" onChange={(e) => setDraft({ ...draft, description: e.target.value })} aria-label="Item description" />
+                <span className="lie-hint">One line an agent judges its work against, such as "before committing" or "when a test fails".</span>
+              </label>
+              <label className="lie-f lie-grow">
+                <span className="lie-lb"><b>Text an agent reads</b><small>Markdown · ≈{Math.ceil(draft.body.length / 4)} tokens</small></span>
+                <textarea rows={10} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} aria-label="Item text" />
+              </label>
+            </div>
+            <div className="lie-foot">
+              <button className="primary" disabled={!ok} onClick={() => void saveDraft()}>Save</button>
+              <button onClick={() => setDraft(null)}>Cancel</button>
+              <span className="lib-sp" />
+              <small>⌘↵ saves · Esc cancels</small>
+            </div>
+          </div>
+        )
+      })()}
+      </div>
+
+      </div>
+      )}
+
+      {tab === 'playbook' && (
+      <div role="tabpanel" id="lib-panel-playbook" aria-labelledby="lib-tab-playbook" className="lib-panel">
+      <div className="pb">
+        {preview?.overBudget && (
+          <div className="lib-notice warn" role="note"><div><b>The opening text is over budget: {preview.coreTokens} of {CORE_BUDGET} tokens.</b><span>Every agent pays this on every message. Move something to "Pointed at", or shorten it.</span></div></div>
+        )}
+        <div className="shelf low" aria-label="What is on the desk and the shelf">
           {TIERS.map((t) => {
-            const row = shown.filter((i) => tierOf(effective, i.id) === t.id)
+            const row = items.filter((i) => tierOf(effective, i.id) === t.id)
             return (
               <div key={t.id} className="tier">
                 <div className="tier-lab"><b>{t.label}</b><span>{t.sub}</span></div>
@@ -251,9 +352,9 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
                     {row.map((i) => {
                       const look = spineLook(i, true)
                       return (
-                        <button key={i.id} className={`spine${open === i.id ? ' sel' : ''}`} data-name={i.name} data-reveal={i.dir || undefined} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} style={{ height: look.height, background: look.colour }} onClick={() => (setOpen(i.id), setDraft(null))}>
+                        <span key={i.id} className="spine" data-name={i.name} aria-label={i.name} style={{ height: look.height, background: look.colour }}>
                           <PixelIcon name={KIND_ICON[i.kind]} scale={1} />
-                        </button>
+                        </span>
                       )
                     })}
                   </div>
@@ -263,44 +364,6 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
             )
           })}
         </div>
-      )}
-      {shown.length > 0 && (() => {
-        const inBox = shown.filter((i) => tierOf(effective, i.id) === 'box')
-        const hits = findItems(inBox, find)
-        return (
-          <section className="drawer" aria-label="In the box">
-            <h4>In the box <span>{inBox.length} in no playbook</span><span className="lib-sp" /><input aria-label="Find an item" placeholder="Find an item…" value={find} onChange={(e) => setFind(e.target.value)} /></h4>
-            <div className="drawer-list lib-scrollbar">
-              {hits.map((i) => (
-                <button key={i.id} className={`drawer-item${open === i.id ? ' sel' : ''}`} aria-label={`Open ${i.name}`} aria-pressed={open === i.id} onClick={() => (setOpen(i.id), setDraft(null))}>
-                  <PixelIcon name={KIND_ICON[i.kind]} scale={1} /><span>{i.name}</span><small>{i.tokens.body} tokens</small>
-                </button>
-              ))}
-              {hits.length === 0 && <p className="hint">{inBox.length ? 'Nothing in the box matches.' : 'Everything is in a playbook.'}</p>}
-            </div>
-          </section>
-        )
-      })()}
-      </div>
-
-      <div className="lib-read">
-      {!current && !draft && <div className="lib-box lib-pick"><p className="hint">Pick a book or an item from the box to read it here, or write a new instruction.</p></div>}
-      {current && !draft && <LibraryItemPane item={current} usage={usage[current.id]} onEdit={() => edit(current)} onRemove={() => void remove(current.id)} />}
-      {draft && (
-        <div className="lib-box" role="group" aria-label="Edit item">
-          <label>Name<input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label="Item name" /></label>
-          <label>One line: what it is for, and when an agent should use it<input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} aria-label="Item description" /></label>
-          <label>Text an agent reads<textarea rows={8} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} aria-label="Item text" /></label>
-          <div className="su-row"><button className="primary" disabled={!draft.name.trim() || !draft.body.trim()} onClick={() => void saveDraft()}>Save</button><button onClick={() => setDraft(null)}>Cancel</button></div>
-        </div>
-      )}
-      </div>
-
-      </div>
-      )}
-      {tab === 'playbook' && (
-      <div role="tabpanel" id="lib-panel-playbook" aria-labelledby="lib-tab-playbook" className="lib-panel">
-      <div className="pb">
         <div className="pb-head">
           <div className="lib-scopes" role="group" aria-label="Playbook scope">
             <button aria-pressed={scope === 'global'} onClick={() => setScope('global')}>Everywhere</button>
@@ -367,6 +430,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       )}
       {tab === 'reach' && (
       <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
+      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onRemove={(id) => void remove(id)} />}
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
       </div>
       )}
