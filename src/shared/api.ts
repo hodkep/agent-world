@@ -300,6 +300,8 @@ export interface AwApi {
   }
   /** An agent has a new entry in the library's log (read it again with library.uses). */
   onLibraryUse(cb: (agentId: string, how: string, item: string) => void): () => void
+  /** A skill's size has been measured. */
+  onLibrarySizes(cb: () => void): () => void
   /** An agent opened a page in a browser: the app shows it in that agent's Preview tab. `path` is the file, as found on this computer. */
   onOpenPage(cb: (agentId: string, path: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
@@ -562,6 +564,11 @@ export interface AwApi {
     /** Opens one of a skill's files in the Mac's program for it, or shows it in Finder (the skill's folder when the file is null). */
     file(id: string, file: string | null, action: 'open' | 'show'): Promise<void>
     /** Per item: loads and reads in the last 30 days, the last one ever, and which agents and accounts used it. */
+    /** Swaps a copy the library holds for a link to its original (a folder the scan found), freeing the copy. */
+    useOriginal(id: string, dir: string): Promise<LibraryItem>
+    deletePlan(id: string): Promise<import('./library').DeletePlan>
+    /** Deletes a skill's real folder, the links to it and its library entry; `anyway` confirms a project skill that git tracks. */
+    delete(id: string, anyway?: boolean): Promise<import('./library').DeletePlan>
     usage30(): Promise<Record<string, SkillUse>>
     /** Where each skill works: on for Claude, and linked into each other program's folder. */
     places(folder?: string): Promise<SkillPlaces>

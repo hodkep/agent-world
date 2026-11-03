@@ -1,13 +1,32 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { parseDoc, renderDoc, slug, tokens } from './doc'
 
-import type { LibraryItem, LibraryKind } from '../../shared/library'
+import type { LibraryItem, LibraryKind, SkillPlace } from '../../shared/library'
 export type Kind = LibraryKind
 export type Item = LibraryItem
 
 const FOLDER: Record<Exclude<Kind, 'skill'>, string> = { instruction: 'instructions', prompt: 'prompts' }
 const SAFE = /^[a-z0-9][a-z0-9-]*$/
+
+/** Whether two files hold the same bytes (compared a block at a time, as a skill's files can be large). */
+function sameFile(a: string, b: string): boolean {
+  if (statSync(a).size !== statSync(b).size) return false
+  const x = openSync(a, 'r')
+  const y = openSync(b, 'r')
+  try {
+    const bx = Buffer.alloc(1 << 20)
+    const by = Buffer.alloc(1 << 20)
+    for (;;) {
+      const n = readSync(x, bx, 0, bx.length, null)
+      if (readSync(y, by, 0, n, null) !== n || !bx.subarray(0, n).equals(by.subarray(0, n))) return false
+      if (n === 0) return true
+    }
+  } finally {
+    closeSync(x)
+    closeSync(y)
+  }
+}
 
 /** What reading each of a skill's other files costs: text files under 100 KB only (others are left out). */
 function fileTokens(dir: string, files: string[]): Record<string, number> {
@@ -30,13 +49,30 @@ export class Library {
   constructor(readonly root: string) {}
 
   private skillDir = (id: string) => join(this.root, 'skills', id)
+
+  /** Where each linked skill's real folder is and where it came from, kept here and never inside the folder or its project. */
+  records(): Record<string, SkillPlace> {
+    try {
+      return JSON.parse(readFileSync(join(this.root, 'records.json'), 'utf8')) as Record<string, SkillPlace>
+    } catch {
+      return {}
+    }
+  }
+
+  private setRecord(id: string, place: SkillPlace | null) {
+    const all = this.records()
+    if (place) all[id] = place
+    else delete all[id]
+    mkdirSync(this.root, { recursive: true })
+    writeFileSync(join(this.root, 'records.json'), JSON.stringify(all, null, 1))
+  }
   private file = (kind: Exclude<Kind, 'skill'>, id: string) => join(this.root, FOLDER[kind], `${id}.md`)
 
   private skillFiles(dir: string): string[] {
     const out: string[] = []
     const walk = (d: string) => {
       for (const e of readdirSync(d, { withFileTypes: true })) {
-        if (e.name.startsWith('.')) continue
+        if (e.name.startsWith('.') || e.isSymbolicLink()) continue
         const p = join(d, e.name)
         if (e.isDirectory()) walk(p)
         else if (relative(dir, p) !== 'SKILL.md') out.push(relative(dir, p))
@@ -48,14 +84,16 @@ export class Library {
 
   private readSkill(id: string): Item | null {
     const dir = this.skillDir(id)
+    const place = this.records()[id]
     let text: string
     try {
       text = readFileSync(join(dir, 'SKILL.md'), 'utf8')
     } catch {
-      return null
+      // A link whose folder is gone stays listed so it can be removed; anything else that is not a skill is not one.
+      return place ? { id, kind: 'skill', name: id, description: '', body: '', source: place.from ?? place.label ?? place.real, files: [], dir, tokens: { description: 0, body: 0 }, place, missing: true } : null
     }
     const d = parseDoc(text)
-    const source = (() => {
+    const source = place ? (place.from ?? place.label ?? place.real) : (() => {
       try {
         return readFileSync(join(dir, '.aw-source'), 'utf8').trim()
       } catch {
@@ -63,7 +101,7 @@ export class Library {
       }
     })()
     const files = this.skillFiles(dir)
-    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files, fileTokens: fileTokens(dir, files), dir, tokens: { description: tokens(d.description), body: tokens(d.body) } }
+    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files, fileTokens: fileTokens(dir, files), dir, tokens: { description: tokens(d.description), body: tokens(d.body) }, ...(place && { place }) }
   }
 
   private readFile(kind: Exclude<Kind, 'skill'>, id: string): Item | null {
@@ -90,7 +128,8 @@ export class Library {
   listSync(): Item[] {
     const names = (sub: string, files: boolean) => {
       try {
-        return readdirSync(join(this.root, sub), { withFileTypes: true }).filter((e) => (files ? e.isFile() && e.name.endsWith('.md') : e.isDirectory())).map((e) => (files ? e.name.slice(0, -3) : e.name))
+        // A skill that is a link to its folder counts as a folder.
+        return readdirSync(join(this.root, sub), { withFileTypes: true }).filter((e) => (files ? e.isFile() && e.name.endsWith('.md') : e.isDirectory() || e.isSymbolicLink())).map((e) => (files ? e.name.slice(0, -3) : e.name))
       } catch {
         return []
       }
@@ -120,7 +159,8 @@ export class Library {
     if (i.kind === 'skill') {
       mkdirSync(this.skillDir(id), { recursive: true })
       writeFileSync(join(this.skillDir(id), 'SKILL.md'), renderDoc({ name: i.name, description: i.description, body: i.body }))
-      writeFileSync(join(this.skillDir(id), '.aw-source'), source)
+      // A linked skill is the person's own folder: nothing of ours is written into it.
+      if (!this.records()[id]) writeFileSync(join(this.skillDir(id), '.aw-source'), source)
     } else {
       mkdirSync(join(this.root, FOLDER[i.kind]), { recursive: true })
       writeFileSync(this.file(i.kind, id), renderDoc({ name: i.name, description: i.description, body: i.body, meta: { source } }))
@@ -128,8 +168,8 @@ export class Library {
     return (await this.get(id))!
   }
 
-  /** Copies a skill folder into the library (the original is left as it is); null when it is not a skill or is already here. */
-  async addSkillFolder(src: string, source: string): Promise<Item | null> {
+  /** Adds a skill folder as a link: the files stay where they are and nothing is copied or written into them. Null when it is not a skill or its name is taken. */
+  async addSkillFolder(src: string, source: string, place: Partial<SkillPlace> = {}): Promise<Item | null> {
     let text: string
     try {
       text = readFileSync(join(src, 'SKILL.md'), 'utf8')
@@ -139,20 +179,46 @@ export class Library {
     const name = parseDoc(text).name || src.split(/[\\/]/).pop()!
     const id = slug(name)
     if (!id || (await this.get(id))) return null
-    const dest = this.skillDir(id)
-    mkdirSync(dest, { recursive: true })
-    // Links are not copied: one pointing outside the skill would let a read of it reach any file.
-    cpSync(src, dest, { recursive: true, filter: (p) => (!p.split(/[\\/]/).pop()!.startsWith('.') || p === src) && !lstatSync(p).isSymbolicLink() })
-    writeFileSync(join(dest, '.aw-source'), source)
+    const real = realpathSync(src)
+    mkdirSync(join(this.root, 'skills'), { recursive: true })
+    symlinkSync(real, this.skillDir(id), 'dir')
+    this.setRecord(id, { kind: 'global', ...place, real, label: source })
     return this.get(id)
+  }
+
+  /**
+   * Swaps a skill the library holds as a copy for a link to the original, freeing the copy. Only when every file of the copy (hidden ones aside, which a copy never had)
+   * is in the original with the same size: the original is then the same skill and more, and nothing the copy had is lost.
+   */
+  async useOriginal(id: string, src: string, place: Partial<SkillPlace>): Promise<Item> {
+    if (!SAFE.test(id)) throw new Error(`Not a library item: ${id}`)
+    const copy = this.skillDir(id)
+    if (this.records()[id] || lstatSync(copy, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${id} is already a link.`)
+    const real = realpathSync(src)
+    const missing = this.skillFiles(copy).concat('SKILL.md').filter((f) => {
+      try {
+        return !sameFile(join(copy, f), join(real, f))
+      } catch {
+        return true
+      }
+    })
+    if (missing.length) throw new Error(`${missing[0]} is not in the original (or differs), so the copy is kept.`)
+    rmSync(copy, { recursive: true, force: true })
+    symlinkSync(real, copy, 'dir')
+    this.setRecord(id, { kind: 'global', ...place, real, label: place.label ?? 'original' })
+    return (await this.get(id))!
   }
 
   async remove(id: string): Promise<void> {
     if (!SAFE.test(id)) throw new Error(`Not a library item: ${id}`)
     const item = await this.get(id)
     if (!item) return
-    if (item.kind === 'skill') rmSync(this.skillDir(id), { recursive: true, force: true })
-    else rmSync(this.file(item.kind, id), { force: true })
+    if (item.kind === 'skill') {
+      // A linked skill is only unlinked: its folder is the person's own and stays.
+      if (lstatSync(this.skillDir(id), { throwIfNoEntry: false })?.isSymbolicLink()) unlinkSync(this.skillDir(id))
+      else rmSync(this.skillDir(id), { recursive: true, force: true })
+      this.setRecord(id, null)
+    } else rmSync(this.file(item.kind, id), { force: true })
   }
 
   /** The skills switched off for Claude. Every skill is on until it is listed here. */
@@ -174,6 +240,6 @@ export class Library {
   }
 
   has(id: string) {
-    return SAFE.test(id) && (existsSync(this.skillDir(id)) || existsSync(this.file('instruction', id)) || existsSync(this.file('prompt', id)))
+    return SAFE.test(id) && (lstatSync(this.skillDir(id), { throwIfNoEntry: false }) !== undefined || existsSync(this.file('instruction', id)) || existsSync(this.file('prompt', id)))
   }
 }

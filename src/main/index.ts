@@ -668,8 +668,34 @@ const libraryService = createLibraryService({
       return false
     }
   },
-  onUse: (id, how, item) => send('library-use', id, how, item)
+  onUse: (id, how, item) => send('library-use', id, how, item),
+  onSizes: () => send('library-sizes'),
+  skillRoots: () => skillRoots(),
+  projects: () => allProjects(),
+  // A project skill is tracked when git lists any file in its folder.
+  tracked: async (real, project) => {
+    try {
+      return (await git(project, 'ls-files', '--', relative(realpathSync(project), real))).trim().length > 0
+    } catch {
+      return false
+    }
+  }
 })
+/** Every project the app knows: the open one, the recent ones and those its agents work in. */
+const allProjects = (): string[] => [...new Set([workspaces.active, ...workspaces.recent, ...agents.map((a) => a.repoPath)].filter((p): p is string => !!p && isDir(p)))]
+/** Every folder a program reads skills from, global and each project's: a skill is deleted only from one of them. */
+const skillRoots = (): string[] => [
+  ...['.claude', '.agents', join('.gemini'), join('.gemini', 'antigravity'), join('.gemini', 'antigravity-cli'), join('.gemini', 'config')].map((d) => join(userHome(), d, 'skills')),
+  ...allProjects().flatMap((p) => [join(p, '.claude', 'skills'), join(p, '.agents', 'skills')])
+]
+/** The Claude accounts the app has, with the folder each keeps its plugins in: the program's own login and every added one. */
+const claudeAccounts = (): { name: string; dir: string }[] => [
+  { name: ownName(prefs.ownNames, 'claude'), dir: join(userHome(), '.claude') },
+  ...prefs.accounts.filter((a) => a.provider === 'claude').flatMap((a) => {
+    const dir = accountsSvc.dirOf('claude', a.id)
+    return dir ? [{ name: a.name, dir }] : []
+  })
+]
 // The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
 try {
   const guideDir = [join(process.resourcesPath, 'guide'), join(app.getAppPath(), 'docs', 'guide')].find((d) => existsSync(d))
@@ -2515,7 +2541,7 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, `The person skipped the check "${name}".`)
   })
   ipcMain.handle('workflows:stop-all', () => (workflows.stopAll(), send('workflows')))
-  ipcMain.handle('library:list', async () => ({ items: await libraryService.library.list(), usage: await libraryService.usage() }))
+  ipcMain.handle('library:list', async () => ({ items: await libraryService.items(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
   ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
   ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
@@ -2532,19 +2558,33 @@ async function main() {
     } else shell.showItemInFolder(path)
   })
   ipcMain.handle('library:usage30', () => libraryService.usage30())
+  // Only a folder a fresh scan finds can stand in for a copy, so the window can never name any other folder.
+  ipcMain.handle('library:use-original', async (_, id: string, dir: string) => {
+    const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).find((c) => c.dir === dir)
+    if (!found) throw new Error('That folder is not a skill the app found.')
+    const item = await libraryService.library.useOriginal(String(id), found.dir, { kind: found.kind, ...(found.project && { project: found.project }), ...(found.from && { from: found.from }), ...(found.license && { license: found.license }), label: found.source })
+    send('library-sizes')
+    return item
+  })
+  ipcMain.handle('library:delete-plan', (_, id: string) => libraryService.deletePlan(String(id)))
+  ipcMain.handle('library:delete', async (_, id: string, anyway?: boolean) => {
+    const plan = await libraryService.deleteSkill(String(id), !!anyway)
+    send('library-sizes')
+    return plan
+  })
   ipcMain.handle('library:save', (_, i: { id?: string; kind: 'skill' | 'instruction' | 'prompt'; name: string; description: string; body: string }) => libraryService.library.save({ id: i.id, kind: i.kind, name: String(i.name ?? '').slice(0, 100), description: String(i.description ?? '').slice(0, 500), body: String(i.body ?? '').slice(0, 200_000) }))
   ipcMain.handle('library:remove', (_, id: string) => libraryService.library.remove(String(id)))
-  ipcMain.handle('library:sources', (_, folder?: string) => scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined }))
+  ipcMain.handle('library:sources', (_, folder?: string) => scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined, folders: allProjects(), accounts: claudeAccounts() }))
   // Only folders that a fresh scan finds can be copied in, so a window can never ask for any other folder.
   ipcMain.handle('library:import', async (_, folder: string | undefined, dirs: string[]) => {
-    const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined })
+    const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined, folders: allProjects(), accounts: claudeAccounts() })
     return importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
   })
   ipcMain.handle('library:places', (_, folder?: string) => {
     const ts = skillTargets(userHome(), folder && isDir(folder) ? folder : undefined)
     const skills = libraryService.library.listSync().filter((i) => i.kind === 'skill')
     const states = Object.fromEntries(skills.map((i) => [i.id, Object.fromEntries(ts.map((t) => [t.id, linkState(libraryService.library.root, i.id, t)]))]))
-    return { claudeOff: [...libraryService.library.claudeOff()], targets: ts, states }
+    return { claudeOff: [...libraryService.library.claudeOff()], targets: ts, states, projects: allProjects().map((p) => ({ key: repoSlug(p), path: p, name: basename(p) })) }
   })
   ipcMain.handle('library:set-claude', (_, id: string, on: boolean) => libraryService.library.setClaude(String(id), !!on))
   ipcMain.handle('library:link', (_, id: string, target: string, on: boolean, folder?: string) => {

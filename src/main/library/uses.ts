@@ -80,13 +80,14 @@ export function skillUsage(uses: Use[], now: number, days = 30): Record<string, 
       if (seen.has(key)) continue
       seen.add(key)
     }
-    const s = (out[u.id] ??= { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(days).fill(0), who: [] })
+    const s = (out[u.id] ??= { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(days).fill(0), who: [], projects: {} })
     s.last = Math.max(s.last, u.t)
     if (u.t < since) continue
     s.used++
     s.days[Math.max(0, days - 1 - Math.floor((now - u.t) / 86_400_000))]!++
     if (!s.agents.includes(u.name)) s.agents.push(u.name)
     if (!s.who.some((w) => w.id === u.agent)) s.who.push({ id: u.agent, name: u.name })
+    s.projects[u.workspace] = (s.projects[u.workspace] ?? 0) + 1
     if (u.account && !s.accounts.includes(u.account)) s.accounts.push(u.account)
   }
   for (const s of Object.values(out)) (s.agents.sort(), s.accounts.sort(), s.who.sort((a, b) => a.name.localeCompare(b.name)))

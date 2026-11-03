@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -41,7 +41,7 @@ describe('skills found on this computer that can be imported', () => {
     expect((await scanSources({ home: join(dir, 'empty') })).length).toBe(0)
     expect((await scanSources({ home })).map((c) => c.name).sort()).toEqual(['caveman', 'gem', 'tdd'])
   })
-  it('copies the chosen ones into the library, skipping what is already there, and leaves the originals', async () => {
+  it('adds the chosen ones to the library as links, skipping what is already there, and leaves the originals', async () => {
     const lib = new Library(join(dir, 'library'))
     const found = await scanSources({ home, folder: project })
     const first = await importCandidates(lib, found.filter((c) => c.name !== 'gem'))
@@ -50,5 +50,36 @@ describe('skills found on this computer that can be imported', () => {
     expect(again.added).toEqual(['gem'])
     expect(again.skipped.map((s) => s.name).sort()).toEqual(['caveman', 'local', 'tdd'])
     expect((await lib.list()).length).toBe(4)
+  })
+})
+
+describe('every place skills live', () => {
+  it('follows a link to a skill folder, lists the real folder once, and says where the skills CLI got it from', async () => {
+    // How the skills CLI installs: the real folder in ~/.agents/skills, a link to it in ~/.claude/skills.
+    skill(join(home, '.agents', 'skills', 'caveman2'), 'caveman2')
+    symlinkSync(join(home, '.agents', 'skills', 'caveman2'), join(home, '.claude', 'skills', 'caveman2'), 'dir')
+    writeFileSync(join(home, '.agents', '.skill-lock.json'), JSON.stringify({ version: 3, skills: { caveman2: { source: 'juliusbrussee/caveman', sourceType: 'github' } } }))
+    const found = (await scanSources({ home })).filter((c) => c.name === 'caveman2')
+    expect(found).toHaveLength(1)
+    expect(found[0]).toMatchObject({ kind: 'global', from: 'github.com/juliusbrussee/caveman' })
+    expect(found[0]!.real).toMatch(/\.agents\/skills\/caveman2$/)
+  })
+  it('reads the skills of every project it is given, each tagged with its project, and of every account\'s synced plugins once, with their licence', async () => {
+    const other = join(dir, 'other')
+    skill(join(other, '.agents', 'skills', 'deploy'), 'deploy')
+    const plug = (acct: string) => {
+      const root = join(dir, acct, 'plugins', 'synced', 'bucket', 'uuid-1')
+      mkdirSync(join(root, '.claude-plugin'), { recursive: true })
+      writeFileSync(join(root, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'iceberg', version: '0.5.4', license: 'MIT' }))
+      skill(join(root, 'skills', 'edit'), 'edit')
+    }
+    plug('work')
+    plug('rush')
+    const found = await scanSources({ home, folder: project, folders: [project, other], accounts: [{ name: 'Work', dir: join(dir, 'work') }, { name: 'rushikesh', dir: join(dir, 'rush') }] })
+    expect(found.find((c) => c.name === 'deploy')).toMatchObject({ kind: 'project', project: other })
+    expect(found.find((c) => c.name === 'local')).toMatchObject({ kind: 'project', project })
+    const edit = found.filter((c) => c.name === 'edit')
+    expect(edit).toHaveLength(1)
+    expect(edit[0]).toMatchObject({ kind: 'plugin', from: 'iceberg 0.5.4', license: 'MIT', accounts: ['Work', 'rushikesh'] })
   })
 })

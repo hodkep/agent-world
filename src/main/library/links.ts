@@ -1,9 +1,9 @@
-import { existsSync, lstatSync, mkdirSync, readlinkSync, rmSync, symlinkSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readlinkSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 const SAFE = /^[a-z0-9][a-z0-9-]*$/
 
-export type TargetId = 'claude' | 'agy-cli' | 'agy-app' | 'project'
+export type TargetId = 'claude' | 'agy-cli' | 'agy-app' | 'project-claude' | 'project'
 export interface Target {
   id: TargetId
   label: string
@@ -22,7 +22,8 @@ export function targets(home: string, folder?: string): Target[] {
     at('claude', 'Claude (outside the app)', join(home, '.claude'), 'skills'),
     at('agy-cli', 'Antigravity CLI', join(home, '.gemini', 'antigravity-cli'), 'skills'),
     at('agy-app', 'Antigravity app', join(home, '.gemini', 'config'), 'skills'),
-    ...(folder ? [at('project', 'This project', folder, '.agents', 'skills')] : [])
+    // A project's own folders: Claude Code reads .claude/skills, Antigravity reads .agents/skills.
+    ...(folder ? [at('project-claude', 'This project (Claude Code)', folder, '.claude', 'skills'), at('project', 'This project (Antigravity)', folder, '.agents', 'skills')] : [])
   ]
 }
 
@@ -37,7 +38,13 @@ export function linkState(root: string, id: string, t: Target): LinkState {
   const p = join(t.dir, id)
   try {
     if (!lstatSync(p).isSymbolicLink()) return 'copy'
-    return resolve(dirname(p), readlinkSync(p)) === copyOf(root, id) ? 'linked' : 'copy'
+    if (resolve(dirname(p), readlinkSync(p)) === copyOf(root, id)) return 'linked'
+    // A link that leads to the same real folder is the same skill there, whoever made it (the skills CLI links the folder it installs).
+    try {
+      return realpathSync(p) === realpathSync(copyOf(root, id)) ? 'linked' : 'copy'
+    } catch {
+      return 'copy' // a link to nowhere is something else of that name: left alone
+    }
   } catch {
     return 'none'
   }

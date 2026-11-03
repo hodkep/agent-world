@@ -26,6 +26,7 @@ describe('where a skill can be linked', () => {
       ['claude', join(home, '.claude', 'skills'), true],
       ['agy-cli', join(home, '.gemini', 'antigravity-cli', 'skills'), false],
       ['agy-app', join(home, '.gemini', 'config', 'skills'), false],
+      ['project-claude', join(dir, 'shop', '.claude', 'skills'), true],
       ['project', join(dir, 'shop', '.agents', 'skills'), true]
     ])
     expect(targets(home).some((x) => x.id === 'project')).toBe(false)
@@ -50,6 +51,20 @@ describe('linking a skill from the library', () => {
     expect(() => link(lib, 'pdf', claude())).toThrow(/already/)
     unlink(lib, 'pdf', claude())
     expect(existsSync(join(claude().dir, 'pdf', 'SKILL.md'))).toBe(true)
+  })
+  it('calls a link that leads to the skill\'s own folder linked, whoever made it: the skills CLI links the folder it installs, and switching it off takes only that link away', () => {
+    // The library keeps a link to the skill's real folder; another link to the same folder is the same skill there.
+    const real = join(dir, 'agents', 'skills', 'pdf')
+    mkdirSync(real, { recursive: true })
+    writeFileSync(join(real, 'SKILL.md'), '---\nname: pdf\n---\nx')
+    rmSync(join(lib, 'skills', 'pdf'), { recursive: true })
+    symlinkSync(real, join(lib, 'skills', 'pdf'), 'dir')
+    mkdirSync(claude().dir, { recursive: true })
+    symlinkSync(real, join(claude().dir, 'pdf'), 'dir')
+    expect(linkState(lib, 'pdf', claude())).toBe('linked')
+    unlink(lib, 'pdf', claude())
+    expect(existsSync(join(claude().dir, 'pdf'))).toBe(false)
+    expect(existsSync(join(real, 'SKILL.md'))).toBe(true)
   })
   it('leaves a link that points somewhere else alone', () => {
     mkdirSync(join(dir, 'elsewhere'))
