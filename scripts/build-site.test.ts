@@ -89,7 +89,10 @@ describe('the project site', () => {
   it('wears the site look on every page: the fonts, the office scenes drawn in code, and the script that draws them', () => {
     const home = readFileSync(join(out, 'index.html'), 'utf8')
     const doc = readFileSync(join(out, 'docs', 'the-office', 'index.html'), 'utf8')
-    for (const html of [home, doc]) expect(html).toMatch(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/css2\?family=Pixelify\+Sans/)
+    // The display face is served by the site itself: no request to a font host.
+    for (const html of [home, doc]) expect(html).not.toContain('fonts.googleapis.com')
+    expect(existsSync(join(out, 'fonts', 'pixelify-sans.woff2'))).toBe(true)
+    expect(readFileSync(join(out, 'site.css'), 'utf8')).toContain("src:url(fonts/pixelify-sans.woff2)")
     expect(home).toMatch(/<canvas [^>]*data-scene="facade"/)
     for (const room of ['workroom', 'meeting', 'shelf', 'dock']) expect(home, room).toMatch(new RegExp(`<canvas [^>]*data-scene="${room}"`))
     expect(doc).toMatch(/<canvas [^>]*data-scene="reader"/)

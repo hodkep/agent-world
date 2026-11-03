@@ -12,3 +12,7 @@ Agent World runs the command line programs you have installed and signed in your
 The licences of the libraries the app is built with are those of their packages (MIT, Apache-2.0, ISC, BSD and MPL-2.0; `elkjs`, which comes with `mermaid`, is EPL-2.0).
 
 File and folder icons in the Code tab come from the [Material Icon Theme](https://github.com/material-extensions/vscode-material-icon-theme) (MIT, Copyright (c) 2025 Material Extensions), `src/renderer/assets/fileIcons`.
+
+## Pixelify Sans
+
+The project site's display face (`site/fonts/pixelify-sans.woff2`) is Pixelify Sans by Stefie Justprince, under the SIL Open Font License 1.1 (https://openfontlicense.org), as served by Google Fonts.
