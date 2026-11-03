@@ -105,8 +105,6 @@ export function excerptOf(text: string, max = EXCERPT_MAX): string {
 
 /** Where a task made from a request waits until it is named and put in a list by area. */
 export const INBOX = 'Inbox'
-/** How many lists an agent may make before it must reuse one: a board with a list for everything is as little use as one list for all. */
-export const MAX_LISTS = 12
 
 const GENERIC = new Set(['request', 'requests', 'misc', 'miscellaneous', 'other', 'others', 'general', 'todo', 'todos', 'to do', 'task', 'tasks', 'stuff', 'things', 'backlog', 'new', 'unsorted', 'various', 'default', 'application', 'applications', 'app'])
 const norm = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
