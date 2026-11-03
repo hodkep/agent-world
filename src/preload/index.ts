@@ -181,6 +181,8 @@ const api: AwApi = {
   deleteRole: (id) => ipcRenderer.invoke('roles:delete', id),
   getUsage: () => ipcRenderer.invoke('get-usage'),
   getLimits: (refresh) => ipcRenderer.invoke('limits:get', refresh),
+  officeCheck: (id) => ipcRenderer.invoke('agent:office-check', id),
+  officeRepair: (id) => ipcRenderer.invoke('agent:office-repair', id),
   mailPlan: (id) => ipcRenderer.invoke('provider:mail-plan', id),
   setMail: (id, on) => ipcRenderer.invoke('provider:mail-set', id, on),
   todos: {

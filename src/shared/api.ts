@@ -431,6 +431,10 @@ export interface AwApi {
   /** Every provider's usage allowances, as share left; agy's are asked for, so this can take a moment. */
   getLimits(refresh?: boolean): Promise<LimitWindow[]>
   /** What connecting a provider to the message box would change; null when there is nothing to connect. */
+  /** What keeps an agent's program from the office's tools (agy's list names a program that is gone, or has no entry for this build), with the commands a repair runs. */
+  officeCheck(agentId: string): Promise<OfficeCheck>
+  /** Takes out the entries left behind and adds this build's, then says what is wrong now. The agent restarts afterwards to see it. */
+  officeRepair(agentId: string): Promise<OfficeCheck>
   mailPlan(provider: ProviderId): Promise<{ files: string[]; commands: string[]; note: string } | null>
   /** Connects or disconnects it, after the user approved the plan; says the new state. */
   setMail(provider: ProviderId, on: boolean): Promise<ProviderInfo['mail']>
@@ -596,4 +600,10 @@ export interface LandingHold {
   head: string
   held: string[]
   declined: boolean
+}
+
+export interface OfficeCheck {
+  problem: 'left-behind' | 'missing' | null
+  program?: string
+  commands: string[]
 }

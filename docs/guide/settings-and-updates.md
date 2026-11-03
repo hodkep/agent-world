@@ -61,6 +61,8 @@ Choose the model used when a job is hired from each role. The hire form can stil
 
 To let an Antigravity agent message the others, press **Let agy (Antigravity) message other agents…**. The app shows the files it will write and the commands it will run, and changes nothing until you press **Connect**. **Disconnect** undoes it. Claude Code needs no connection.
 
+An Antigravity agent that cannot reach the office's tools (agy's list names a program that is not installed, or has no entry for this build) says so in a strip at the top of its chat: **ada cannot reach the office's tools.** **Repair** (or **Connect**, when it was never connected) shows the commands first; **Run** takes out the entries left behind and adds this build's, and nothing else in agy's list is touched. agy loads its tools when it starts, so the strip then offers **Restart ada**; **Later** puts it away until the app starts again.
+
 ## Updates
 
 The installed app looks for a newer version about 15 seconds after it starts and then every three hours while it is open. A development build never looks.

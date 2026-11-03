@@ -4681,3 +4681,14 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .cb-tile svg { color: var(--accent); margin-bottom: 4px; }
 .pop-menu.chat-pop .menu-group button { background: transparent; border: 0; box-shadow: none; padding: 5px 8px; }
 .pop-menu.chat-pop .menu-group button:hover:not(:disabled) { background: var(--panel-hover); }
+/* The note at the top of an agy agent's chat when the office is out of reach: one slim strip in the alarm tint, then the commands before they run. */
+.office-strip-wrap { flex: none; }
+.office-strip { display: flex; align-items: center; gap: 10px; padding: 6px 56px 6px 12px; /* clear of the conversation menu button, which floats over the top right */ background: var(--danger-well); border-bottom: 2px solid var(--ink); font-size: 12px; }
+.office-strip.ok { background: var(--panel-3); }
+.office-strip > span:not(.office-mark) { flex: 1; min-width: 0; }
+.office-strip .quiet { background: none; box-shadow: none; border-color: transparent; color: var(--muted); }
+.office-strip .quiet:hover:not(:disabled) { background: none; color: var(--text); }
+.office-mark { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; background: var(--accent); color: var(--ink); font-weight: 800; font-size: 11px; }
+.office-mark.ok { background: var(--ok-text); }
+.office-cmds { margin: 0; padding: 6px 12px; background: var(--well); border-bottom: 2px solid var(--ink); color: var(--text); font: 11px/1.5 var(--mono, ui-monospace, 'SF Mono', Menlo, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+

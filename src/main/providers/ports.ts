@@ -274,6 +274,8 @@ export interface MailSetup {
   stale?(): { name: string; program: string }[]
   /** Takes one of those out, and only one of those. */
   removeStale?(bin: string, name: string): Promise<void>
+  /** What keeps this program from reaching the office, for the agent that cannot: entries left behind by a removed build, or no entry for this build yet. Null when nothing is wrong. */
+  problem?(): { kind: 'left-behind' | 'missing'; program?: string; names: string[] } | null
 }
 
 /** Where a hook call came from, asked for only when it matters. */
