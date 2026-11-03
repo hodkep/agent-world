@@ -4669,3 +4669,13 @@ main.term-side .stage-wrap.off { z-index: auto; }
 /* A switch's knob slides and its track fades; for people who ask for less motion, and while the app is away, it jumps. */
 @media (prefers-reduced-motion: reduce) { .set-sw input, .set-sw input::after, .hire-switch .sw, .hire-switch .sw::after, .wfl-track, .wfl-track::after, .su-toggle i, .su-toggle i::after { transition: none; } }
 :root[data-away] :is(.set-sw input, .hire-switch .sw, .wfl-track, .su-toggle i)::after, :root[data-away] :is(.set-sw input, .hire-switch .sw, .wfl-track, .su-toggle i) { transition: none; }
+
+/* The agent menu and the conversation menu: each section in its own recessed well, every row with the top bar's outline icon on a small tile. */
+.cb-pop .cb-group, .pop-menu .menu-group { background: var(--well); box-shadow: 0 0 0 1px var(--line); padding: 4px; margin-bottom: 6px; display: flex; flex-direction: column; gap: 2px; }
+.cb-pop .cb-group:last-child, .pop-menu .menu-group:last-child { margin-bottom: 0; }
+.cb-pop .cb-group h6:first-child, .pop-menu .menu-group .menu-label:first-child { margin-top: 2px; }
+.cb-row svg, .chat-pop .l > svg { box-sizing: content-box; flex: none; padding: 5px; background: var(--panel-2); box-shadow: 0 0 0 1px var(--line); color: var(--accent); }
+.cb-row.danger svg { color: var(--danger-text); }
+.cb-tile svg { color: var(--accent); margin-bottom: 4px; }
+.pop-menu.chat-pop .menu-group button { background: transparent; border: 0; box-shadow: none; padding: 5px 8px; }
+.pop-menu.chat-pop .menu-group button:hover:not(:disabled) { background: var(--panel-hover); }
