@@ -110,6 +110,8 @@ export interface Keys {
   clearInput: string
   /** Pulls the messages waiting in the agent's queue back into its input box (empty when it has no such key). */
   editQueued: string
+  /** The next key that takes the queued messages back, from what the screen offers; null when nothing waits any more, or when the input already holds the person's own words and nothing was pressed yet. */
+  unqueueStep?(screen: string, started: boolean): string | null
   /** Closes an open menu or overlay. */
   cancel: string
   /** Moves to the next autonomy level. */
