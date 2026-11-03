@@ -49,7 +49,8 @@ export function NeedPanel({ need, actions, onFinishInTerminal, hint, onProgress 
     }
   }
   // The questions are laid out as one piece (steps, page, buttons), so they bring their own body and footer.
-  if (need.kind === 'question') return <Questions questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} onCancel={() => attempt(actions.cancelNeed)} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
+  // Keyed on the questions, their options and how many may be picked: a new set (the agent asked again while this was open) starts with its own answers on its first page, never the old set's.
+  if (need.kind === 'question') return <Questions key={JSON.stringify(need.questions.map((q) => [q.question, q.multiSelect, q.options.map((o) => o.label)]))} questions={need.questions} onSend={(a) => attempt(() => actions.answer(a))} onCancel={() => attempt(actions.cancelNeed)} error={error} onFinishInTerminal={onFinishInTerminal} onProgress={onProgress} />
   return (
     <>
       <div className="dialog-body">
