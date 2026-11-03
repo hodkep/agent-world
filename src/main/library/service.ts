@@ -10,6 +10,7 @@ import { FORMS_ID, VISUALS_ID } from './visuals'
 import { UseLog, skillUsage, summarize, type How, type SkillUse, type Summary, type Use } from './uses'
 import { deleteSkill, planDelete, type DeletePlan } from './delete'
 import { measure } from './sizes'
+import { logoOf, saveLogo } from './logos'
 
 /** The app's own items: in every agent's reach, not something the person set up. */
 const BUILT_IN = new Set([GUIDE_ID, VISUALS_ID, FORMS_ID])
@@ -50,6 +51,8 @@ interface Deps {
   onUse?: (agentId: string, how: How, item: string) => void
   /** Called when a skill's size has been measured, so a screen showing sizes can refresh. */
   onSizes?: () => void
+  /** Fetches a picture (the GitHub owner's, for a logo); the app's own fetch by default. */
+  fetch?: Parameters<typeof saveLogo>[3]
   /** Every skills folder the app knows, global and each project's: a skill can be deleted only from one of them. */
   skillRoots?: () => string[]
   /** The workspaces the app knows, to count the rules that name a skill. */
@@ -100,6 +103,7 @@ export function createLibraryService(d: Deps) {
   const RULEBOOK_EVERY = 6
   const IDLE_MS = 60 * 60_000
   const now = d.now ?? Date.now
+  const nofetch: Parameters<typeof saveLogo>[3] = () => Promise.reject(new Error('no network for a local icon'))
 
   // What each linked skill's folder takes, measured in the background and kept (a skill can be gigabytes, and a measure takes a while).
   const sizesFile = join(d.root, 'sizes.json')
@@ -324,7 +328,21 @@ export function createLibraryService(d: Deps) {
     async items(): Promise<Item[]> {
       const sizes = readSizes()
       void measureAll()
-      return library.listSync().map((i) => (sizes[i.id] ? { ...i, size: { bytes: sizes[i.id]!.bytes, at: sizes[i.id]!.at } } : i))
+      const list = library.listSync()
+      // A plugin's own icon is a local file: keep it without being asked. A picture from the network is fetched only when a skill is added or its logo refreshed.
+      const plugins = list.filter((i) => i.place?.kind === 'plugin' && !logoOf(d.root, i.id))
+      if (plugins.length) void Promise.all(plugins.map((i) => saveLogo(d.root, i.id, i.place!, nofetch))).then((r) => r.some(Boolean) && d.onSizes?.())
+      return list.map((i) => {
+        const logo = logoOf(d.root, i.id)
+        return { ...i, ...(sizes[i.id] && { size: { bytes: sizes[i.id]!.bytes, at: sizes[i.id]!.at } }), ...(logo && { logo }) }
+      })
+    },
+
+    /** Keeps a logo for these skills (their plugin's icon, else the picture of their GitHub owner, fetched once); `force` asks again after a miss. */
+    async addLogos(ids: string[], force = false): Promise<void> {
+      const list = library.listSync()
+      const got = await Promise.all(ids.map((id) => list.find((i) => i.id === id)).map((i) => (i?.place ? saveLogo(d.root, i.id, i.place, d.fetch ?? (fetch as Parameters<typeof saveLogo>[3]), force) : false)))
+      if (got.some(Boolean)) d.onSizes?.()
     },
 
     /** What deleting a skill would remove, before anything is. */
