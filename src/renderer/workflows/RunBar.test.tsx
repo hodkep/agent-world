@@ -78,3 +78,20 @@ describe('a card already in the chat', () => {
     expect(host.querySelector('.rbar-card')).toBeNull()
   })
 })
+
+describe('the step under way whose brief asks for my approval', () => {
+  afterEach(() => void (document.body.innerHTML = ''))
+  it('says it never asks me, beside Mark done', async () => {
+    ;(window as unknown as { aw: unknown }).aw = { workflows: {} }
+    const flow: RunWorkflow = { ...FLOW, steps: FLOW.steps.map((x) => (x.id === 'verify' ? { ...x, brief: 'The person tries it. Approve moves on.' } : x)) }
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<RunBar run={reduceRuns([{ ...begin, workflow: flow } as RunEvent])[0]!} ctx={ctx} track={track('verify')} seed="a1" agentName="ada" />))
+    await click(stepButton(host))
+    expect(host.querySelector('.rbar-card')?.textContent).toContain('Its brief asks for your approval, but the step never asks you')
+    expect(button(host, 'Mark done')).toBeTruthy()
+    // Said once, above the buttons, and not again in the End run question.
+    expect(host.querySelectorAll('.rbar-warn')).toHaveLength(1)
+    await click(button(host, 'End run…'))
+    expect(host.querySelectorAll('.rbar-warn')).toHaveLength(0)
+  })
+})

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Run } from '../../shared/runs'
 import { type StepContext, stepStates } from '../../shared/steps'
 import type { LandingPill, Track } from '../../shared/runTrack'
+import { asksYouButNever } from '../../shared/workflow'
 import { RunTrack } from './RunTrack'
 
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
@@ -66,6 +67,7 @@ export function RunBar({ run, ctx, track, seed, agentName, landing, onReopen }: 
                       ? `${agentName} has not reported this step. If it is finished, close it yourself: ${agentName} is told and goes on to the next step.`
                       : 'The app is running it; it moves on by itself.'}
               </p>
+              {mine && !on.toRun && !yours && asksYouButNever(def) && <p className="rbar-warn">Its brief asks for your approval, but the step never asks you: press Mark done when you are satisfied.</p>}
               <div className="rbar-acts">
                 {on.toRun && <button className="primary" disabled={busy} onClick={() => act(window.aw.workflows.startStep(run.id, on.id))}>Run</button>}
                 {yours && (

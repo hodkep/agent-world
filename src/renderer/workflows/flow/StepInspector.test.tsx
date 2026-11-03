@@ -70,3 +70,20 @@ describe('who finishes a step, in the step inspector', () => {
     expect([...host.querySelectorAll('.si-icon')].map((b) => b.getAttribute('aria-label'))).toEqual(['You'])
   })
 })
+
+describe('a brief that asks for my approval on a step that never asks me', () => {
+  afterEach(() => void (document.body.innerHTML = ''))
+  const brief = 'Give test prompts, then stop. The person tries it. Approve moves on to the review.'
+
+  it('says so, and Make it mine or Needs my approval puts it right; a step that asks says nothing', async () => {
+    const { host, change } = await draw(wf({ brief }), 1)
+    const note = host.querySelector('[role="note"][aria-label="Step 2 never asks you"]')
+    expect(note?.textContent).toContain('This brief asks for your approval, but the step never asks you.')
+    await act(async () => void (note!.querySelector('button[data-fix="mine"]') as HTMLButtonElement).click())
+    expect((change.mock.calls.at(-1)![0] as Workflow).steps[1]).toMatchObject({ by: 'person' })
+    await act(async () => void (note!.querySelector('button[data-fix="approve"]') as HTMLButtonElement).click())
+    expect((change.mock.calls.at(-1)![0] as Workflow).steps[1]).toMatchObject({ gate: 'approve' })
+    const { host: fine } = await draw(wf({ brief, by: 'person' }), 1)
+    expect(fine.querySelector('[role="note"]')).toBeNull()
+  })
+})

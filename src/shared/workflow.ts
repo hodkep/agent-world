@@ -60,6 +60,16 @@ export const OPTIONAL_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve']
 /** The kinds the person can skip when their workflow allows it: the optional ones, and a pull request. */
 export const SKIPPABLE_KINDS: StepKind[] = ['work', 'check', 'audit', 'approve', 'pr']
 /** Whether the person can skip a step (and the agent may only ask them to): its workflow says so, and without a word a step that starts on their Run is. */
+// Words in a brief that ask the person to decide: approve or its approval, a verdict, or the person trying it out ("approved", as in "the approved plan", is not one).
+const ASKS_YOU = /\b(approve|approval|verdict|send (it )?back)\b|\b(you|the person|they) (try|tries|test|tests|check|checks|review|reviews)\b/i
+
+/**
+ * A step whose brief asks the person for a decision, though the step never stops for one: the agent does it, it has no Needs my approval, and it does not start on Run
+ * (pressing Run is the person's word). The agent then waits for an answer the app never asks for. Only work steps: the others have approvals of their own.
+ */
+export const asksYouButNever = (s: Pick<Step, 'kind'> & Partial<Step>): boolean =>
+  s.kind === 'work' && s.by !== 'person' && s.gate !== 'approve' && s.start !== 'run' && ASKS_YOU.test(s.brief ?? '')
+
 export const isSkippable = (s: { kind: StepKind; start?: Start; skippable?: boolean }): boolean => SKIPPABLE_KINDS.includes(s.kind) && (s.skippable ?? s.start === 'run')
 const orList = (w: string[]) => (w.length < 2 ? w.join('') : `${w.slice(0, -1).join(', ')} or ${w.at(-1)}`)
 const STEP_FIELDS = ['id', 'kind', 'name', 'gate', 'brief', 'start', 'optional', 'skippable', 'by', 'confirm', 'reject', 'skills', 'run', 'retries', 'model']

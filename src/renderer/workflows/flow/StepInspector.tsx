@@ -1,7 +1,7 @@
 import { type Role, type Who, kindFor, roleOf, whoCan, whoOf, withBy, withRole, withWho } from '../../../shared/stepEdit'
 import { setStep, type StepPatch } from '../../../shared/stepEdit'
 import type { SkillState } from '../../../shared/skills'
-import { OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, type Step, type Workflow, isSkippable, stepName } from '../../../shared/workflow'
+import { OPTIONAL_KINDS, SKILL_KINDS, SKIPPABLE_KINDS, START_KINDS, type Step, type Workflow, asksYouButNever, isSkippable, stepName } from '../../../shared/workflow'
 import { SKILL_WORDS } from '../WorkflowList'
 import { PixelIcon } from '../../chat/PixelIcon'
 import { AddItemMenu } from '../../panel/AddItemMenu'
@@ -85,6 +85,15 @@ export function StepInspector({ wf, at, skills, skillStates, change }: { wf: Wor
         <input aria-label={`Name of step ${n}`} className="se-name si-title" maxLength={40} value={s.name ?? ''} placeholder={stepName(s)} onChange={(e) => patch({ name: e.target.value })} />
         <textarea aria-label={`Brief of step ${n}`} className="se-brief si-desc" rows={3} maxLength={600} value={s.brief ?? ''} placeholder={BRIEF_HINT[s.kind]} onChange={(e) => patch({ brief: e.target.value })} />
       </div>
+      {asksYouButNever(s) && (
+        <div className="si-warn" role="note" aria-label={`Step ${n} never asks you`}>
+          <p><b>This brief asks for your approval, but the step never asks you.</b> The agent would wait for an answer nobody asks you for.</p>
+          <div className="si-warn-acts">
+            <button type="button" data-fix="mine" title="You finish the step: the agent does its part, then you answer on one card" onClick={() => change(withBy(wf, at, 'person'))}>Make it mine</button>
+            <button type="button" data-fix="approve" title="The agent finishes the step, then you approve it or send it back" onClick={() => patch({ gate: 'approve' })}>Needs my approval</button>
+          </div>
+        </div>
+      )}
       {s.kind === 'work' && (
         <div className="si-field">
           <div className="si-finish">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowEntry } from './workflow'
-import { STANDARD, checkCommands, commandDiff, isLanding, isSkippable, modernStep, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
+import { STANDARD, asksYouButNever, checkCommands, commandDiff, isLanding, isSkippable, modernStep, parseWorkflow, pickEntry, stepChips, toRunWorkflow } from './workflow'
 
 const BUG_FIX = {
   version: 1,
@@ -329,5 +329,24 @@ describe('a step the person finishes: by, confirm and reject', () => {
     // Any other step asked for on Run is asked once, before it starts, and has no gate.
     expect(modernStep({ id: 'push', kind: 'work', start: 'run' })).toEqual({ id: 'push', kind: 'work', start: 'run' })
     expect(modernStep({ id: 'a', kind: 'work', by: 'agent', gate: 'approve' })).toEqual({ id: 'a', kind: 'work', by: 'agent', start: 'run' })
+  })
+})
+
+describe('a step whose brief asks for your approval but that never asks you', () => {
+  const work = (brief: string, extra = {}) => ({ id: 'v', kind: 'work' as const, name: 'Verify', brief, ...extra })
+  it('is flagged when the agent does it, nothing waits for you, and the brief asks you to decide', () => {
+    expect(asksYouButNever(work('Give test prompts, then stop. The person tries it. Approve moves on to the review.'))).toBe(true)
+    expect(asksYouButNever(work('Show the result and wait for my verdict.'))).toBe(true)
+    expect(asksYouButNever(work('You test it and say how it went.'))).toBe(true)
+  })
+  it('is left alone when it is yours, needs your approval, starts on Run, says nothing of the sort, or is not a work step', () => {
+    const brief = 'The person tries it. Approve moves on.'
+    expect(asksYouButNever(work(brief, { by: 'person' }))).toBe(false)
+    expect(asksYouButNever(work(brief, { gate: 'approve' }))).toBe(false)
+    // Pressing Run is the person's word on a step that starts that way.
+    expect(asksYouButNever(work('Push the branch, and they approve the result.', { start: 'run' }))).toBe(false)
+    expect(asksYouButNever(work('Build the approved plan. Write a failing test first.'))).toBe(false)
+    expect(asksYouButNever({ id: 'p', kind: 'plan', name: 'Plan', brief: 'the person approves your plan before you edit' })).toBe(false)
+    expect(asksYouButNever(work(''))).toBe(false)
   })
 })
