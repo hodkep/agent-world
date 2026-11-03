@@ -9,17 +9,17 @@ export interface SkillRow<T extends Skill> {
   on: boolean
 }
 
-/** The library's skills split into those used in the window (most used first) and those not, with what the unused ones still on for Claude cost every session. */
-export function splitUsage<T extends Skill>(items: T[], usage: Record<string, SkillUse>, claudeOff: string[]): { used: SkillRow<T>[]; unused: SkillRow<T>[]; unusedCost: number } {
+/** The library's skills split into those used in the window (most used first) and those not. */
+export function splitUsage<T extends Skill>(items: T[], usage: Record<string, SkillUse>, claudeOff: string[]): { used: SkillRow<T>[]; unused: SkillRow<T>[] } {
   const rows = items.filter((i) => i.kind === 'skill').map((item) => ({ item, use: usage[item.id] ?? NONE, on: !claudeOff.includes(item.id) }))
   const used = rows.filter((r) => r.use.used > 0).sort((a, b) => b.use.used - a.use.used || a.item.name.localeCompare(b.item.name))
   const unused = rows.filter((r) => r.use.used === 0).sort((a, b) => a.item.name.localeCompare(b.item.name))
-  return { used, unused, unusedCost: unused.filter((r) => r.on).reduce((n, r) => n + r.item.tokens.description, 0) }
+  return { used, unused }
 }
 
-/** What Clear the dust turns off for Claude: the unused skills still on, and the tokens that saves at the start of every session. */
-export function dustOf<T extends Skill>(split: { unused: SkillRow<T>[] }): { ids: string[]; saves: number } {
-  const on = split.unused.filter((r) => r.on)
+/** What Clear the dust turns off for Claude: the unused skills still on that no playbook rule hands to agents (those would reach them anyway), and the tokens that saves at the start of every session. */
+export function dustOf<T extends Skill>(split: { unused: SkillRow<T>[] }, named: Set<string> = new Set()): { ids: string[]; saves: number } {
+  const on = split.unused.filter((r) => r.on && !named.has(r.item.id))
   return { ids: on.map((r) => r.item.id), saves: on.reduce((n, r) => n + r.item.tokens.description, 0) }
 }
 

@@ -5,11 +5,11 @@ import { spineLook } from './libraryShelf'
 import { CostMeter, Heads } from './SkillBits'
 
 /** The Usage tab's skills: a ranking of those used in the last 30 days, those gathering dust with what they cost, and which agent reached for what. */
-export function SkillUsage({ items, usage, claudeOff, busy, onClaude, onClear, onRemove }: { items: LibraryItem[]; usage: Record<string, SkillUse>; claudeOff: string[]; busy: boolean; onClaude: (id: string, on: boolean) => void; onClear: (ids: string[]) => void; onRemove: (id: string) => void }) {
+export function SkillUsage({ items, usage, claudeOff, named, busy, onClaude, onClear, onRemove }: { items: LibraryItem[]; usage: Record<string, SkillUse>; claudeOff: string[]; named: Set<string>; busy: boolean; onClaude: (id: string, on: boolean) => void; onClear: (ids: string[]) => void; onRemove: (id: string) => void }) {
   const now = Date.now()
   const split = splitUsage(items, usage, claudeOff)
   const { used, unused } = split
-  const dust = dustOf(split)
+  const dust = dustOf(split, named)
   const top = used[0]?.use.used ?? 1
   const loads = used.reduce((n, r) => n + r.use.used, 0)
   const cost = [...used, ...unused].filter((r) => r.on).reduce((n, r) => n + r.item.tokens.description, 0)
@@ -57,9 +57,9 @@ export function SkillUsage({ items, usage, claudeOff, busy, onClaude, onClear, o
                 <button className="ghost" disabled={busy} onClick={() => onRemove(item.id)}>Remove</button>
               </div>
             ))}
-            {dust.ids.length > 1 && (
+            {dust.ids.length > 0 && (
               <div className="sku-dust">
-                <span>Turn off all {dust.ids.length} for Claude and save {dust.saves} tokens at the start of every session. Each can be turned back on.</span>
+                <span>Turn off {dust.ids.length === 1 ? 'it' : `all ${dust.ids.length}`} for Claude and save {dust.saves} tokens at the start of every session. Each can be turned back on.</span>
                 <button className="primary" disabled={busy} onClick={() => onClear(dust.ids)}>Clear the dust</button>
               </div>
             )}

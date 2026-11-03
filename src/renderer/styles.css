@@ -37,6 +37,8 @@
   --thumb: #3a4268; /* a scrollbar thumb */
   --frame: #2a2840; /* the bezel of a device preview */
   --hint: #6f6d86; /* a placeholder and a timestamp */
+  --violet-1: #5a4a8e; /* a day with one use, under the violet of two or more */
+  --violet-2: #8a6fd8;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: 13px;
   color: var(--text);
@@ -4758,7 +4760,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 /* Day squares, the agents' heads and the cost meter, shared by the list, the reader and Usage. */
 .skd { display: inline-flex; gap: 1px; flex: none; }
 .skd i { width: 4px; height: 9px; background: var(--track); }
-.skd i.u1 { background: #5a4a8e; } .skd i.u2 { background: #8a6fd8; } .skd i.u3 { background: var(--violet); }
+.skd i.u1 { background: var(--violet-1); } .skd i.u2 { background: var(--violet-2); } .skd i.u3 { background: var(--violet); }
 .skh { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .skh-one { display: block; height: 15px; overflow: hidden; }
 .skh small { color: var(--hint); font-size: 11px; margin-left: 2px; }

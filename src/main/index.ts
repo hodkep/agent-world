@@ -1,7 +1,7 @@
 import { readText, resolveEntry, resolveFile, startFileServer } from './files'
 import { listFolderFiles } from './folderFiles'
 import { forget, loadMemory, recall, remember } from './memory'
-import { createLibraryService } from './library/service'
+import { createLibraryService, runsWhenOpened } from './library/service'
 import { syncGuide } from './library/guide'
 import { syncVisuals } from './library/visuals'
 import { createTodoService } from './todos/service'
@@ -658,7 +658,7 @@ const libraryService = createLibraryService({
   workspaceKey: repoSlug,
   // The skills the steps of an agent's open task name are its to read, whatever its playbook says.
   grants: (id) => workflows.skillsOf(id),
-  linkedForClaude: (id) => linkState(LIBRARY_DIR, id, skillTargets(userHome())[0]!) === 'linked',
+  linkedForClaude: (id) => linkState(LIBRARY_DIR, id, skillTargets(userHome()).find((t) => t.id === 'claude')!) === 'linked',
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
@@ -2515,8 +2515,9 @@ async function main() {
   ipcMain.handle('library:file', async (_, id: string, file: string | null, action: 'open' | 'show') => {
     const path = file ? libraryService.fileOf(String(id), String(file)) : libraryService.library.listSync().find((i) => i.id === String(id) && i.kind === 'skill')?.dir
     if (!path) throw new Error(`${id} is not a skill in the library.`)
-    if (process.env.AW_REVEAL_LOG && !app.isPackaged) return void appendFileSync(process.env.AW_REVEAL_LOG, `${action} ${path}\n`)
-    if (action === 'open' && file) {
+    if (process.env.AW_REVEAL_LOG && !app.isPackaged) return void appendFileSync(process.env.AW_REVEAL_LOG, `${action === 'open' && file && !runsWhenOpened(path) ? 'open' : 'show'} ${path}\n`)
+    // A script or a program is shown in Finder instead: opening it with its default program could run it.
+    if (action === 'open' && file && !runsWhenOpened(path)) {
       const err = await shell.openPath(path)
       if (err) throw new Error(err)
     } else shell.showItemInFolder(path)

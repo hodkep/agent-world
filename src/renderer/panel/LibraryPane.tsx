@@ -98,6 +98,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
     await loadPlaces()
     setBusy(false)
   }
+  // Clear the dust: each skill turned off for Claude in turn, as one change.
+  const turnOff = (ids: string[]) => void place(async () => { for (const id of ids) await window.aw.library.setClaude(id, false) })
   useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
   const refreshStale = useCallback(() => (folder ? window.aw.library.holders(folder).then(setHolders, () => setHolders([])) : Promise.resolve(setHolders([]))), [folder])
   useEffect(() => void refreshStale(), [refreshStale, books])
@@ -154,6 +156,8 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       setError(clean(e))
     }
   }
+  // Skills a playbook rule hands to agents whatever the switch says: never offered as dust.
+  const named = useMemo(() => new Set(effective.filter((r) => r.mode !== 'off').map((r) => r.id)), [effective])
   const whenOf = useCallback((id: string) => [...books.workspace, ...books.global].find((r) => r.id === id)?.when ?? '', [books])
 
   const startImport = async () => {
@@ -270,13 +274,13 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
           { key: 'off', label: 'Off for Claude', rows: split.unused.filter((r) => !r.on).map((r) => r.item) },
           { key: 'other', label: 'Instructions and prompts', rows: hits.filter((i) => i.kind !== 'skill') }
         ]
-        const dust = dustOf(split)
+        const dust = dustOf(split, named)
         return (
           <section className="drawer skl" aria-label="Items">
             <div className="drawer-list lib-scrollbar">
               {groups.filter((g) => g.rows.length).map((g) => (
                 <div key={g.key} role="group" aria-label={g.label}>
-                  <div className="skl-grp"><span>{g.label} · {g.rows.length}</span><span className="lib-sp" />{g.clear && dust.ids.length > 1 && <button disabled={busy} title={`Turn them off for Claude and save ${dust.saves} tokens at the start of every session`} onClick={() => void place(async () => { for (const id of dust.ids) await window.aw.library.setClaude(id, false) })}>Clear the dust</button>}</div>
+                  <div className="skl-grp"><span>{g.label} · {g.rows.length}</span><span className="lib-sp" />{g.clear && dust.ids.length > 0 && <button disabled={busy} title={`Turn them off for Claude and save ${dust.saves} tokens at the start of every session`} onClick={() => turnOff(dust.ids)}>Clear the dust</button>}</div>
                   {g.rows.map((i) => {
                     const use = usage30[i.id]
                     const skill = i.kind === 'skill'
@@ -475,7 +479,7 @@ export function LibraryPane({ folder, providers }: { folder: string; providers: 
       )}
       {tab === 'reach' && (
       <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
-      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={(ids) => void place(async () => { for (const id of ids) await window.aw.library.setClaude(id, false) })} onRemove={(id) => void remove(id)} />}
+      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => void remove(id)} />}
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
       </div>
       )}
