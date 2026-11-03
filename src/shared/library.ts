@@ -114,6 +114,10 @@ export interface SkillUse {
   last: number
   agents: string[]
   accounts: string[]
+  /** Uses on each of the window's days, oldest first, today last. */
+  days: number[]
+  /** The agents that used it, by id (to draw each as its office figure) and name. */
+  who: { id: string; name: string }[]
 }
 export interface Summary {
   items: Record<string, ItemStats>

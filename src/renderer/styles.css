@@ -4729,31 +4729,115 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .skl-row { display: flex; align-items: center; gap: 8px; padding-right: 10px; border-bottom: 1px solid var(--line-soft); }
 .skl-row.sel { background: var(--selected); }
 .skl-row .drawer-item { flex: 1; min-width: 0; border-bottom: 0; }
+/* The Skills tab: a spine for each item in its shelf colour, grouped by how it is used; a skill's row carries its 30 days and who used it. */
 .skl .drawer-list { display: block; }
-.lib-sum { margin: 0; padding: 0 2px; font-size: 12px; }
+.skl-grp { display: flex; align-items: center; gap: 8px; padding: 8px 12px 6px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--line-soft); background: var(--panel-3); }
+.skl-grp button { padding: 1px 8px; font-size: 11.5px; }
+.skl-row { position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 7px 12px 7px 10px; background: none; border: 0; border-bottom: 1px solid var(--line-soft); box-shadow: none; text-align: left; }
+.skl-row:hover:not(:disabled) { background: var(--panel-2); }
+.skl-row.sel { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent-dim); }
+.skl-spine { width: 14px; height: 34px; border: 2px solid var(--ink); position: relative; display: grid; place-items: end center; padding-bottom: 2px; color: var(--ink); }
+.skl-spine::before { content: ''; position: absolute; left: 1px; right: 1px; top: 5px; height: 3px; background: rgb(255 255 255 / 0.35); }
+.skl-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.skl-main > b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skl-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.skl-meta small, .skl-desc { color: var(--hint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skl-n { font: 700 13px Menlo, Consolas, monospace; text-align: right; }
+.skl-n small { display: block; font: 11px ui-sans-serif, system-ui, sans-serif; color: var(--hint); }
+.skl-row.dusty .skl-spine, .skl-row.off .skl-spine { filter: saturate(0.15) brightness(0.7); }
+.skl-row.dusty .skl-main > b { color: var(--muted); }
+.skl-row.off { opacity: 0.55; }
+/* An agent just loaded it: three blinks down its edge and a +1 that floats off; nothing moves for those who ask for less motion. */
+.skl-row.live::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--violet); animation: skl-blink 0.4s steps(2) 3; }
+.skl-plus { position: absolute; right: 52px; top: 6px; font: 700 11px Menlo, Consolas, monospace; color: var(--violet); animation: skl-rise 1.2s steps(6) forwards; }
+@keyframes skl-blink { 50% { opacity: 0; } }
+@keyframes skl-rise { to { transform: translateY(-8px); opacity: 0; } }
+.lib-sum { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 2px; font-size: 12px; }
 .lib-bar input[aria-label='Find an item'] { width: 190px; }
-/* Where a skill works: one row per place, the switch at the end. */
-.settings label.skw-row, .skw-row { display: flex; flex-direction: row; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line-soft); cursor: pointer; text-align: left; }
-.skw-row .wfl-sw { display: flex; flex: none; }
-.skw-row > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
-.skw-row small { display: block; max-width: 100%; color: var(--muted); overflow-wrap: anywhere; }
-.skw-copy { font-style: normal; font-size: 11.5px; padding: 1px 8px; box-shadow: inset 0 0 0 2px var(--danger-text); color: var(--danger-text); }
 
-/* The Usage tab's skills: bars for the used ones, the unused ones beside them with their cost and actions. */
-.sku { display: flex; flex-direction: column; gap: 10px; flex: none; margin-bottom: 16px; }
-.sku-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+/* Day squares, the agents' heads and the cost meter, shared by the list, the reader and Usage. */
+.skd { display: inline-flex; gap: 1px; flex: none; }
+.skd i { width: 4px; height: 9px; background: var(--track); }
+.skd i.u1 { background: #5a4a8e; } .skd i.u2 { background: #8a6fd8; } .skd i.u3 { background: var(--violet); }
+.skh { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.skh-one { display: block; height: 15px; overflow: hidden; }
+.skh small { color: var(--hint); font-size: 11px; margin-left: 2px; }
+.skm { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.skm-cells { display: flex; gap: 2px; padding: 2px; background: var(--well); border: 2px solid var(--ink); }
+.skm-cells i { width: 6px; height: 11px; background: var(--track); }
+.skm-cells i.f { background: var(--think); }
+.skm-cells i.w { background: var(--dim); box-shadow: inset 0 0 0 1px var(--think); }
+.skm small { color: var(--muted); font: 11.5px Menlo, Consolas, monospace; }
+
+/* The reader's head: the skill's icon in its colour, and its last 30 days on one line. */
+.lip-ic { flex: none; display: grid; place-items: center; padding: 6px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 4px var(--sk, var(--think)); }
+.lip-ic .pxi { color: var(--sk, var(--think)); }
+.lip-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.lip-stats b { color: var(--text); font: 700 13px Menlo, Consolas, monospace; }
+.lip-who { display: inline-flex; align-items: center; gap: 6px; font: 12px Menlo, Consolas, monospace; }
+.lip-tok { font: 11px Menlo, Consolas, monospace; padding: 1px 6px; border: 2px solid var(--ink); background: var(--well); }
+
+/* Where a skill works: the library copy, a cable to each place, and the sockets. */
+.lip-panel.skw { display: grid; grid-template-columns: minmax(110px, 150px) 56px minmax(0, 1fr); align-items: stretch; background: var(--well); padding: 16px; container-type: inline-size; }
+.skw-lib { align-self: center; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 10px; text-align: center; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--accent); }
+.skw-book .pxi { color: var(--sk); }
+.skw-lib small { color: var(--muted); font: 10.5px Menlo, Consolas, monospace; overflow-wrap: anywhere; max-width: 100%; }
+.skw-cables { width: 56px; height: 100%; overflow: visible; }
+.skw-wire { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.skw-wire.on { stroke: var(--ok); stroke-dasharray: 400; animation: skw-draw 0.7s steps(7) both; }
+.skw-wire.copy { stroke: var(--accent-dim); stroke-dasharray: 6 5; }
+.skw-wire.off { stroke: var(--line); stroke-dasharray: 2 6; }
+.skw-wire.none { stroke: var(--line-soft); stroke-dasharray: 2 8; }
+@keyframes skw-draw { from { stroke-dashoffset: 400; } to { stroke-dashoffset: 0; } }
+.skw-socks { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.skw-sock { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 10px; text-align: left; }
+.skw-sock:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--ok); }
+.skw-sock.on:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--line); }
+.skw-sock:disabled { opacity: 1; cursor: default; }
+.skw-sock.none { opacity: 0.5; background: var(--panel-3); }
+.skw-jack { width: 22px; height: 22px; border: 2px solid var(--ink); background: var(--bg); display: grid; place-items: center; }
+.skw-jack i { width: 10px; height: 10px; background: var(--dim); }
+.skw-sock.on .skw-jack i { background: var(--ok); }
+.skw-sock.copy .skw-jack i { background: var(--accent); }
+.skw-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.skw-t b { font-size: 12.5px; }
+.skw-t small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skw-st { font: 700 10px Menlo, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.skw-sock.on .skw-st { color: var(--ok-text); } .skw-sock.copy .skw-st { color: var(--accent); } .skw-sock.none .skw-st { color: var(--hint); }
+.skw-note { margin: 4px 0 0; font-size: 11.5px; }
+/* Too narrow for the picture: the sockets alone, full width. */
+@container (max-width: 460px) { .skw-lib, .skw-cables { display: none; } .skw-socks { grid-column: 1 / -1; } }
+@media (prefers-reduced-motion: reduce) { .skl-row.live::after, .skl-plus, .skw-wire.on { animation: none; } .skl-plus { display: none; } }
+
+/* The Usage tab's skills: a ranking, the ones gathering dust with what they cost, and who reached for what. */
+.sku { display: flex; flex-direction: column; flex: none; margin-bottom: 16px; background: var(--panel-3); border: 2px solid var(--ink); }
+.sku-top { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 2px solid var(--ink); font-size: 12.5px; }
+.sku-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
 @media (max-width: 900px) { .sku-grid { grid-template-columns: minmax(0, 1fr); } }
-.sku-box { background: var(--panel-3); border: 2px solid var(--ink); }
-.sku-box > h4 { margin: 0; padding: 8px 12px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
-.sku-box > .hint { padding: 10px 12px; margin: 0; }
-.sku-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line-soft); }
-.sku-row > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.sku-row small { color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
-.sku-bar { position: relative; flex: none; width: 140px; height: 10px; background: var(--well); box-shadow: inset 0 0 0 1px var(--ink); }
+.sku-col { padding: 12px 14px; display: flex; flex-direction: column; gap: 16px; background: var(--panel); }
+.sku-col + .sku-col { border-left: 2px solid var(--ink); background: var(--panel-3); gap: 8px; }
+.sku-col h4 { margin: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+.sku-col .hint { margin: 0; }
+.sku-rank { display: grid; grid-template-columns: 24px 10px minmax(0, 1fr) 140px 40px; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line-soft); }
+.sku-rank.dusty { grid-template-columns: 24px 10px minmax(0, 1fr) auto auto; }
+.sku-rank.dusty .sku-spine { filter: saturate(0.15) brightness(0.7); }
+.sku-pos { font: 700 12px Menlo, Consolas, monospace; color: var(--hint); }
+.sku-rank.first .sku-pos { color: var(--accent); }
+.sku-spine { display: block; width: 10px; height: 24px; border: 2px solid var(--ink); }
+.sku-spine.sm { width: 8px; height: 16px; }
+.sku-who { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.sku-who small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11.5px; overflow: hidden; white-space: nowrap; }
+.sku-bar { position: relative; height: 12px; background: var(--well); border: 2px solid var(--ink); }
 .sku-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--violet); }
-.sku-n { flex: none; width: 36px; text-align: right; }
-.sku-tok { flex: none; width: 60px; text-align: right; color: var(--muted); font-size: 11.5px; }
-.sku-row button { flex: none; }
+.sku-n { font: 700 13px Menlo, Consolas, monospace; text-align: right; }
+.sku-rank button { padding: 2px 8px; font-size: 12px; }
+.sku-rank button.ghost { background: none; border-color: transparent; box-shadow: none; color: var(--muted); }
+.sku-dust { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 8px 10px; border: 2px dashed var(--line); color: var(--muted); font-size: 12px; }
+.sku-dust span { flex: 1; }
+.sku-ag { display: flex; align-items: center; gap: 10px; padding: 6px 8px; background: var(--panel-2); border: 2px solid var(--ink); }
+.sku-ag b { min-width: 64px; }
+.sku-ag-skills { flex: 1; display: flex; gap: 3px; flex-wrap: wrap; }
+.sku-ag small { color: var(--muted); font: 11px Menlo, Consolas, monospace; }
 
 /* A skill's other files: each with its type, its size and Open; where the skill is kept, with Copy and Show in Finder. */
 .lif-head { margin: 0 0 6px; font-size: 10.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
