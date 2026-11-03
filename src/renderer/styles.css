@@ -1852,6 +1852,7 @@ dialog.handoff { width: min(640px, 94vw); }
 /* Accounts: each Claude login is a row with its own colour, kept apart from the rest of the office's greens and golds by being a small square. */
 .acct-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; vertical-align: 1px; box-shadow: 0 0 0 1px var(--ink); flex: none; }
 .set-note { margin: 0; padding: 8px 10px; max-width: 62ch; color: var(--muted); font-size: 12px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
+.set-note.bad { color: var(--danger-text); background: var(--danger-well); }
 .acct-list { display: flex; flex-direction: column; gap: 8px; }
 .acct { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 12px; background: var(--well); box-shadow: inset 0 0 0 1px var(--line); }
 .acct[data-default="true"] { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -4667,3 +4668,84 @@ main.term-side .stage-wrap.off { z-index: auto; }
 /* A switch's knob slides and its track fades; for people who ask for less motion, and while the app is away, it jumps. */
 @media (prefers-reduced-motion: reduce) { .set-sw input, .set-sw input::after, .hire-switch .sw, .hire-switch .sw::after, .wfl-track, .wfl-track::after, .su-toggle i, .su-toggle i::after { transition: none; } }
 :root[data-away] :is(.set-sw input, .hire-switch .sw, .wfl-track, .su-toggle i)::after, :root[data-away] :is(.set-sw input, .hire-switch .sw, .wfl-track, .su-toggle i) { transition: none; }
+
+/* Voice: the Gemini key card (enter, test, stamp, saved) and the model list */
+.vk { display: flex; flex-direction: column; gap: 10px; }
+.vk-in { display: flex; gap: 6px; }
+.vk-in input { flex: 1; min-width: 0; }
+.vk-in input.bad { border-color: var(--danger); }
+.vk-in input.shake { animation: vk-shake .36s steps(6) 1; }
+@keyframes vk-shake { 0% { transform: translateX(0) } 17% { transform: translateX(-6px) } 34% { transform: translateX(5px) } 51% { transform: translateX(-4px) } 68% { transform: translateX(3px) } 85% { transform: translateX(-2px) } 100% { transform: translateX(0) } }
+.vk-steps { margin: 0; padding: 10px; list-style: none; display: flex; flex-direction: column; gap: 6px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); max-width: 62ch; }
+.vk-steps li { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; color: var(--muted); }
+.vk-steps li.on { color: var(--text); } .vk-steps li.ok { color: var(--ok-text); } .vk-steps li.no { color: var(--danger-text); }
+.vk-steps small { color: var(--muted); font: 11px Menlo, Consolas, monospace; }
+.vk-mark, .vk-lock, .vk-stamp { image-rendering: pixelated; }
+.vk-mark { width: 18px; height: 18px; }
+.vk-stampwrap { display: grid; place-items: center; height: 84px; max-width: 62ch; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.vk-saved { display: flex; gap: 10px; align-items: center; padding: 8px 10px; max-width: 62ch; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.vk-hint { font: 12px Menlo, Consolas, monospace; letter-spacing: .06em; }
+.vk-sp { flex: 1; }
+.vk-chip { font: 11px Menlo, Consolas, monospace; padding: 1px 6px; background: var(--well); border: 1px solid var(--line); color: var(--muted); }
+.vk-models { display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
+.vk-label { font-size: 12px; color: var(--muted); }
+.vk-model { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; text-align: left; width: 100%; }
+.vk-model > span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; }
+.vk-model small, .vk-fine { color: var(--muted); font-size: 11px; font-weight: 400; }
+.vk-model i { width: 10px; height: 10px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.vk-model[aria-checked="true"] { background: var(--selected); border-color: var(--accent-dim); }
+.vk-model[aria-checked="true"] i { background: var(--accent); }
+.vk-mic { display: inline-flex; gap: 5px; align-items: center; font: 11px Menlo, Consolas, monospace; margin-left: 6px; }
+.vk-mic i { width: 8px; height: 8px; background: var(--dim); box-shadow: 0 0 0 2px var(--ink); }
+.vk-mic.ok { color: var(--ok-text); } .vk-mic.ok i { background: var(--ok); }
+.vk-mic.bad { color: var(--danger-text); } .vk-mic.bad i { background: var(--danger); }
+@media (prefers-reduced-motion: reduce) { .vk-in input.shake { animation: none; } }
+
+/* Voice settings: what it is told and which talks it remembers. */
+.vk-items { display: flex; flex-direction: column; gap: 6px; max-width: 62ch; border: 0; padding: 0; margin: 0; }
+.vk-item { display: grid !important; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; font-size: 13px; }
+.vk-item span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; }
+.vk-item small, .vk-talk small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.vk-talk { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; background: var(--well); box-shadow: 0 0 0 2px var(--ink); }
+.vk-talk > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; white-space: pre-wrap; }
+/* Why a talk could not start: a plain box left of where the call tile stands, since the tile does not exist yet. */
+.vp-toast { position: fixed; top: 54px; right: 14px; z-index: 60; width: min(360px, calc(100vw - 28px)); display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: var(--danger-well); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / .06), inset 0 -2px 0 rgb(0 0 0 / .25); }
+.vp-toast p { margin: 0; font-size: 12px; color: var(--danger-text); }
+.vp-ctl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+/* Voice settings: ticking library items, in the app's own square tick. */
+.vk-item input[type="checkbox"] { appearance: none; width: 14px; height: 14px; margin: 3px 0 0; align-self: start; background: var(--well); box-shadow: 0 0 0 2px var(--ink); cursor: pointer; position: relative; }
+.vk-item input[type="checkbox"]:checked { background: var(--accent); }
+.vk-item input[type="checkbox"]:checked::after { content: ''; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.vk-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vk-item { padding: 6px 8px; background: var(--panel-2); box-shadow: 0 0 0 2px var(--ink); }
+.vk-item b { font-weight: 600; } .vk-item small { margin-top: 2px; line-height: 1.35; }
+.vk-items legend { margin: 0 0 2px; font-weight: 600; }
+.vk-items > .hint { margin: 0 0 4px; }
+
+/* Voice: the call tile. The agent (the orb) in the top-right corner and two icon buttons under it; no panel behind it. */
+.vcall { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.vcall.corner { position: fixed; top: 96px; right: 64px; z-index: 55; pointer-events: none; }
+.vcall.corner > * { pointer-events: auto; }
+.vcall-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 112px; animation: vcall-in .2s steps(4) 1; }
+@keyframes vcall-in { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
+.vcall .vo { image-rendering: pixelated; }
+.vcall-btns { display: flex; gap: 8px; }
+.vcall-btn { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; touch-action: none; }
+.vcall-mic.on, .vcall-mic.on:hover:not(:disabled) { background: var(--accent); color: var(--ink); }
+.vcall-mic.hold, .vcall-mic.hold:hover:not(:disabled) { background: var(--accent-hot); color: var(--ink); }
+.vcall-end, .vcall-end:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.vcall-end:hover:not(:disabled) { background: var(--danger-hot); }
+.vcall-bubble { width: 260px; max-width: calc(100vw - 28px); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--panel); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / .06), inset 0 -2px 0 rgb(0 0 0 / .25); }
+.vcall-bubble p { margin: 0; font-size: 12px; overflow-wrap: anywhere; }
+.vcall-draft b { font-size: 11px; letter-spacing: .08em; color: var(--accent); }
+.vcall-row { display: flex; gap: 6px; }
+@media (prefers-reduced-motion: reduce) { .vcall-tile { animation: none; } }
+
+/* The slim strip on top of the message box, when the office is showing: the agent on the left, the two buttons on the right. */
+.vcall.strip { align-items: center; gap: 6px; padding: 0 14px 6px; flex: none; }
+/* The agent and the two buttons stand together in a small strip in the middle, with no stretch of empty bar between them. */
+.vcall.strip .vcall-tile { flex-direction: row; width: fit-content; gap: 14px; padding: 2px 14px 2px 10px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 2px 0 rgb(255 255 255 / .06), inset 0 -2px 0 rgb(0 0 0 / .25); animation: none; justify-content: center; }
+.vcall.strip .vcall-bubble { width: auto; max-width: none; align-self: stretch; }
+.vcall-slash { stroke: var(--danger-text); }
+.vcall-mic.on .vcall-slash { display: none; }

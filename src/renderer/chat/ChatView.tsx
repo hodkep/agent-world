@@ -121,6 +121,7 @@ export function ChatView({
   needActions,
   visible,
   focusTick,
+  aboveComposer,
   jump,
   info,
   actions,
@@ -157,6 +158,8 @@ export function ChatView({
   needActions: NeedActions
   visible: boolean
   focusTick: number
+  /** Something that sits on top of the message box, such as the voice strip. */
+  aboveComposer?: React.ReactNode
   /** Open the chat at a message (a todo points at the one it was made or finished in); `n` changes each time it is asked. */
   jump?: { itemId: string; excerpt: string; n: number } | null
   info?: AgentInfo
@@ -817,6 +820,7 @@ export function ChatView({
         </div>
       )}
       <WidgetSlot slot="above-composer" meters={widgetMeters} />
+      {aboveComposer}
       <Composer
         agentId={agentId}
         agentName={agentName}

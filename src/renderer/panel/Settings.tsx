@@ -19,6 +19,7 @@ import { WorkflowCost } from '../workflows/WorkflowCost'
 import { WorkflowOffConfirm } from '../workflows/WorkflowOffConfirm'
 import type { Run } from '../../shared/runs'
 import { GitHubProfiles, ProjectIdentity } from './GitHubIdentity'
+import { VoiceSettings } from './VoiceSettings'
 
 /** Models of every program that is ready, each program's under its own heading. */
 function ModelOptions({ providers, own }: { providers: ProviderInfo[]; own?: string }) {
@@ -65,6 +66,7 @@ const PANES = [
   { id: 'features', group: 'Office', label: 'Features', icon: '✓' },
   { id: 'agents', group: 'Office', label: 'New agents', icon: '☺' },
   { id: 'rules', group: 'Office', label: 'House rules', icon: '☰' },
+  { id: 'voice', group: 'Office', label: 'Voice (beta)', icon: '♪' },
   { id: 'programs', group: 'Programs', label: 'Providers', icon: '▣' },
   { id: 'accounts', group: 'Programs', label: 'Accounts', icon: '◉' },
   { id: 'jobs', group: 'Programs', label: 'Model by job', icon: '⚒' },
@@ -189,6 +191,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
               <WorkflowCost dial={prefs.workflows.dial} onDial={(dial) => set({ workflows: { ...prefs.workflows, dial } })} />
             </>
           )}
+          {pane === 'voice' && <VoiceSettings prefs={prefs} onChange={onChange} project={project} />}
           {pane === 'agents' && (
             <>
               <legend>New agents start with</legend>

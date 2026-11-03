@@ -18,6 +18,7 @@ export interface Shortcut {
 export const SHORTCUTS: Shortcut[] = [
   { id: 'palette', place: 'Anywhere', text: 'Command palette for the selected agent', keys: ['Mod+K'] },
   { id: 'office', place: 'Anywhere', text: 'Show or hide the office', keys: ['Mod+Alt+O'] },
+  { id: 'voice', place: 'Anywhere', text: 'Start or end the voice companion', keys: ['Mod+Alt+V'] },
   { id: 'terminals', place: 'Anywhere', text: 'Show or hide the terminals', keys: ['Ctrl+`'] },
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
   { id: 'workspace-switch', place: 'Anywhere', text: 'Previous or next workspace', keys: ['Shift+Mod+[', 'Shift+Mod+]'] },

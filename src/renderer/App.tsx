@@ -59,6 +59,8 @@ import { ViewTab } from './panel/ViewTab'
 import { OfficeRail } from './panel/OfficeRail'
 import { sideWidth } from './panel/sidePane'
 import { officeHidden } from './officeHidden'
+import { useVoice } from './voice/useVoice'
+import { VoiceTile } from './voice/VoiceTile'
 import { createBatcher } from './batch'
 import { UpdateChip } from './panel/UpdateChip'
 import { WhatsNew } from './panel/ReleaseNotes'
@@ -926,9 +928,10 @@ export function App() {
       )
     )
   }
-  const chatFor = (a: AgentRecord, visible: boolean, key = a.id) => (
+  const chatFor = (a: AgentRecord, visible: boolean, key = a.id, strip = false) => (
     <ChatView
       key={key}
+      aboveComposer={strip && visible && voiceStrip && voice.state !== 'idle' ? <VoiceTile v={voice} layout="strip" /> : undefined}
       agentId={a.id}
       agentName={a.name}
       activity={world[a.id]?.activity ?? 'asleep'}
@@ -958,8 +961,23 @@ export function App() {
   const panes = grid && !!paneLayout && agents.length > 0
   useEffect(() => setPeek(false), [panes])
   const noOffice = officeHidden(officeOff, agents.length, grid)
+  // The voice companion: a dock over the composer while the office shows, a column on the right while it is hidden.
+  const voice = useVoice(folder ?? undefined, prefs?.voice.mode ?? 'ptt', current?.name, prefs?.voice.sounds ?? true)
+  const toggleVoice = () => (voice.state === 'idle' ? void voice.start() : void voice.stop())
+  useEffect(() => void (prefs && !prefs.voice.enabled && voice.state !== 'idle' && void voice.stop()), [prefs?.voice.enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!prefs?.voice.enabled || !matches(e, 'voice')) return
+      e.preventDefault()
+      toggleVoice()
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  })
   // With the office hidden the panel is the window: it is always showing.
+  // The voice sits as a strip on the message box when that box is in view; anywhere else (the office hidden, another tab, the grid) it is the tile in the corner.
   const showPanel = noOffice || (panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen)
+  const voiceStrip = !noOffice && !!current && view === 'chat' && showPanel && !grid
   // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
   const overW = narrow && showPanel && !panes && !noOffice ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
   const setOffice = (off: boolean) => (setOfficeOff(off), keep('aw.officeHidden', off ? '1' : ''))
@@ -1539,6 +1557,16 @@ export function App() {
         />
       )}
       {libraryOpen && <LibraryModal folder={folder ?? ''} providers={providers ?? []} enabled={prefs?.libraryEnabled !== false} onOpenSettings={() => (setLibraryOpen(false), setSettingsPane('features'), setSettings(true))} onClose={() => setLibraryOpen(false)} />}
+      {voice.state !== 'idle' && !voiceStrip && <VoiceTile v={voice} layout="corner" />}
+      {voice.problem && (
+        <div className="vp-toast" role="alert">
+          <p>{voice.problem.text}</p>
+          <div className="vp-ctl">
+            {voice.problem.settings && <button className="primary" onClick={() => (voice.dismissProblem(), setSettingsPane('voice'), setSettings(true))}>Open voice settings</button>}
+            <button onClick={voice.dismissProblem}>Dismiss</button>
+          </div>
+        </div>
+      )}
       {settings && prefs && <Settings project={folder ? { path: folder, name: folder.split(/[\\/]/).pop() || folder } : undefined} updateAgents={updateAgents} signIns={signIns} onSignIns={setSignIns} initialPane={settingsPane} providers={providers ?? []} onProviders={() => scanProviders()} onSetup={() => (setSettings(false), setSetupAgain(true))} prefs={prefs} roles={roles} onChange={(patch) => {
           // Merged with the latest saved state, so two quick changes (a text box losing focus, then a menu) both stick.
           const next = { ...prefsNow.current!, ...patch }
@@ -1596,6 +1624,7 @@ export function App() {
         {error && <span className="error">{error}</span>}
         <UpdateChip agents={updateAgents} />
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
+        {prefs?.voice.enabled && <IconButton icon="mic" label={voice.state === 'idle' ? 'Start the voice companion' : 'End the voice companion'} pressed={voice.state !== 'idle'} onClick={toggleVoice} tip={voice.state === 'idle' ? 'Talk it through: voice companion (Alt+Cmd+V)' : 'End the voice companion'} />}
         <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} disabled={noOffice} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
       </header>
@@ -1975,7 +2004,7 @@ export function App() {
             </div>
             </div>
           )}
-          {agents.map((a) => chatFor(a, a.id === selected && view === 'chat'))}
+          {agents.map((a) => chatFor(a, a.id === selected && view === 'chat', a.id, true))}
           <div className="terminals" hidden={view !== 'terminal'}>
             {agents.map((a) => (
               <TerminalView key={a.id} ptyId={a.id} visible={a.id === selected && view === 'terminal'} focusTick={focusTick} ask={{ agentId: a.id, onAttached: showChat }} />

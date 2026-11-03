@@ -16,6 +16,7 @@ export const tickIconMarkup = (size = 14) =>
 
 // Plain outline icons (24 grid, 2px square-ended strokes): the 8-bit bitmaps read badly this small.
 const ICONS = {
+  mic: <><rect x="9" y="3" width="6" height="11" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" /></>,
   history: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   crew: <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></>,
   grid: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></>,
