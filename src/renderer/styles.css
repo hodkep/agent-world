@@ -37,6 +37,11 @@
   --thumb: #3a4268; /* a scrollbar thumb */
   --frame: #2a2840; /* the bezel of a device preview */
   --hint: #6f6d86; /* a placeholder and a timestamp */
+  --file-md: #7cc4d8; /* a skill's file badges, by type: text, shell, python, script */
+  --file-sh: #e2c35b;
+  --file-py: #8fd18b;
+  --file-js: #f0a868;
+  --spine-shine: rgb(255 255 255 / 0.35); /* the band of light across a book's spine */
   --violet-1: #5a4a8e; /* a day with one use, under the violet of two or more */
   --violet-2: #8a6fd8;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -2637,6 +2642,7 @@ aside:not(.drawer) { flex: none; }
 .lip-more span { background: var(--panel-2); box-shadow: 0 0 0 1px var(--line); padding: 1px 10px; }
 .lip-foot { padding: 5px 12px; border-top: 1px solid var(--line); background: var(--panel-2); font-size: 11px; color: var(--dim); flex: none; }
 .lip-panel { padding: 14px 16px; overflow: auto; flex: 1; min-height: 0; }
+.lip-tp { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .lip-files { margin: 0; padding: 0; list-style: none; font: 12px/1.9 Menlo, Consolas, monospace; }
 .lip-facts { margin: 0; display: flex; flex-direction: column; gap: 10px; }
 .lip-facts div { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 10px; }
@@ -4739,7 +4745,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .skl-row:hover:not(:disabled) { background: var(--panel-2); }
 .skl-row.sel { background: var(--selected); box-shadow: inset 0 0 0 2px var(--accent-dim); }
 .skl-spine { width: 14px; height: 34px; border: 2px solid var(--ink); position: relative; display: grid; place-items: end center; padding-bottom: 2px; color: var(--ink); }
-.skl-spine::before { content: ''; position: absolute; left: 1px; right: 1px; top: 5px; height: 3px; background: rgb(255 255 255 / 0.35); }
+.skl-spine::before { content: ''; position: absolute; left: 1px; right: 1px; top: 5px; height: 3px; background: var(--spine-shine); }
 .skl-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .skl-main > b { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skl-meta { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -4803,7 +4809,8 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .skw-sock.copy .skw-jack i { background: var(--accent); }
 .skw-t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .skw-t b { font-size: 12.5px; }
-.skw-t small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Up to two lines, so a reason is read whole; the full path is on hover. */
+.skw-t small { color: var(--muted); font-size: 11px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
 .skw-st { font: 700 10px Menlo, Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .skw-sock.on .skw-st { color: var(--ok-text); } .skw-sock.copy .skw-st { color: var(--accent); } .skw-sock.none .skw-st { color: var(--hint); }
 .skw-note { margin: 4px 0 0; font-size: 11.5px; }
@@ -4847,7 +4854,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .lif-list li { display: flex; align-items: center; gap: 10px; padding: 5px 6px; border-bottom: 1px solid var(--line-soft); }
 .lif-list li:hover { background: var(--panel-3); }
 .lif-ic { flex: none; width: 26px; height: 16px; display: grid; place-items: center; font: 700 9px Menlo, Consolas, monospace; color: var(--ink); background: var(--violet); }
-.lif-md { background: #7cc4d8; } .lif-sh { background: #e2c35b; } .lif-py { background: #8fd18b; } .lif-js, .lif-ts, .lif-mjs { background: #f0a868; }
+.lif-md { background: var(--file-md); } .lif-sh { background: var(--file-sh); } .lif-py { background: var(--file-py); } .lif-js, .lif-ts, .lif-mjs { background: var(--file-js); }
 .lif-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px Menlo, Consolas, monospace; }
 .lif-list small { flex: none; color: var(--dim); font: 11px Menlo, Consolas, monospace; }
 .lif-list button, .lif-kept button { flex: none; padding: 2px 10px; font-size: 12px; }
