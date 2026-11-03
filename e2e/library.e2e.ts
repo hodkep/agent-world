@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -20,9 +20,10 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
   const home = mkdtempSync(join(tmpdir(), 'aw-lib-e2e-'))
   const user = join(home, 'user')
   skill(join(user, '.claude', 'skills', 'caveman'), 'caveman', 'Talk tersely.', 'Drop articles. Fragments are fine.')
-  skill(join(user, '.claude', 'skills', 'pdf'), 'pdf', 'Work with PDFs.', 'Use the helper script when asked to split a PDF.')
-  mkdirSync(join(user, '.claude', 'skills', 'pdf', 'scripts'), { recursive: true })
-  writeFileSync(join(user, '.claude', 'skills', 'pdf', 'scripts', 'split.sh'), 'echo split')
+  // pdf is in the skills CLI's own folder, which Claude does not read; caveman is in Claude's own.
+  skill(join(user, '.agents', 'skills', 'pdf'), 'pdf', 'Work with PDFs.', 'Use the helper script when asked to split a PDF.')
+  mkdirSync(join(user, '.agents', 'skills', 'pdf', 'scripts'), { recursive: true })
+  writeFileSync(join(user, '.agents', 'skills', 'pdf', 'scripts', 'split.sh'), 'echo split')
   const project = join(home, 'project')
   mkdirSync(project)
   const args = join(home, 'args.log')
@@ -53,8 +54,6 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await expect(importing).toContainText('~/.claude/skills')
     await importing.getByRole('button', { name: 'Import 2 selected' }).click()
     await expect(pane.getByRole('status')).toContainText('Imported 2')
-    // The originals are tidied away, except caveman: Claude lists what its own folder has, so the app does not add that one again.
-    rmSync(join(user, '.claude', 'skills', 'pdf'), { recursive: true })
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
     // Every item is in one list that can be searched, with each item's cost beside its name.
     const box = pane.getByRole('region', { name: 'Items' })
@@ -69,17 +68,19 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByLabel('Item text').fill('Talk short and plain.')
     await pane.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(pane.getByRole('button', { name: 'Open Terse' })).toBeVisible()
-    // A skill opens to where it works: on for Claude by default. Its text, its other files and where it is used are the next tabs.
+    // A skill opens to its overview: where it lives (a link to its real folder, the library holds no copy), and where it works: on for Claude by default. Its text and its other files are the next tabs.
     await pane.getByRole('button', { name: 'Open pdf' }).click()
     const detail = pane.getByRole('group', { name: 'pdf in detail' })
-    await expect(detail.getByRole('tab', { name: 'Where it works' })).toHaveAttribute('aria-selected', 'true')
+    await expect(detail.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
+    await expect(detail).toContainText('Where it lives')
+    await expect(detail).toContainText(join(user, '.agents', 'skills', 'pdf'))
     await expect(detail.getByRole('switch', { name: 'On for every Claude account in the app' })).toBeChecked()
     await detail.getByRole('tab', { name: 'What an agent reads' }).click()
     await expect(detail).toContainText('Use the helper script')
     await detail.getByRole('tab', { name: 'Files' }).click()
     await expect(detail).toContainText('scripts/split.sh')
-    await detail.getByRole('tab', { name: 'Used by' }).click()
-    await expect(detail).toContainText('Not fetched yet')
+    // The files were not copied: the library holds a link to the folder.
+    expect(lstatSync(join(home, 'aw', 'library', 'skills', 'pdf')).isSymbolicLink()).toBe(true)
 
     // The window has three sections, one screen each: skills (open now), the playbook, and usage.
     await expect(pane.getByRole('tab', { name: 'Skills' })).toHaveAttribute('aria-selected', 'true')
@@ -96,6 +97,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByRole('button', { name: 'Add an item…' }).click()
     const menu = pane.getByRole('dialog', { name: 'Add an item' })
     await expect(menu.getByRole('button', { name: /Your Claude skills/ })).toBeVisible()
+    // Only the first groups are open; a search opens the rest.
+    await pane.getByLabel('Search items').fill('terse')
     await expect(menu.getByRole('button', { name: 'Terse, already in the playbook' })).toHaveAttribute('aria-disabled', 'true')
     await pane.getByLabel('Search items').fill('zzz')
     await expect(menu).toContainText('No item matches')
