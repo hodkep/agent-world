@@ -560,8 +560,11 @@ aside.drawer.wide { width: min(94vw, 900px); }
 .ans-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; color: var(--accent); font-weight: 600; }
 .ans-head svg { flex: none; shape-rendering: crispEdges; }
 .ans-tag { margin-left: auto; font: 700 10px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 5px; color: var(--ink); background: var(--accent); }
-.ans-rows { margin: 0 10px 8px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 12px; }
-.ans-rows span { overflow-wrap: anywhere; } .ans-rows .ans-k { color: var(--muted); }
+/* Each answer under its question: two columns let a long question squeeze the answer to a letter a line. */
+.ans-rows { margin: 0 10px 8px; display: flex; flex-direction: column; gap: 8px; }
+.ans-rows div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ans-rows dt { color: var(--muted); font-size: 11.5px; overflow-wrap: break-word; }
+.ans-rows dd { margin: 0; font-weight: 600; overflow-wrap: break-word; white-space: pre-wrap; }
 .ans details { margin: 0 10px 7px; font-size: 11px; color: var(--muted); }
 .ans summary { cursor: pointer; }
 .ans pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px Menlo, Consolas, monospace; color: var(--muted); }
