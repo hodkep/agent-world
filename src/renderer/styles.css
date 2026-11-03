@@ -3292,8 +3292,13 @@ svg.pxg { display: block; flex: none; }
 .rb-commits .mono { color: var(--muted); font-size: 11px; }
 .rb-commits .chipw { font-size: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; color: var(--muted); }
 /* ---- The run track as one thin row above the chat ---- */
-.run-track.bar { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
-.run-track.bar .rt-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 80px; }
+/* Two lines at most: the agent, the task's title and what it waits for on the first, the steps on the second. */
+.run-track.bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'spr title pill' 'spr st st'; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
+.run-track.bar > .pxg.spr { grid-area: spr; }
+.run-track.bar > .bar-st { grid-area: st; min-width: 0; overflow: hidden; }
+.run-track.bar > .pill { grid-area: pill; max-width: 22ch; }
+.run-track.bar > .pill.refused { grid-area: pill; }
+.run-track.bar .rt-title { grid-area: title; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .run-track.bar .rt-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-track.bar .pxg.spr { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
@@ -4367,7 +4372,7 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .se-acts .se-ico { padding: 0; width: 22px; height: 22px; }
 
 /* A card that asks, folded to one line: the tag, the title, the first words of what it says, the same buttons, and the chevron. Too narrow for the buttons, the row wraps and they drop under it. */
-.plan-gate.gate-line { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 6px 8px 6px 10px; }
+.plan-gate.gate-line { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; padding: 6px 8px 6px 10px; min-height: 0; }
 .gate-line .gl-title { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gate-line .gl-gist { flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .gate-line .pg-acts { margin: 0; flex: none; }
@@ -4692,3 +4697,19 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .office-mark.ok { background: var(--ok-text); }
 .office-cmds { margin: 0; padding: 6px 12px; background: var(--well); border-bottom: 2px solid var(--ink); color: var(--text); font: 11px/1.5 var(--mono, ui-monospace, 'SF Mono', Menlo, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
 
+/* The run bar above the chat opens a card for the step the run stands on: what it needs, and the buttons to move it on by hand. */
+.rbar { position: relative; flex: none; }
+/* The step the run stands on is the bar's button: a square like the others, picked out while its card is open. */
+.bar-st button.sq { padding: 0; border: 0; cursor: pointer; font: inherit; }
+.bar-st button.sq:hover { filter: brightness(1.15); }
+.bar-st .st.picked .sq { box-shadow: 0 0 0 1px var(--ink), 0 0 0 3px var(--accent); }
+.bar-st .st.picked .nm { color: var(--accent); }
+.rbar-card { margin: 8px 10px; padding: 10px 12px; text-align: left; align-items: stretch; display: flex; flex-direction: column; gap: 8px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
+.rbar-h { display: flex; align-items: baseline; justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
+.rbar-h b { font-size: 13px; }
+.rbar-h small { color: var(--hint); font-size: 11px; }
+.rbar-card p { margin: 0; color: var(--muted); font-size: 12px; }
+.rbar-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rbar-sp { flex: 1; }
+.rbar-acts button.ghost { background: none; border-color: transparent; box-shadow: none; }
+.rbar-end { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; background: var(--danger-well); border: 2px solid var(--ink); font-size: 12px; }

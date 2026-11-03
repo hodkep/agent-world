@@ -24,7 +24,7 @@ export type RunEvent =
   /** The plan of a round: submitted (with its read-back), then approved, sent back for changes, or released (the person lifted the block without approving). */
   | { k: 'plan'; t: number; run: string; round: number; state: 'submitted'; path: string; readback: PlanReadback; check?: PlanCheck }
   | { k: 'plan'; t: number; run: string; round: number; state: 'approved' | 'changes' | 'released'; note?: string; answers?: PlanAnswer[] }
-  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'; note?: string; implicit?: boolean; /** For the work added to the run with this number (the run's own task is 1): the step belongs to its lane, not to the main chain. */ item?: number }
+  | { k: 'step'; t: number; run: string; round: number; step: string; state: 'done' | 'approved' | 'changes' | 'skipped' | 'declined' | 'rerun' | 'reopen'; note?: string; implicit?: boolean; /** The person marked the agent's step done by hand. */ byPerson?: true; /** For the work added to the run with this number (the run's own task is 1): the step belongs to its lane, not to the main chain. */ item?: number }
   /** A command failed while the run was open: a git command, or a test, build or lint command. `step` is the step the run was at. */
   | { k: 'trouble'; t: number; run: string; step?: string; label: string; command: string; error: string }
   /** The agent asks to skip steps that are not optional, with its reason: one question for the person, who answers it once. */
@@ -82,6 +82,8 @@ export interface StepLog {
   note?: string
   /** The app marked it done when the agent finished the task, because the agent never said so. */
   implicit?: boolean
+  /** The person marked the agent's step done by hand. */
+  byPerson?: true
   /** For the work added to the run with this number (the run's own task is 1): the step belongs to its lane, not to the main chain. */
   item?: number
 }
@@ -214,7 +216,7 @@ export function reduceRuns(events: RunEvent[]): Run[] {
         into.plan = { ...into.plan, state: e.state, decidedAt: e.t, waitedMs: (into.plan.waitedMs ?? 0) + Math.max(0, e.t - into.plan.submittedAt), ...(e.state === 'changes' && { sentBack: (into.plan.sentBack ?? 0) + 1 }), ...(e.note && { note: e.note }), ...(e.answers?.length && { answers: e.answers }) }
       }
     } else if (e.k === 'step') {
-      r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }), ...(e.item !== undefined && { item: e.item }) })
+      r.rounds.find((x) => x.n === e.round)?.steps.push({ step: e.step, state: e.state, t: e.t, ...(e.note && { note: e.note }), ...(e.implicit && { implicit: true }), ...(e.byPerson && { byPerson: true as const }), ...(e.item !== undefined && { item: e.item }) })
     } else if (e.k === 'start') {
       const into = r.rounds.find((x) => x.n === e.round)
       if (into) into.starts = { ...into.starts, [e.step]: e.t }

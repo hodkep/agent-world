@@ -9,23 +9,30 @@ const WORD: Record<Station['state'], string> = { done: 'met', trouble: 'met afte
  * Where one open run stands: its steps as stations on a rail, the agent standing on the one it is at, and a speech bubble when it waits on the person.
  * Shown above the agent's chat while a task is open (and again in its Workflow tab), so the calls that move the run need no lines in the conversation.
  */
-export function RunTrack({ track, seed, agentName, variant = 'full', landing, onReopen }: { track: Track; seed: string; agentName: string; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar'; /** Git held the agent's merge: the marker that says so, in place of what the run waits for. */ landing?: LandingPill | null; /** The person opens the band again from a marker they had said not yet to. */ onReopen?: () => void }) {
+export function RunTrack({ track, seed, agentName, variant = 'full', landing, onReopen, onNow, picked }: { track: Track; seed: string; agentName: string; /** In the bar: the step it stands on is a button that shows what that step needs. */ onNow?: () => void; /** That step's card is open: its square is picked out. */ picked?: boolean; /** `bar`: one thin row for above the chat; `full`: the track with the agent standing on its station. */ variant?: 'full' | 'bar'; /** Git held the agent's merge: the marker that says so, in place of what the run waits for. */ landing?: LandingPill | null; /** The person opens the band again from a marker they had said not yet to. */ onReopen?: () => void }) {
   const said = landing?.text ?? track.waiting ?? track.trouble ?? track.note
   const word = (s: Station) => `${WORD[s.state]}${s.tries ? `, ${s.kind === 'plan' ? 'sent back' : 'failed'} ${s.tries === 1 ? 'once' : `${s.tries} times`}` : ''}`
   const mark = (s: Station): HeaderIconName => (s.state === 'done' || s.state === 'trouble' ? 'tick' : s.state === 'failed' ? 'cross' : s.state === 'skipped' ? 'forward' : ICON[s.kind])
+  const square = (s: Station) => (
+    <>
+      <OutlineIcon name={mark(s)} size={12} />
+      {s.tries ? <b className="tn">{s.tries}</b> : null}
+    </>
+  )
   const railOn = (i: number) => i > 0 && ['done', 'trouble', 'skipped'].includes(track.stations[i - 1]!.state)
   if (variant === 'bar')
     return (
       <div className="run-track bar" role="region" aria-label={`${track.title}: where ${agentName} is`}>
         <Sprite seed={seed} cell={2} />
-        <span className="rt-title"><b>{track.title}</b><small>{track.workflow}{track.round > 1 ? ` · round ${track.round}` : ''}</small></span>
+        <span className="rt-title"><b title={track.title}>{track.title}</b><small>{track.workflow}{track.round > 1 ? ` · round ${track.round}` : ''}</small></span>
         <ol className="bar-st">
           {track.stations.map((s, i) => (
-            <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}`} title={`${s.name}: ${word(s)}`}>
-              <i className="sq">
-                <OutlineIcon name={mark(s)} size={12} />
-                {s.tries ? <b className="tn">{s.tries}</b> : null}
-              </i>
+            <li key={s.id} className={`st ${s.state} ${railOn(i) ? 'rail-on' : ''}${s.state === 'now' && picked ? ' picked' : ''}`} title={`${s.name}: ${word(s)}`}>
+              {s.state === 'now' && onNow ? (
+                <button className="sq" aria-expanded={!!picked} aria-label={`What "${s.name}" needs`} onClick={onNow}>{square(s)}</button>
+              ) : (
+                <i className="sq">{square(s)}</i>
+              )}
               <span className="nm">{s.name}</span>
               <span className="sr-only"> ({word(s)})</span>
             </li>

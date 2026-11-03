@@ -490,6 +490,8 @@ export interface AwApi {
     answerSkip(runId: string, approve: boolean, note?: string): Promise<void>
     /** The person ends a run that cannot go on: what is left is set aside with the reason, and the agent is told to stop. */
     endRun(runId: string, why?: string): Promise<void>
+    /** The person marks the agent's step the run stands on done by hand. */
+    closeStep(runId: string, step: string): Promise<void>
     /** The person asks for a step they refused once more. */
     askAgain(runId: string, step: string): Promise<void>
     /** The person's answer to a refused step: skip it and go on, ask again later, or stop the run. */
