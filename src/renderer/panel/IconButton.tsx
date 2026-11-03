@@ -76,6 +76,12 @@ const ICONS = {
   office: <path d="M3 21V5h12v16M15 9h6v12M7 9h4M7 13h4M7 17h4M18 13h.01M18 17h.01" />,
   chat: <path d="M4 4h16v12H10l-5 4v-4H4z" />,
   code: <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" />,
+  // The agent menu: sleep, fork, hand a branch over, rename, a label.
+  moon: <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z" />,
+  clone: <><rect x="3" y="3" width="8" height="8" /><rect x="13" y="13" width="8" height="8" /><path d="M11 7h4v6M13 17H7v-4" /></>,
+  handoff: <path d="M3 12h14M12 6l6 6-6 6M21 5v14" />,
+  pencil: <path d="M4 20l1-5L16 4l4 4L9 19zM13 7l4 4" />,
+  tag: <path d="M3 3h8l10 10-8 8L3 11zM7.5 7.5h.01" />,
   traces: <path d="M3 8h14M13 4l4 4-4 4M21 16H7M11 12l-4 4 4 4" />
 } satisfies Record<string, ReactNode>
 

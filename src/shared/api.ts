@@ -244,6 +244,8 @@ export interface AwApi {
   listTools(agentId: string): Promise<ToolsInfo>
   manageTools(agentId: string, action: import('./types').ManageAction): Promise<string>
   wakeAgent(id: string): Promise<void>
+  /** Stop the agent's program on demand (Wake starts it again); refused, with the reason, while something depends on it. */
+  sleepAgent(id: string): Promise<void>
   removeAgent(id: string, mode?: 'discard' | 'keep-worktree'): Promise<RemoveResult>
   /** A shell in the project folder for a grid cell; its id starts with `term:` and works with the pty calls below. */
   openShell(folder: string): Promise<string>

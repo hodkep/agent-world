@@ -58,6 +58,7 @@ const api: AwApi = {
   manageTools: (id, action) => ipcRenderer.invoke('manage-tools', id, action),
   listTools: (id) => ipcRenderer.invoke('list-tools', id),
   wakeAgent: (id) => ipcRenderer.invoke('wake-agent', id),
+  sleepAgent: (id) => ipcRenderer.invoke('agent:sleep', id),
   removeAgent: (id, mode) => ipcRenderer.invoke('remove-agent', id, mode),
   openShell: (folder) => ipcRenderer.invoke('shell:open', folder),
   closeShell: (id) => ipcRenderer.send('shell:close', id),

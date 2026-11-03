@@ -1363,6 +1363,8 @@ export function App() {
       linesRemoved: st?.linesRemoved ?? 0,
       branch: a.branch,
       canSwitch: act !== 'asleep' && ['idle', 'waiting'].includes(act),
+      asleep: act === 'asleep',
+      sleepBlock: act === 'waiting' ? 'It is waiting for you; answer it first.' : act !== 'idle' ? 'Wait until it finishes its turn.' : agents.some((c) => c.parent === a.id && (world[c.id]?.activity ?? 'asleep') !== 'asleep') ? 'It has agents working for it.' : undefined,
       started: !!a.started,
       role: a.options?.role,
       tokens: st?.tokens,
@@ -1397,6 +1399,7 @@ export function App() {
         const stops = running ? ` ${running === 1 ? 'A command it is running' : `${running} commands it is running`} will be stopped.` : ''
         if (await askConfirm({ title: `Restart ${a.name}?`, body: `Its terminal stops and starts again on the same conversation.${stops} Nothing is lost from its worktree.`, confirm: 'Restart' })) await window.aw.restartAgent(a.id)
       }),
+    sleep: () => void run(() => window.aw.sleepAgent(a.id)),
     remove: () => remove(a.id)
   })
   const wake = (a: AgentRecord) =>
