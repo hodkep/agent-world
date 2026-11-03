@@ -101,9 +101,19 @@ describe('how often each skill was used', () => {
       use('pdf', 40, 'skill', 'a3', 'os', 'rushikesh'),
       use('memo', 45, 'skill')
     ], now)
-    expect(u.pdf).toEqual({ used: 3, last: now - DAY, agents: ['charlie', 'delta'], accounts: ['work'] })
+    expect(u.pdf).toMatchObject({ used: 3, last: now - DAY, agents: ['charlie', 'delta'], accounts: ['work'] })
     // Used only long ago: none in 30 days, but its last use is kept.
-    expect(u.memo).toEqual({ used: 0, last: now - 45 * DAY, agents: [], accounts: [] })
+    expect(u.memo).toMatchObject({ used: 0, last: now - 45 * DAY, agents: [], accounts: [] })
     expect(u.graphify).toBeUndefined()
+  })
+
+  it('says how many uses each of the 30 days had, oldest first and today last, and which agents by id, so each can be drawn as its office figure', () => {
+    const u = skillUsage([use('pdf', 0, 'skill', 'a1', 'delta'), use('pdf', 0.5, 'read', 'a1', 'delta'), use('pdf', 3, 'fetched', 'a2', 'charlie'), use('pdf', 29.5, 'skill', 'a2', 'charlie'), use('pdf', 31, 'skill', 'a3', 'os')], now)
+    expect(u.pdf!.days).toHaveLength(30)
+    expect(u.pdf!.days[29]).toBe(2)
+    expect(u.pdf!.days[26]).toBe(1)
+    expect(u.pdf!.days[0]).toBe(1)
+    expect(u.pdf!.days.reduce((a, b) => a + b, 0)).toBe(u.pdf!.used)
+    expect(u.pdf!.who).toEqual([{ id: 'a2', name: 'charlie' }, { id: 'a1', name: 'delta' }])
   })
 })

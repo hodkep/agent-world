@@ -22,14 +22,16 @@ On the **Skills** tab:
 - To write an instruction: click **New instruction**, fill in **Name**, **When to use it** and **Text an agent reads**, then click **Save** (or press ⌘↵; Esc cancels).
 - To write a prompt: click **New prompt** and do the same.
 
-Click an item to read it, **Edit** to change it, or **Remove** to delete it from the library. Use **Find an item…** to search. A skill's **Files** tab lists its other files with their size in tokens: **Open** opens one in the program your Mac uses for it, and **Show in Finder** shows the skill's folder. The line above the list says how many skills are on for Claude and about how many tokens their names and descriptions add to the start of every session.
+Click an item to read it, **Edit** to change it, or **Remove** to delete it from the library. Use **Find an item…** to search. A skill's **Files** tab lists its other files with their size in tokens: **Open** opens one in the program your Mac uses for it, and **Show in Finder** shows the skill's folder. The line above the list says how many skills are on for Claude, and its meter shows about how many tokens their names and descriptions add to the start of every session.
+
+The list groups skills as **Used this month**, **Gathering dust** (on for Claude but not used in 30 days) and **Off for Claude**, with instructions and prompts last. Each skill has its shelf colour, a square for each of the last 30 days (brighter for more uses), the faces of the agents that used it, how often it was used and what it costs. **Clear the dust** turns every skill gathering dust off for Claude; each can be turned back on. When an agent loads a skill while the window is open, its row blinks and shows +1. Opening a skill shows the same numbers under its description.
 
 ## Choose where a skill works
 
-Each skill has a switch in the list, and a **Where it works** tab when you open it. One copy lives in the library; nothing is copied.
+Open a skill: its **Where it works** tab shows the library copy, a socket for each place and a cable to each place the skill reaches. Click a socket to switch it. One copy lives in the library; nothing is copied.
 
-- **On for every Claude account in the app**: on by default. Every Claude agent gets the skill when it starts, on every account the app has set up, and nothing is installed in an account's own folder. Switch it off to keep the skill in the library only. A skill a playbook rule names still reaches the agent, and a rule set to **Off** keeps one away.
-- **Claude (outside the app)**, **Antigravity CLI**, **Antigravity app** and **This project**: switch one on to link the skill into that program's skills folder. The link points at the library copy, so an edit shows everywhere. A place that is not installed here is greyed out. If a folder of the same name is already there, the row says **a copy** and is left as it is.
+- **Claude in the app**: on by default. Every Claude agent gets the skill when it starts, on every account the app has set up, and nothing is installed in an account's own folder. Switch it off to keep the skill in the library only. A skill a playbook rule names still reaches the agent, and a rule set to **Off** keeps one away.
+- **Claude (outside the app)**, **Antigravity CLI**, **Antigravity app** and **This project**: click one marked **plug in** to link the skill into that program's skills folder; it then says **linked**. The link points at the library copy, so an edit shows everywhere. A place that is not installed here says **not here** and is greyed out. If a folder of the same name is already there, the socket says **a copy** and is left as it is.
 
 A skill that is linked into **Claude (outside the app)** is not added again when an agent starts, so Claude does not list it twice.
 
@@ -84,7 +86,7 @@ An agent can read only items in its playbook. Claude Code also gets the playbook
 
 ## Usage
 
-The top of the **Usage** tab shows the library's skills over the last 30 days. **Used in 30 days** has a bar per skill, longest for the most used, with the agents and accounts that used it and when it was last used. A use is Claude loading the skill, or an agent reading it. **Not used in 30 days** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, or **Remove** to delete it from the library.
+The top of the **Usage** tab shows the library's skills over the last 30 days, with the start-of-session cost meter. **Most used** ranks them with a bar each, the faces of the agents that used them, the accounts and when each was last used. A use is Claude loading the skill, or an agent reading it. **Gathering dust** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, **Remove** to delete it from the library, or **Clear the dust** to turn them all off for Claude. **Who reached for what** shows each agent with the skills it used.
 
 Below that, the tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
 

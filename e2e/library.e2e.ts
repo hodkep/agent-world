@@ -56,11 +56,11 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
     // Every item is in one list that can be searched, with each item's cost beside its name.
     const box = pane.getByRole('region', { name: 'Items' })
-    await expect(box).toContainText('tokens')
-    await box.getByLabel('Find an item').fill('cave')
+    await expect(box).toContainText(' tok')
+    await pane.getByLabel('Find an item').fill('cave')
     await expect(box.getByRole('button', { name: 'Open pdf' })).toHaveCount(0)
     await expect(box.getByRole('button', { name: 'Open caveman' })).toBeVisible()
-    await box.getByLabel('Find an item').fill('')
+    await pane.getByLabel('Find an item').fill('')
     await pane.getByRole('button', { name: 'New instruction' }).click()
     await pane.getByLabel('Item name').fill('Terse')
     await pane.getByLabel('Item description').fill('Talk short.')
@@ -117,9 +117,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await sees.getByLabel('Program').selectOption({ label: 'Claude Code' })
     // It is saved as it is edited.
     await expect.poll(() => readdirJson(join(home, 'aw', 'library', 'playbooks', 'workspaces'))).toHaveLength(1)
-    await dialog.getByRole('button', { name: 'Close library' }).click()
+    await dialog.getByRole('button', { name: 'Close Playbook and tools' }).click()
 
-    // A Claude agent starts with the opening text, a session-only plugin folder of just the allowed skill, and the library folder readable.
+    // A Claude agent starts with the opening text, a session-only plugin folder of every skill on for Claude (all of them unless switched off), and the library folder readable.
     await hire(page)
     await expect.poll(() => claudeStart(args).length).toBeGreaterThan(0)
     const claude = claudeStart(args)
@@ -134,7 +134,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(plugin).toMatch(/library[\\/]run[\\/][\w-]+$/)
     expect(JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).name).toBe('agent-world-library')
     expect(existsSync(join(plugin, 'skills', 'pdf', 'scripts', 'split.sh'))).toBe(true)
-    expect(existsSync(join(plugin, 'skills', 'caveman'))).toBe(false)
+    expect(existsSync(join(plugin, 'skills', 'caveman'))).toBe(true)
     expect(claude).toContain(join(home, 'aw', 'library'))
 
     // Through the office's tools it can list and read only what the playbook allows, and every read is recorded.

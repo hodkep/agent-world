@@ -17,7 +17,7 @@ test('the library and playbook can be switched off: agents are offered nothing f
     await page.evaluate((f) => localStorage.setItem('aw.folder', f), home)
     await page.reload()
     const header = page.locator('header')
-    await expect(header.getByRole('button', { name: 'Library', exact: true })).toBeVisible()
+    await expect(header.getByRole('button', { name: 'Playbook and tools', exact: true })).toBeVisible()
 
     // Switched off in Settings > Features: Check before acting goes grey under it.
     await header.getByRole('button', { name: 'Settings', exact: true }).click()
@@ -47,14 +47,14 @@ test('the library and playbook can be switched off: agents are offered nothing f
     expect(await tools()).toContain('todo_list')
 
     // The icon is dimmed and says off; its window says so too, with a button to the switch.
-    const icon = header.getByRole('button', { name: 'Library (off)' })
+    const icon = header.getByRole('button', { name: 'Playbook and tools (off)' })
     await expect(icon).toBeVisible()
     await icon.click()
-    const library = page.getByRole('dialog', { name: 'Library' })
+    const library = page.getByRole('dialog', { name: 'Playbook and tools' })
     await expect(library.getByRole('note', { name: 'The library is off' })).toContainText('turned off')
     await expect(library.getByRole('tab', { name: 'Playbook' })).toHaveCount(0)
     await library.getByRole('button', { name: 'Open Settings → Features' }).click()
-    await expect(page.getByRole('dialog', { name: 'Library' })).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Playbook and tools' })).toHaveCount(0)
     const again = page.getByRole('dialog', { name: 'Settings' })
     await expect(again.getByRole('checkbox', { name: /Library and playbook/ })).not.toBeChecked()
 
@@ -62,8 +62,8 @@ test('the library and playbook can be switched off: agents are offered nothing f
     await again.getByRole('checkbox', { name: /Library and playbook/ }).click()
     await again.getByRole('button', { name: 'Close settings' }).click()
     expect(await tools()).toContain('library_index')
-    await header.getByRole('button', { name: 'Library', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Library' }).getByRole('tab', { name: 'Playbook' })).toBeVisible()
+    await header.getByRole('button', { name: 'Playbook and tools', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Playbook and tools' }).getByRole('tab', { name: 'Playbook' })).toBeVisible()
   } finally {
     await shutdown()
   }
