@@ -87,6 +87,7 @@ const api: AwApi = {
   onChatItems: on('chat-items'),
   onLibraryUse: on('library-use'),
   onLibrarySizes: on('library-sizes'),
+  onLibraryInstallLog: on('library-install-log'),
   onTodosChanged: on('todos-changed'),
   onNotesAsk: on('notes-ask'),
   notes: {
@@ -223,6 +224,9 @@ const api: AwApi = {
     file: (id, file, action) => ipcRenderer.invoke('library:file', id, file, action),
     usage30: () => ipcRenderer.invoke('library:usage30'),
     useOriginal: (id, dir) => ipcRenderer.invoke('library:use-original', id, dir),
+    refreshLogo: (id) => ipcRenderer.invoke('library:refresh-logo', id),
+    installList: (pkg) => ipcRenderer.invoke('library:install-list', pkg),
+    install: (pkg, names) => ipcRenderer.invoke('library:install', pkg, names),
     deletePlan: (id) => ipcRenderer.invoke('library:delete-plan', id),
     delete: (id, anyway) => ipcRenderer.invoke('library:delete', id, anyway),
     places: (folder) => ipcRenderer.invoke('library:places', folder),

@@ -302,6 +302,8 @@ export interface AwApi {
   onLibraryUse(cb: (agentId: string, how: string, item: string) => void): () => void
   /** A skill's size has been measured. */
   onLibrarySizes(cb: () => void): () => void
+  /** A line the skills CLI printed while installing. */
+  onLibraryInstallLog(cb: (line: string) => void): () => void
   /** An agent opened a page in a browser: the app shows it in that agent's Preview tab. `path` is the file, as found on this computer. */
   onOpenPage(cb: (agentId: string, path: string) => void): () => void
   onChatItems(cb: (agentId: string, sessionId: string, items: ChatItem[]) => void): () => void
@@ -566,6 +568,12 @@ export interface AwApi {
     /** Per item: loads and reads in the last 30 days, the last one ever, and which agents and accounts used it. */
     /** Swaps a copy the library holds for a link to its original (a folder the scan found), freeing the copy. */
     useOriginal(id: string, dir: string): Promise<LibraryItem>
+    /** Asks again for a skill's logo after a miss (the picture of its GitHub owner). */
+    refreshLogo(id: string): Promise<void>
+    /** The skills a GitHub repository holds, from the skills CLI. */
+    installList(pkg: string): Promise<{ name: string; description: string }[]>
+    /** Installs the named skills with the skills CLI into ~/.agents/skills and adds them to the library as links. */
+    install(pkg: string, names: string[]): Promise<{ names: string[]; added: string[]; skipped: { name: string; reason: string }[] }>
     deletePlan(id: string): Promise<import('./library').DeletePlan>
     /** Deletes a skill's real folder, the links to it and its library entry; `anyway` confirms a project skill that git tracks. */
     delete(id: string, anyway?: boolean): Promise<import('./library').DeletePlan>

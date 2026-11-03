@@ -10,6 +10,7 @@ import { commitsSince, uncommittedFiles } from './gitops'
 import { editedFiles } from './todos/edited'
 import { excerptOf, type LabelColor } from '../shared/todos'
 import { importCandidates, scanSources } from './library/sources'
+import { installSkills, listSkills, npxRunner } from './library/installer'
 import { isRule } from './library/playbook'
 import { ownName } from '../shared/ownAccount'
 import { link as linkSkill, linkState, targets as skillTargets, unlink as unlinkSkill } from './library/links'
@@ -2578,7 +2579,29 @@ async function main() {
   // Only folders that a fresh scan finds can be copied in, so a window can never ask for any other folder.
   ipcMain.handle('library:import', async (_, folder: string | undefined, dirs: string[]) => {
     const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined, folders: allProjects(), accounts: claudeAccounts() })
-    return importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
+    const r = await importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
+    void libraryService.addLogos(r.added)
+    return r
+  })
+  ipcMain.handle('library:refresh-logo', (_, id: string) => libraryService.addLogos([String(id)], true))
+  // Installing goes through the skills CLI, which puts skills in ~/.agents/skills; what it installed is then added to the library as links.
+  const runSkills = npxRunner(userHome())
+  ipcMain.handle('library:install-list', (_, pkg: string) => listSkills(String(pkg ?? '').trim(), runSkills))
+  ipcMain.handle('library:install', async (_, pkg: string, names: string[]) => {
+    const done = await installSkills(String(pkg ?? '').trim(), Array.isArray(names) ? names.map(String) : [], runSkills, (line) => send('library-install-log', line))
+    const real = (p: string) => {
+      try {
+        return realpathSync(p)
+      } catch {
+        return p
+      }
+    }
+    const landed = new Set(done.map((d) => real(d.path)))
+    const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).filter((c) => landed.has(real(c.dir)))
+    const r = await importCandidates(libraryService.library, found)
+    void libraryService.addLogos(r.added)
+    send('library-sizes')
+    return { names: done.map((d) => d.name), ...r }
   })
   ipcMain.handle('library:places', (_, folder?: string) => {
     const ts = skillTargets(userHome(), folder && isDir(folder) ? folder : undefined)
