@@ -4419,6 +4419,10 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .se-body.has-pick > .se-hint { display: none; }
 .se .se-pick.dock { position: static; flex: none; width: 400px; max-width: 46%; max-height: 100%; overflow: auto; box-shadow: none; border-left: 2px solid var(--accent-dim); }
 .se .se-pick.dock::before { display: none; }
+/* The skill picker inside the docked settings is as wide as the dock and lines up with its edges: its own 440 px opened past the dock, and what passed the edge was cut off. */
+.se .se-pick.dock { container-type: inline-size; }
+.se .se-pick.dock .am-pop, .se .se-pick.dock .am-pop.right { left: -16px; right: auto; width: calc(100cqw + 32px); max-width: none; }
+
 .bs-actions button { font-size: 12px; padding: 4px 11px; }
 /* ---- Workflow list: facts column and flow share the width they are given ---- */
 .wfl-cols { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 0; }
