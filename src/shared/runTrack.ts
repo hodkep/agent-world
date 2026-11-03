@@ -1,5 +1,5 @@
 import type { Run } from './runs'
-import { type StepContext, type StepState, stepStates } from './steps'
+import { type StepContext, type StepState, openLane, stepStates } from './steps'
 import { type StepKind, isLanding, landingKind } from './workflow'
 
 /** One station on a run's track: a step of its workflow, and how far the run has got with it. */
@@ -30,6 +30,8 @@ export interface Track {
   waiting?: string
   /** What stands out when it is the agent's turn: a plan the person sent back, being revised. */
   note?: string
+  /** Work added to the run that is under way: its number, title and the step of its own it stands on. */
+  lane?: { item: number; title: string; step: { id: string; name: string } }
 }
 
 /** The merge is the agent's to do when the person asks it in the chat; the office holds it until its gates are met. */
@@ -79,7 +81,8 @@ export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   const last = run.troubles?.at(-1)
   const failedHere = last && last.step === here.id && here.state !== 'passed' ? (/git\s+commit\b/.test(last.command) ? 'Commit' : /git\s+push\b/.test(last.command) ? 'Push' : last.label === 'tests' ? 'Tests' : last.label === 'build' ? 'Build' : last.label === 'lint' ? 'Lint' : 'A git command') + ` failed: ${last.label}` : undefined
   const again = here.state === 'failed' && here.kind !== 'check' && here.kind !== 'audit' ? here.id : undefined
-  return { run: run.id, ...(again && { again }), ...(failedHere && { trouble: failedHere }), title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
+  const lane = openLane(run, ctx)
+  return { run: run.id, ...(lane && { lane }), ...(again && { again }), ...(failedHere && { trouble: failedHere }), title: run.title, workflow: run.workflow.name, round: run.rounds.length, stations, at, ...(waiting && { waiting }), ...(note && { note }) }
 }
 
 export type LandingPill = { kind: 'held' | 'notyet'; text: string }

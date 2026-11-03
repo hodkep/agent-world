@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, LATER, noWorkRecorded, refusedAsk } from '../../shared/steps'
+import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, openLane, LATER, noWorkRecorded, refusedAsk } from '../../shared/steps'
+import type { StepOn } from './hint'
 import type { CheckResult } from './runCheck'
 import type { Asked } from './ask'
 import { type PlanAnswer, type PlanCheck, type Run, type RunWorkflow, type RunEvent, reduceRuns } from '../../shared/runs'
@@ -844,10 +845,14 @@ export class Workflows {
     return on && on.id !== commit.id ? `Not yet: commits wait for "${commit.name}"; the task is on "${on.name}". Do only that step's work.` : null
   }
 
-  /** The step the agent's open task is on (the first not yet done or skipped), for the reminder it is sent with each message. */
-  currentStep(agentId: string): string | null {
+  /** The step the agent's open task is on, for the reminder it is sent with each message: the added work's own step while one is under way, else the first not yet done or skipped. */
+  currentStep(agentId: string): StepOn | null {
     const run = this.deps.enabled() ? this.openRun(agentId) : undefined
-    return (run && stepOn(this.states(run))?.name) ?? null
+    if (!run) return null
+    const lane = openLane(run, { auditOn: this.deps.dial() !== 'economy', approved: run.workflow ? this.deps.approved(run.workflow) : true })
+    if (lane) return { ...lane.step, item: lane.item, title: lane.title }
+    const on = stepOn(this.states(run))
+    return on ? { id: on.id, name: on.name } : null
   }
 
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */

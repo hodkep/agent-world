@@ -37,3 +37,14 @@ describe('the run bar after the person refused a step', () => {
     expect(host.querySelector('button.rt-again')).toBeNull()
   })
 })
+
+describe('the run bar while added work is under way', () => {
+  afterEach(() => void (document.body.innerHTML = ''))
+  it('names the item and its step after the task, with the item\'s title on hover', async () => {
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<RunTrack variant="bar" track={track({ stations: [{ id: 'review', name: 'Review', kind: 'work', state: 'now' }], lane: { item: 2, title: 'Also count lines', step: { id: 'build', name: 'Build' } } } as Partial<Track>)} seed="a1" agentName="ada" />))
+    const tag = host.querySelector('.rt-lane')!
+    expect(tag.textContent).toBe('item 2 · Build')
+    expect(tag.getAttribute('title')).toBe('Item 2: Also count lines')
+  })
+})

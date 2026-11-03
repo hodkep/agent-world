@@ -3304,6 +3304,8 @@ svg.pxg { display: block; flex: none; }
 .run-track.bar .rt-title { grid-area: title; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .run-track.bar .rt-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Work added to the run, under way: its number and the step of its own it stands on, beside the task's title. */
+.run-track.bar .rt-lane { flex: none; font: 700 10.5px Menlo, Consolas, monospace; color: var(--think); padding: 0 6px; box-shadow: 0 0 0 1px var(--think); white-space: nowrap; }
 .run-track.bar .pxg.spr { filter: drop-shadow(1px 0 0 var(--ink)) drop-shadow(-1px 0 0 var(--ink)) drop-shadow(0 1px 0 var(--ink)) drop-shadow(0 -1px 0 var(--ink)); }
 .bar-st { list-style: none; margin: 0; padding: 0; display: flex; align-items: center; flex: none; }
 .bar-st .st { position: relative; display: flex; align-items: center; gap: 6px; }

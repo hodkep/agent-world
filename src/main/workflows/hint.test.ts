@@ -128,7 +128,8 @@ describe('the reminder to announce a task, said at the start of a turn', () => {
     // With a task open, the turn is told how more work is added to it.
     expect(workflowRemind({ ...ask, open: true })).toBe(WORKFLOW_OPEN_REMINDER)
     // The step the task is on is said every turn, so it holds after the conversation is summarised.
-    expect(workflowRemind({ ...ask, open: true, step: 'Review' })).toBe(`${WORKFLOW_OPEN_REMINDER} You are on the step "Review": do only its work, and when it is finished report it with step_done and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`)
+    expect(workflowRemind({ ...ask, open: true, step: { name: 'Build', id: 'build', item: 2, title: 'Also a CSV export' } })).toContain('You are on the step "Build" of item 2 ("Also a CSV export"): do only its work, and when it is finished report it with step_done("build", item: 2)')
+    expect(workflowRemind({ ...ask, open: true, step: { name: 'Review', id: 'review' } })).toBe(`${WORKFLOW_OPEN_REMINDER} You are on the step "Review": do only its work, and when it is finished report it with step_done and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`)
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/task_begin/)
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/do not .*reopen/i)
   })
