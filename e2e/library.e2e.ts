@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, existsSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -53,6 +53,8 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await expect(importing).toContainText('~/.claude/skills')
     await importing.getByRole('button', { name: 'Import 2 selected' }).click()
     await expect(pane.getByRole('status')).toContainText('Imported 2')
+    // The originals are tidied away, except caveman: Claude lists what its own folder has, so the app does not add that one again.
+    rmSync(join(user, '.claude', 'skills', 'pdf'), { recursive: true })
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
     // Every item is in one list that can be searched, with each item's cost beside its name.
     const box = pane.getByRole('region', { name: 'Items' })
@@ -134,7 +136,7 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(plugin).toMatch(/library[\\/]run[\\/][\w-]+$/)
     expect(JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).name).toBe('agent-world-library')
     expect(existsSync(join(plugin, 'skills', 'pdf', 'scripts', 'split.sh'))).toBe(true)
-    expect(existsSync(join(plugin, 'skills', 'caveman'))).toBe(true)
+    expect(existsSync(join(plugin, 'skills', 'caveman'))).toBe(false)
     expect(claude).toContain(join(home, 'aw', 'library'))
 
     // Through the office's tools it can list and read only what the playbook allows, and every read is recorded.

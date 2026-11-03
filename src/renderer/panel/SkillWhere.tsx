@@ -11,12 +11,12 @@ const WORD: Record<State, string> = { on: 'linked', off: 'plug in', copy: 'a cop
  */
 export function SkillWhere({ id, colour, dir, places, onClaude, onLink, busy }: { id: string; colour: string; dir: string; places: SkillPlaces; onClaude: (on: boolean) => void; onLink: (target: string, on: boolean) => void; busy: boolean }) {
   const states = places.states[id] ?? {}
-  const rows: { key: string; label: string; sub: string; state: State; aria: string; toggle?: () => void }[] = [
-    { key: 'claude-app', label: 'Claude in the app', sub: 'every account, automatic at each start', state: places.claudeOff.includes(id) ? 'off' : 'on', aria: 'On for every Claude account in the app', toggle: () => onClaude(places.claudeOff.includes(id)) },
+  const rows: { key: string; label: string; sub: string; tip?: string; state: State; aria: string; toggle?: () => void }[] = [
+    { key: 'claude-app', label: 'Claude in the app', sub: states.claude === 'copy' ? 'uses the copy in Claude\'s own skills folder instead' : 'every account, automatic at each start', state: places.claudeOff.includes(id) ? 'off' : 'on', aria: 'On for every Claude account in the app', toggle: () => onClaude(places.claudeOff.includes(id)) },
     ...places.targets.map((t) => {
       const st = states[t.id] ?? 'none'
       const state: State = st === 'copy' ? 'copy' : st === 'linked' ? 'on' : t.present ? 'off' : 'none'
-      return { key: t.id, label: t.label, sub: state === 'copy' ? `${t.dir} · a copy of its own is there, left as it is` : state === 'none' ? 'not installed on this computer' : t.dir, state, aria: `Linked into ${t.label}`, toggle: state === 'on' || state === 'off' ? () => onLink(t.id, state === 'off') : undefined }
+      return { key: t.id, label: t.label, tip: t.dir, sub: state === 'copy' ? (t.id === 'claude' ? 'its own copy is there; Claude uses that one' : 'a copy of its own is there, left as it is') : state === 'none' ? 'not installed on this computer' : t.dir, state, aria: `Linked into ${t.label}`, toggle: state === 'on' || state === 'off' ? () => onLink(t.id, state === 'off') : undefined }
     })
   ]
   const box = useRef<HTMLDivElement>(null)
@@ -36,7 +36,7 @@ export function SkillWhere({ id, colour, dir, places, onClaude, onLink, busy }: 
     return () => ro?.disconnect()
   }, [rows.length])
   return (
-    <div className="lip-panel skw" role="tabpanel" aria-label="Where it works" ref={box}>
+    <div className="lip-panel skw" ref={box}>
       <div className="skw-lib" style={{ '--sk': colour } as React.CSSProperties}>
         <span className="skw-book" aria-hidden><PixelIcon name="book" scale={3} /></span>
         <b>Library copy</b>
@@ -49,7 +49,7 @@ export function SkillWhere({ id, colour, dir, places, onClaude, onLink, busy }: 
         {rows.map((r) => (
           <button key={r.key} className={`skw-sock ${r.state}`} role="switch" aria-checked={r.state === 'on'} aria-label={r.aria} disabled={busy || !r.toggle} title={r.state === 'off' ? `Link it into ${r.label}` : r.state === 'on' ? (r.key === 'claude-app' ? 'Turn it off for Claude' : `Take the link out of ${r.label}`) : undefined} onClick={r.toggle}>
             <span className="skw-jack" aria-hidden><i /></span>
-            <span className="skw-t"><b>{r.label}</b><small title={r.sub}>{r.sub}</small></span>
+            <span className="skw-t"><b>{r.label}</b><small title={r.tip ?? r.sub}>{r.sub}</small></span>
             <span className="skw-st">{r.key === 'claude-app' ? (r.state === 'on' ? 'on' : 'off') : WORD[r.state]}</span>
           </button>
         ))}

@@ -11,20 +11,20 @@ let pushed: string[]
 let pushedItems: string[]
 // The skills each agent's open task names on its steps, as the office reports them.
 let granted: Record<string, string[]>
-// The skills the office found already linked into Claude's own skills folder.
-let linked: Set<string>
+// Per agent, the skills its own Claude skills folder already has (our link, or a real folder of that name).
+let has: Record<string, Set<string>>
 beforeEach(async () => {
   pushed = []
   pushedItems = []
   granted = {}
-  linked = new Set()
+  has = {}
   dir = mkdtempSync(join(tmpdir(), 'aw-svc-'))
   svc = createLibraryService({
     root: join(dir, 'library'),
     agent: (id) => ({ a1: { id: 'a1', name: 'csr-1', repoPath: '/work/shop', provider: 'claude', account: 'work' }, a2: { id: 'a2', name: 'ada', repoPath: '/work/shop', provider: 'agy', viaHook: true }, a3: { id: 'a3', name: 'bo', repoPath: '/work/other', provider: 'claude' } })[id],
     workspaceKey: (p) => p.split('/').pop()!,
     grants: (id) => granted[id] ?? [],
-    linkedForClaude: (id) => linked.has(id),
+    claudeHas: (agent, id) => !!has[agent]?.has(id),
     onUse: (id, how, item) => void (pushed.push(`${id}:${how}`), pushedItems.push(item))
   })
   await svc.library.save({ kind: 'instruction', name: 'Terse', description: 'Talk short.', body: 'Talk short.' })
@@ -76,10 +76,12 @@ describe('what an agent is given from the library', () => {
     svc.library.setClaude('pdf', false)
     expect((await svc.prepare('a3', true)).pluginDir).toBeNull()
   })
-  it('leaves out of the plugin folder a skill that is already linked into Claude\'s own skills folder, so Claude does not list it twice', async () => {
-    linked.add('pdf')
+  it('leaves out of the plugin folder a skill that the agent\'s own Claude skills folder already has, so Claude does not list it twice, and keeps it for an agent whose folder lacks it', async () => {
+    has = { a1: new Set(['pdf']) }
     expect((await svc.prepare('a1', true)).pluginDir).toBeNull()
-    expect((await svc.prepare('a3', true)).pluginDir).toBeNull()
+    // Another account, with a skills folder of its own that has no pdf: it still gets it.
+    const other = await svc.prepare('a3', true)
+    expect(other.pluginDir && existsSync(join(other.pluginDir, 'skills', 'pdf', 'SKILL.md'))).toBe(true)
   })
   it('keeps a skill a playbook rule names even when it is off for Claude, and drops one whose rule is Off', async () => {
     svc.library.setClaude('pdf', false)

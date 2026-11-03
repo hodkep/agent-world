@@ -42,8 +42,8 @@ interface Deps {
   workspaceKey: (repoPath: string) => string
   /** The skills named on the steps of the agent's open task's workflow: it may read them even when its playbook leaves them out. */
   grants?: (agentId: string) => string[]
-  /** Whether a skill is already linked into Claude's own skills folder, where every account reads it: it is then left out of the per-session folder, or Claude would list it twice. */
-  linkedForClaude?: (id: string) => boolean
+  /** Whether the agent's own Claude skills folder (its account's, which is mostly a link to ~/.claude/skills) already has a skill of this name, our link or a real folder: it is then left out of the per-session folder, or Claude would list it twice. */
+  claudeHas?: (agentId: string, id: string) => boolean
   /** Called when an agent has a new entry in the log, so a screen showing it can refresh. */
   onUse?: (agentId: string, how: How, item: string) => void
   /** The clock (tests move it). */
@@ -170,7 +170,7 @@ export function createLibraryService(d: Deps) {
       const ruledOff = new Set(rulesFor(a.repoPath).filter((r) => r.mode === 'off').map((r) => r.id))
       const given = new Set(compiled.skills.map((s) => s.id))
       const onForClaude = library.listSync().filter((i) => i.kind === 'skill' && !given.has(i.id) && !off.has(i.id) && !ruledOff.has(i.id))
-      return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, [...compiled.skills, ...onForClaude].filter((s) => !d.linkedForClaude?.(s.id))), compiled }
+      return { core, reminder: compiled.reminder, pluginDir: writePluginDir(join(d.root, 'run'), a.id, [...compiled.skills, ...onForClaude].filter((s) => !d.claudeHas?.(a.id, s.id))), compiled }
     },
 
     /**
