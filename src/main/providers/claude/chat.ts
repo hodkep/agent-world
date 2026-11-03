@@ -87,7 +87,7 @@ export function parseTranscriptLine(raw: string, opts: { subagent?: boolean } = 
   // Claude's own queue of what was typed while it was busy: when a message joins it, and when it leaves.
   if (type === 'queue-operation') {
     const op = str(o.operation)
-    if (op !== 'enqueue' && op !== 'dequeue' && op !== 'remove') return []
+    if (op !== 'enqueue' && op !== 'dequeue' && op !== 'remove' && op !== 'popAll') return []
     const text = str(o.content)
     return [{ kind: 'queue', id: `queue-${at}-${op}-${text.slice(0, 24)}`, at, op, text }]
   }
