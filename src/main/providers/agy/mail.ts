@@ -65,6 +65,11 @@ export function createAgyMail(d: Deps): Required<MailSetup> {
       }
     },
     stale,
+    problem() {
+      const left = stale()
+      if (left.length) return { kind: 'left-behind' as const, program: left[0]!.program, names: left.map((e) => e.name) }
+      return this.status() === 'connected' ? null : { kind: 'missing' as const, names: [] }
+    },
     async removeStale(bin, name) {
       if (!stale().some((s) => s.name === name)) throw new Error(`${name} is not one left behind by a removed build.`)
       await d.run(bin, ['mcp', 'remove', name])

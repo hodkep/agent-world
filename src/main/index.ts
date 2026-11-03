@@ -2328,6 +2328,27 @@ async function main() {
     await p.mail.removeStale(binFor(p), String(name))
     return p.mail.stale?.() ?? []
   })
+  // For an agent whose program reaches the office through a change in its own settings (agy): what keeps it from the office's tools, so its chat can say so and offer the repair.
+  const officeCheck = (id: string) => {
+    const a = byId(id)
+    const p = a ? providerOf(a) : undefined
+    const problem = p?.mail && !p.capabilities.mail ? p.mail.problem?.() : null
+    if (!p || !p.mail || !problem) return { problem: null, commands: [] as string[] }
+    return { problem: problem.kind, ...(problem.program && { program: problem.program }), commands: [...problem.names.map((n) => `${p.bin} mcp remove ${n}`), ...p.mail.plan().commands] }
+  }
+  ipcMain.handle('agent:office-check', (_, id: string) => officeCheck(String(id)))
+  // The repair is the click: it takes out the entries left behind and adds this build's, the same two steps as Message box in Settings.
+  ipcMain.handle('agent:office-repair', async (_, id: string) => {
+    const a = byId(String(id))
+    const p = a ? providerOf(a) : undefined
+    if (!p?.mail || p.capabilities.mail) throw new Error('There is nothing to repair for this agent.')
+    // Nothing is rewritten when nothing is wrong: a stray call finds agy's list as it was.
+    const problem = p.mail.problem?.()
+    if (!problem) return officeCheck(String(id))
+    for (const n of problem.names) await p.mail.removeStale?.(binFor(p), n)
+    await p.mail.connect(binFor(p))
+    return officeCheck(String(id))
+  })
   ipcMain.handle('provider:mail-set', async (_, id: string, on: boolean) => {
     const p = providers().find((x) => x.id === id)
     if (!p?.mail) throw new Error('That provider has nothing to connect.')

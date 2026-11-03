@@ -9,6 +9,7 @@ import type { ChatItem, HookInfo } from '../../shared/chat'
 import type { Activity, ProcInfo, RemoteState } from '../../shared/types'
 import { PICKABLE_MODES, cssColor, modeInfo } from '../../shared/modes'
 import { type NeedActions, NeedPanel, type Need, needTitle } from '../panel/InputDialog'
+import { OfficeStrip } from './OfficeStrip'
 import { type Row, type Sent, highlight, markdownSpans, norm, queuedTexts, rowText, spanLabel, toMarkdown, toRows } from './format'
 import { QuoteMark } from './QuoteMark'
 import { UndoStack, type Snap } from './undo'
@@ -675,6 +676,7 @@ export function ChatView({
       }}
     >
       <WidgetSlot slot="chat-behind" meters={widgetMeters} />
+      <OfficeStrip agentId={agentId} agentName={agentName} visible={visible} />
       {pick && (
         <div ref={askBox} className={`ask-selection ${asking === null ? '' : 'open'}`} style={{ left: pick.x, top: pick.y, ['--nx' as string]: `${pick.nx}px` }}>
           {asking === null ? (

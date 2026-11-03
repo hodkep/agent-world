@@ -123,3 +123,24 @@ describe('entries left behind by a build that is gone', () => {
     expect(calls).toHaveLength(1)
   })
 })
+
+describe('what is wrong with agy reaching the office, for the agent that cannot', () => {
+  const entry = (command: string, args: string[]) => ({ command, args })
+  it('is nothing when the entry runs our bridge and the plugin is installed', () => {
+    const alive = join(dir, 'alive')
+    writeFileSync(alive, '')
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': entry(alive, [join(dir, 'bin', 'aw-mcp-bridge.cjs')]) } }))
+    mkdirSync(join(dir, 'plugins', 'aw-library'), { recursive: true })
+    expect(make().problem()).toBeNull()
+  })
+  it('is "left-behind", naming the program and the entries, when agy lists one that starts something no longer installed', () => {
+    writeFileSync(config, JSON.stringify({ mcpServers: { 'agent-world': entry('/gone/Agent World.app/Contents/MacOS/Agent World', ['/x/aw-mcp-bridge.cjs']), 'agent-world-try': entry('/gone/other', ['/y']), stripe: entry('/gone/stripe', []) } }))
+    expect(make().problem()).toEqual({ kind: 'left-behind', program: '/gone/Agent World.app/Contents/MacOS/Agent World', names: ['agent-world', 'agent-world-try'] })
+  })
+  it('is "missing" when agy has no entry for this build, as before it was ever connected', () => {
+    expect(make().problem()).toEqual({ kind: 'missing', names: [] })
+    writeFileSync(config, JSON.stringify({ mcpServers: { other: entry('x', []) } }))
+    expect(make().problem()).toEqual({ kind: 'missing', names: [] })
+  })
+})
+
