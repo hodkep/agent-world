@@ -1,0 +1,13 @@
+{
+  "version": "0.11.0",
+  "tagline": "Skills, sorted.",
+  "subtitle": "One screen for every skill on the machine, runs that never get stuck, and an agent you can put to sleep.",
+  "footer": "agent-world.in",
+  "cards": [
+    { "kicker": "Library", "title": "Every skill, one screen", "text": "With its logo, size and use. Install from GitHub; remove or delete in a click. Add a skill once and every Claude account can use it.", "chips": ["Playbook", "GitHub install"] },
+    { "kicker": "Workflows", "title": "Runs that cannot get stuck", "text": "Commits wait for the Commit step. The run bar's current step offers Mark done, Run and End run." },
+    { "kicker": "Agents", "title": "Put an agent to sleep", "text": "From the agent menu. Idle sleep counts real work and typing, and ignores a terminal that only redraws." },
+    { "kicker": "Chat", "title": "Replies fade in word by word", "text": "A reply that arrives while the chat is open appears word by word; one you scroll back to does not replay." }
+  ],
+  "also": ["Take back Claude's queue", "Repair strip for Antigravity agents", "A limit on the lists an agent may create", "The site, redone in pixels"]
+}

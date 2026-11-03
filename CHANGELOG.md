@@ -4,6 +4,30 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
+![Agent World 0.11.0: every skill on one screen, runs that cannot get stuck, and an agent you can put to sleep](https://raw.githubusercontent.com/hodkep/agent-world/v0.11.0/docs/images/releases/0.11.0/poster.png)
+
+### Added
+
+- Library: one Skills screen lists every skill on the machine, with its logo, size and use, installs new ones from a GitHub repository, and removes a skill from the library or deletes it for good; skills stay where they are, and an agent's session links to each one instead of copying it.
+- Library: Playbook and tools: add a skill once and every Claude account in the app can use it, link it into Claude's or Antigravity's own folders in one click, and see which skills are used and which only cost tokens.
+- Agents: Put to sleep in the agent menu; idle sleep counts real work and typing, and ignores a terminal that only redraws.
+- Chat: a reply that arrives while the chat is open fades in word by word; one you scroll back to does not replay.
+- Chat: a Take back button for messages waiting in Claude's queue, and a note with a one-click repair when an Antigravity agent cannot reach the office's tools.
+- Settings: the most lists an agent may create is a setting under Features, with no limit by default.
+
+### Changed
+
+- Workflows: runs no longer get stuck: agents commit only at the Commit step and are reminded which step they are on, the run bar's current step offers Mark done, Run and End run, and a step that asks for your approval without ever stopping is flagged in the editor.
+- Site: the project site is redone, the office drawn in code by a crew of pixel engineers as you scroll, and the docs pages in the same look.
+- Release: the poster has a new look, a tall version beside stacked rows with a pixel drawing for each feature.
+
+### Fixed
+
+- Workflows: the import panel opens inside the window, and the skill picker in a step's docked settings no longer opens partly out of sight.
+- Chat: answering an agent's questions no longer breaks the window when it asks a new, shorter set while the old one is open.
+
 ## [0.10.0] - 2026-11-02
 
 ![Agent World 0.10.0: tell every agent at once, finish steps yourself, and switch workflows off per workspace](https://raw.githubusercontent.com/hodkep/agent-world/v0.10.0/docs/images/releases/0.10.0/poster.png)
