@@ -28,7 +28,7 @@ import { startPerf } from './perf'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell } from 'electron'
@@ -658,7 +658,16 @@ const libraryService = createLibraryService({
   workspaceKey: repoSlug,
   // The skills the steps of an agent's open task name are its to read, whatever its playbook says.
   grants: (id) => workflows.skillsOf(id),
-  linkedForClaude: (id) => linkState(LIBRARY_DIR, id, skillTargets(userHome()).find((t) => t.id === 'claude')!) === 'linked',
+  // The agent's own Claude skills folder: its account's, or ~/.claude for the program's own login. A name already there, our link or a copy of its own, is what Claude lists.
+  claudeHas: (agentId, id) => {
+    const a = byId(agentId)
+    try {
+      lstatSync(join(a?.configDir ?? join(userHome(), '.claude'), 'skills', id))
+      return true
+    } catch {
+      return false
+    }
+  },
   onUse: (id, how, item) => send('library-use', id, how, item)
 })
 // The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
