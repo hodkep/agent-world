@@ -226,7 +226,10 @@ test('with remote control on, the held push names its codes, and the person lets
     expect(push).toBeTruthy()
     expect(out).toContain('or `decline')
     // A word that the push does not take is told so, and nothing changes; neither does a code that waits for nothing.
-    expect(await o.reply(`approve ${push}`)).toContain('does not take "approve"')
+    // `approve` is no word of either waiting decision (the audit takes seen/plan/aside, the push allow/decline), so it is told the words each takes.
+    const wrong = await o.reply(`approve ${push}`)
+    expect(wrong).toContain('not exactly a decision')
+    expect(wrong).toContain(`allow ${push}`)
     expect(await o.reply('allow abc')).not.toMatch(/allow|let through|decline|held/i)
     expect((await o.push()).ok).toBe(false)
     // Seeing the findings by typing lets the push through, as the card's button does.
