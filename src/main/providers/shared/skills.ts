@@ -1,4 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises'
+import type { Dirent } from 'node:fs'
+import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import type { PaletteCommand } from '../../../shared/commands'
 
@@ -23,7 +24,10 @@ export async function skillDirs(dir: string, depth = 4): Promise<string[]> {
   if (await readFile(join(dir, 'SKILL.md'), 'utf8').then(() => true, () => false)) return [dir]
   if (depth === 0) return []
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => [])
-  const found = await Promise.all(entries.filter((e) => e.isDirectory() && e.name !== 'node_modules' && !e.name.startsWith('.')).map((e) => skillDirs(join(dir, e.name), depth - 1)))
+  // A link to a folder counts as the folder: the skills CLI installs a skill once and links it into each program's folder.
+  const isDir = async (e: Dirent) => e.isDirectory() || (e.isSymbolicLink() && (await stat(join(dir, e.name)).then((s) => s.isDirectory(), () => false)))
+  const folders = (await Promise.all(entries.map(async (e) => ((await isDir(e)) && e.name !== 'node_modules' && !e.name.startsWith('.') ? e : null)))).filter((e): e is Dirent => !!e)
+  const found = await Promise.all(folders.map((e) => skillDirs(join(dir, e.name), depth - 1)))
   return found.flat()
 }
 

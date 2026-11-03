@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -36,6 +36,22 @@ describe('the session-only plugin folder Claude loads', () => {
     expect(existsSync(join(first, 'skills', 'one'))).toBe(true)
     expect(writePluginDir(join(dir, 'run'), 'a', [])).toBeNull()
     expect(existsSync(first)).toBe(false)
+  })
+  it('links each skill instead of copying it, so a skill of many gigabytes costs nothing at start, and a skill that is itself a link ends at the real folder', async () => {
+    const lib = new Library(join(dir, 'library'))
+    const real = join(dir, 'elsewhere', 'big')
+    mkdirSync(join(real, 'media'), { recursive: true })
+    writeFileSync(join(real, 'SKILL.md'), '---\nname: big\ndescription: d\n---\nb')
+    writeFileSync(join(real, 'media', 'clip.bin'), 'x'.repeat(1000))
+    // The library keeps a link to the original; the session folder links to the original too.
+    mkdirSync(join(lib.root, 'skills'), { recursive: true })
+    symlinkSync(real, join(lib.root, 'skills', 'big'), 'dir')
+    const item = (await lib.get('big'))!
+    const out = writePluginDir(join(dir, 'run'), 'a', [item])!
+    const at = join(out, 'skills', 'big')
+    expect(lstatSync(at).isSymbolicLink()).toBe(true)
+    expect(realpathSync(at)).toBe(realpathSync(real))
+    expect(existsSync(join(at, 'media', 'clip.bin'))).toBe(true)
   })
   it('refuses an agent id that could place the folder elsewhere', () => {
     expect(() => writePluginDir(join(dir, 'run'), '../escape', [])).toThrow()
