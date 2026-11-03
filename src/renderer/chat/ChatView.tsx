@@ -1198,7 +1198,7 @@ function FormAnswerCard({ title, rows, raw }: { title?: string; rows: { label: s
         <span>{title ?? 'Form'}</span>
         <span className="ans-tag">Answered</span>
       </header>
-      {rows.length > 0 && <div className="ans-rows">{rows.flatMap((x) => [<span key={`${x.label} k`} className="ans-k">{x.label}</span>, <span key={`${x.label} v`}>{x.value}</span>])}</div>}
+      {rows.length > 0 && <dl className="ans-rows">{rows.map((x, i) => <div key={i}><dt className="ans-k">{x.label}</dt><dd>{x.value}</dd></div>)}</dl>}
       <details><summary>What the agent got</summary><pre>{raw}</pre></details>
     </article>
   )
