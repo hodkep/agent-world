@@ -3295,13 +3295,11 @@ svg.pxg { display: block; flex: none; }
 .rb-commits .mono { color: var(--muted); font-size: 11px; }
 .rb-commits .chipw { font-size: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--ink); padding: 0 5px; color: var(--muted); }
 /* ---- The run track as one thin row above the chat ---- */
-/* Two lines at most: the agent, the task's title and what it waits for on the first, the steps on the second. */
-.run-track.bar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'spr title pill' 'spr st st'; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
-.run-track.bar > .pxg.spr { grid-area: spr; }
-.run-track.bar > .bar-st { grid-area: st; min-width: 0; overflow: hidden; }
-.run-track.bar > .pill { grid-area: pill; max-width: 22ch; }
-.run-track.bar > .pill.refused { grid-area: pill; }
-.run-track.bar .rt-title { grid-area: title; display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+/* One row when it fits (the agent, the task's title, the steps, what it waits for), the steps and the pill dropping to a second row only when it does not: a taller bar takes room from a plan card in a small window. */
+.run-track.bar { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 52px 6px 14px; }
+.run-track.bar > .bar-st { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden; }
+.run-track.bar > .pill { max-width: 22ch; }
+.run-track.bar .rt-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1 1 140px; }
 .run-track.bar .rt-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .run-track.bar .rt-title small { color: var(--muted); font-size: 11px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Work added to the run, under way: its number and the step of its own it stands on, beside the task's title. */
