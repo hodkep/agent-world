@@ -40,7 +40,8 @@ describe('the project site', () => {
       for (const m of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
         const t = m[1]!
         if (/^(https?:|mailto:|#|data:)/.test(t)) continue
-        const path = resolve(dirname(f), decodeURIComponent(t.split('#')[0]!.split('?')[0]!))
+        const target = decodeURIComponent(t.split('#')[0]!.split('?')[0]!)
+        const path = target.startsWith('/') ? join(out, target) : resolve(dirname(f), target)
         if (!(existsSync(path) && (!statSync(path).isDirectory() || existsSync(join(path, 'index.html'))))) missing.push(`${f.slice(out.length + 1)} → ${t}`)
       }
     }
@@ -84,6 +85,37 @@ describe('the project site', () => {
     const idx = JSON.parse(readFileSync(join(out, 'search.json'), 'utf8')) as { url: string; title: string }[]
     expect(idx.some((e) => e.url === 'docs/the-office/' && e.title === 'The office')).toBe(true)
   })
+
+  it('wears the site look on every page: the fonts, the office scenes drawn in code, and the script that draws them', () => {
+    const home = readFileSync(join(out, 'index.html'), 'utf8')
+    const doc = readFileSync(join(out, 'docs', 'the-office', 'index.html'), 'utf8')
+    for (const html of [home, doc]) expect(html).toMatch(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com\/css2\?family=Pixelify\+Sans/)
+    expect(home).toMatch(/<canvas [^>]*data-scene="facade"/)
+    for (const room of ['workroom', 'meeting', 'shelf', 'dock']) expect(home, room).toMatch(new RegExp(`<canvas [^>]*data-scene="${room}"`))
+    expect(doc).toMatch(/<canvas [^>]*data-scene="reader"/)
+    expect(doc).not.toContain('data-scene="facade"')
+    expect(existsSync(join(out, 'office.js'))).toBe(true)
+    expect(home).toContain("from './office.js'") // a bare 'office.js' is not a module specifier a browser resolves
+    expect(doc).toContain("from './../../office.js'")
+    // The 404 page is served at whatever address was missing, so everything it loads starts at the top of the site.
+    const lost = readFileSync(join(out, '404.html'), 'utf8')
+    expect(lost).toContain('href="/site.css"')
+    expect(lost).toContain("from '/office.js'")
+    // The scenes are drawn from the app's own sprite and font bitmaps, written into the page so the script stays one file.
+    expect(home).toContain('"GLYPHS":{')
+    // The six engineers of the crew, drawn from the app's own character sprites: every view and pose, with their palettes.
+    expect(home).toMatch(/"CHARS":\{"ada":\{"own":\{"pal":\{"o":"#1a1522"/)
+    for (const k of ['bolt', 'cleo', 'dex', 'eve', 'finn']) expect(home).toContain(`"${k}":{"own":{"pal"`)
+    expect(home).toContain('"boss":{"pal"') // the crown and the cap, for the engineers who share a section
+    expect(home).toContain('"intern":{"pal"')
+    expect(home).toContain('"courier":{"own"') // the one who brings the dmg
+    // The screenshot behind every window's state is on the page, so the site carries it.
+    for (const st of ['idle', 'thinking', 'running', 'permission', 'asleep']) expect(home).toMatch(new RegExp(`<figure class="peek" data-state="${st}"[^>]*><img src="assets/docs/images/[^"]+\\.png"`))
+    expect(home).toMatch(/"side":\{"stand":\["[.o]{16}"/)
+    // The home page starts hidden only while the crew builds it, from a line in its head that also lets go after a while if the script never runs.
+    expect(home).toContain("classList.add('building')")
+    expect(doc).not.toContain("classList.add('building')")
+  })
 })
 
 describe('where a link in a repository document goes on the site', () => {
@@ -106,4 +138,5 @@ describe('where a link in a repository document goes on the site', () => {
     expect(resolveHref('https://example.com/x', 'README.md', pages)).toBe('https://example.com/x')
     expect(resolveHref('#top', 'README.md', pages)).toBe('#top')
   })
+
 })

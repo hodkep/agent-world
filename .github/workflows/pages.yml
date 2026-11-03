@@ -21,7 +21,7 @@ jobs:
         with: { node-version: 22, cache: pnpm }
       # No scripts: the site needs only `marked`, not Electron's download.
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: node scripts/build-site.mjs site-dist
+      - run: node --experimental-strip-types --no-warnings scripts/build-site.mjs site-dist
       - uses: actions/upload-pages-artifact@v5
         with: { path: site-dist }
   deploy:

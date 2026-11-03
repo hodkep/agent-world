@@ -1,60 +1,83 @@
-<section class="hero">
-  <h1>Your agents, at their desks</h1>
-  <p>Run your coding agents from one pixel-art office. Each agent has its own git branch and a real Claude Code or Antigravity session. You see who is thinking, running or waiting for you, and step in from the office.</p>
-  <div class="row"><a class="btn" href="https://github.com/hodkep/agent-world/releases/latest">Download for Mac</a><a class="btn alt" href="docs/install/">Install notes</a></div>
-  <p class="brew"><code>brew tap hodkep/tap &amp;&amp; brew trust --cask hodkep/tap/agent-world &amp;&amp; brew install --cask hodkep/tap/agent-world</code></p>
-  <p class="meta">Homebrew 6 and later asks you to trust a third-party tap, once on each Mac. <a href="docs/install/">Why</a></p>
-  <p class="meta">v{{version}} · macOS · Apache 2.0</p>
-  <img class="banner shot" src="assets/docs/images/banner.svg" alt="A pixel-art office with five agents, each in a different state" width="760" height="260">
-</section>
-
-<section class="band">
-  <h2 class="s">Why it is different</h2>
-  <div class="grid3">
-    <div class="card"><h3>Control over spectacle</h3><p>Every visual state maps to a real agent state you can act on.</p></div>
-    <div class="card"><h3>Own the session</h3><p>The app launches and hooks the agents it shows. Your <code>claude</code> stays unmodified, and nothing global is changed.</p></div>
-    <div class="card"><h3>Never lose work</h3><p>Uncommitted changes block removal. Nothing is deleted silently.</p></div>
+<section class="street">
+  <div class="sky">
+    <h1>Your agents,<br><b>at their desks.</b></h1>
+    <p class="lede">Run your coding agents from one pixel-art office. Each agent has its own git branch and a real Claude Code or Antigravity session. You see who is thinking, running or waiting for you, and step in from the office.</p>
+    <div class="row"><a class="btn" href="https://github.com/hodkep/agent-world/releases/latest">Download for Mac</a><a class="btn alt" href="docs/install/">Install notes</a></div>
+    <p class="brew"><code>brew tap hodkep/tap &amp;&amp; brew trust --cask hodkep/tap/agent-world &amp;&amp; brew install --cask hodkep/tap/agent-world</code></p>
+    <p class="meta">v{{version}} · macOS · Apache 2.0 · Homebrew 6 and later asks you to trust a third-party tap, once on each Mac. <a href="docs/install/">Why</a></p>
   </div>
+  <canvas class="facade" data-scene="facade" width="240" height="120" role="img" aria-label="The office building at night from the street: five lit windows, an agent at a desk in each, one idle, one thinking, one running, one waiting for you, one asleep; the front door with a brass plaque"></canvas>
+  <figure class="peek" data-state="idle" hidden><img src="assets/docs/images/office.png" alt="The office: an idle agent rests on a sofa in the lounge" width="720"><figcaption>idle: finished its turn, resting on a sofa</figcaption></figure>
+  <figure class="peek" data-state="thinking" hidden><img src="assets/docs/images/chat.png" alt="A chat while the agent thinks" width="720"><figcaption>thinking: at its desk, the cursor blinking on its screen</figcaption></figure>
+  <figure class="peek" data-state="running" hidden><img src="assets/docs/images/chat-btw-command.png" alt="A chat with a command running" width="720"><figcaption>running: a command, green lines racing on its screen</figcaption></figure>
+  <figure class="peek" data-state="permission" hidden><img src="assets/docs/images/permission.png" alt="A permission request from an agent" width="720"><figcaption>waiting for you: a permission request, answered from the office</figcaption></figure>
+  <figure class="peek" data-state="asleep" hidden><img src="assets/docs/images/chat-restart.png" alt="The restart menu of an agent" width="720"><figcaption>asleep: its program stopped; Wake starts it again</figcaption></figure>
+  <p class="legend"><span><i style="--c:#6ad0e0"></i>thinking</span><span><i style="--c:#5f9e5f"></i>running</span><span><i style="--c:#d83a3a"></i>waiting for you</span><span><i style="--c:#4a4860"></i>asleep</span><span>every window is one agent, in its real state</span></p>
 </section>
 
-<section class="band alt see"><div>
-  <h2 class="s">See it work</h2>
-  <div class="grid2">
+<section class="rules"><div>
+  <p><b>Control over spectacle.</b> Every visual state maps to a real agent state you can act on.</p>
+  <p><b>Own the session.</b> The app launches and hooks the agents it shows. Your <code>claude</code> stays unmodified, and nothing global is changed.</p>
+  <p><b>Never lose work.</b> Uncommitted changes block removal. Nothing is deleted silently.</p>
+</div></section>
+
+<section class="room" id="workroom">
+  <canvas data-scene="workroom" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>The workroom</h2>
+    <p>Each character does what its agent does: thinking, researching, implementing, running, delegating or waiting. Click one to open its chat: tool cards, edits as diffs, a Code tab for changes and history.</p>
     <img class="shot" src="assets/docs/images/office-activities.png" alt="The office with eight agents, one in each activity" width="720">
-    <div><h3>The office</h3><p>Each character does what its agent does: thinking, researching, implementing, running, delegating or waiting. Click one to open its chat.</p><a class="btn alt" href="docs/the-office/">The office guide</a></div>
+    <p class="links"><a class="btn alt" href="docs/the-office/">The office guide</a><a href="docs/chat-and-dialogs/">Chat and dialogs</a><a href="docs/code-and-preview/">Code and preview</a></p>
   </div>
-  <div class="grid2 flip" style="margin-top:28px">
-    <div><h3>Chat, code, workflows</h3><p>Tool cards, edits as diffs, a Code tab for changes and history, and workflows with plan and review gates.</p><a class="btn alt" href="docs/chat-and-dialogs/">Chat and dialogs</a></div>
-    <img class="shot" src="assets/docs/images/chat.png" alt="A chat with a command, the office's own calls as rows, an edit as a diff, and the reply" width="720">
-  </div>
-  <div class="grid2" style="margin-top:28px">
-    <img class="shot" src="assets/docs/images/releases/0.8.0/poster.png" alt="The same chat in the system look and restyled, with the Keep and Undo bar between them, and cards for themes, layouts, icons and widgets" width="720">
-    <div><h3>Make it yours</h3><p>Ask an agent to restyle the app: themes, layouts and icons, and little widgets that show live data such as a price or the weather. You keep it, or undo it.</p><a class="btn alt" href="docs/customize-the-look/">Customize the look</a></div>
-  </div>
-</div></section>
-
-<section class="band">
-  <h2 class="s">One day in the office</h2>
-  <div class="step"><div class="n">01</div><div><h3>Hire</h3><p>Pick a folder, name an agent, choose a role and a model. It gets its own git branch.</p><img class="shot" src="assets/docs/images/hire.png" alt="The hire form: a name, a role, a model, and how much the agent may do without asking" width="640"></div></div>
-  <div class="step"><div class="n">02</div><div><h3>Watch</h3><p>The character thinks, runs, delegates or waits. A red mark says who needs you.</p><img class="shot" src="assets/docs/images/office-agents-panel.png" alt="The agents panel open: a tile for each agent with its picture, name and state" width="640"></div></div>
-  <div class="step"><div class="n">03</div><div><h3>Step in</h3><p>Approve a permission, answer a question, read an edit as a diff.</p><img class="shot" src="assets/docs/images/permission.png" alt="A permission request from an agent" width="640"></div></div>
-  <div class="step"><div class="n">04</div><div><h3>Land it</h3><p>Review the changes and history in the Code tab, then merge.</p><img class="shot" src="assets/docs/images/code.png" alt="The Code tab with the changes of an agent" width="640"></div></div>
 </section>
 
-<section class="band alt"><div>
-  <h2 class="s">Install in four steps</h2>
-  <div class="grid3">
-    <div class="card"><h3>1 · Download</h3><p>The arm64 dmg for Apple silicon, the x64 one for Intel. Faster from the mirror: <a href="https://dl.agent-world.in/latest/Agent-World-arm64.dmg">arm64</a>, <a href="https://dl.agent-world.in/latest/Agent-World-x64.dmg">x64</a>.</p></div>
-    <div class="card"><h3>2 · Open Anyway</h3><p>macOS 15 and later: System Settings › Privacy &amp; Security. Homebrew skips this step.</p></div>
-    <div class="card"><h3>3 · Sign in once</h3><p>Setup installs Claude Code and has you sign in, in a terminal inside the app.</p></div>
+<section class="room flip" id="meeting">
+  <canvas data-scene="meeting" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>The meeting table</h2>
+    <p>Workflows with plan and review gates: the agent writes a plan you approve, builds it, walks you through the change, and lands it only when you press Run. A run is a track in the chat; the station it stands on is where the work is.</p>
+    <img class="shot" src="assets/docs/images/plan-gate-links.png" alt="A plan gate in the chat, with the plan's files as links" width="720">
+    <p class="links"><a class="btn alt" href="docs/workflows/">Workflows</a><a href="docs/todos/">Todos</a></p>
   </div>
-  <p style="margin-top:16px"><a href="docs/getting-started/">Getting started</a> has all four, with the screens.</p>
-</div></section>
+</section>
 
-<section class="band">
-  <h2 class="s">Read the docs</h2>
+<section class="room" id="shelf">
+  <canvas data-scene="shelf" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>The bookshelf</h2>
+    <p>Skills, instructions and prompts live in one library, and a playbook says when each applies. An agent reads the item before the work it covers, and the office shows it at the shelf while it does.</p>
+    <img class="shot" src="assets/docs/images/library.png" alt="The library: skills, instructions and prompts, with where each is used" width="720">
+    <p class="links"><a class="btn alt" href="docs/library-and-playbook/">Library and playbook</a></p>
+  </div>
+</section>
+
+<section class="room flip" id="look">
+  <img class="shot" src="assets/docs/images/releases/0.8.0/poster.png" alt="The same chat in the system look and restyled, with the Keep and Undo bar between them, and cards for themes, layouts, icons and widgets" width="720">
+  <div class="copy">
+    <h2>Make it yours</h2>
+    <p>Ask an agent to restyle the app: themes, layouts and icons, and little widgets that show live data such as a price or the weather. You keep it, or undo it.</p>
+    <p class="links"><a class="btn alt" href="docs/customize-the-look/">Customize the look</a></p>
+  </div>
+</section>
+
+<section class="room" id="dock">
+  <canvas data-scene="dock" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>The loading dock</h2>
+    <ol class="steps">
+      <li><b>Download.</b> The arm64 dmg for Apple silicon, the x64 one for Intel. Faster from the mirror: <a href="https://dl.agent-world.in/latest/Agent-World-arm64.dmg">arm64</a>, <a href="https://dl.agent-world.in/latest/Agent-World-x64.dmg">x64</a>.</li>
+      <li><b>Open Anyway.</b> macOS 15 and later: System Settings › Privacy &amp; Security. Homebrew skips this step.</li>
+      <li><b>Sign in once.</b> Setup installs Claude Code and has you sign in, in a terminal inside the app.</li>
+      <li><b>Hire.</b> Pick a folder, name an agent, choose a role and a model. It gets its own git branch.</li>
+    </ol>
+    <p class="links"><a class="btn" href="https://github.com/hodkep/agent-world/releases/latest">Download for Mac</a><a href="docs/getting-started/">Getting started, with the screens</a></p>
+  </div>
+</section>
+
+<section class="lobby"><div>
+  <h2>The lobby</h2>
   <div class="hubs">
-    <div class="hub"><h3>Use it</h3><p>The user guide, task by task, with screens.</p><ul><li>Getting started and installing</li><li>The office, chat and code</li><li>Workflows and todos</li></ul><p style="margin-top:12px"><a class="btn alt" href="docs/getting-started/">Open the user guide</a></p></div>
-    <div class="hub"><h3>Look under the hood</h3><p>How it is made, and how to help.</p><ul><li>Providers and remote control</li><li>Workflows design and the design system</li><li>Contributing, releasing and the changelog</li></ul><p style="margin-top:12px"><a class="btn alt" href="docs/providers/">How it works</a></p></div>
+    <div class="hub"><h3>Use it</h3><p>The user guide, task by task, with screens.</p><ul><li>Getting started and installing</li><li>The office, chat and code</li><li>Workflows and todos</li></ul><p><a class="btn alt" href="docs/getting-started/">Open the user guide</a></p></div>
+    <div class="hub"><h3>Look under the hood</h3><p>How it is made, and how to help.</p><ul><li>Providers and remote control</li><li>Workflows design and the design system</li><li>Contributing, releasing and the changelog</li></ul><p><a class="btn alt" href="docs/providers/">How it works</a></p></div>
   </div>
-</section>
+</div></section>
