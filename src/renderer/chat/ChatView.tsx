@@ -1,4 +1,3 @@
-import { FreshTracker } from './reveal'
 import { unwrapPasted } from '../../shared/pasted'
 import { parseAgentMail } from '../../shared/mail'
 import { parseHandoff } from '../../shared/handoff'
@@ -331,9 +330,6 @@ export function ChatView({
   const [shown, setShown] = useState(WINDOW)
   useEffect(() => setShown(WINDOW), [agentId])
   const rows = useMemo(() => (!searching && found.length > shown ? found.slice(-shown) : found), [found, shown, searching])
-  // A reply that arrives while the chat is being watched fades in word by word; a chat that is opened, or scrolled back, does not replay.
-  const fresh = useMemo(() => new FreshTracker(Date.now()), [agentId])
-  fresh.see(rows.filter((r) => r.kind === 'assistant').map((r) => r.id), Date.now())
   // POC: the person's layout rules say where rows sit (in the chat, as a count, under the reply, hidden); no rules is the chat as it always was.
   const layout = useChatLayout()
   const behind = useChatMod().widgets.some((w) => w.slot === 'chat-behind')
@@ -750,7 +746,7 @@ export function ChatView({
           if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
-          const row = <RowView key={r.id} row={r} fresh={r.kind === 'assistant' && fresh.isFresh(r.id, Date.now())} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} onTakeBack={() => {
+          const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} onTakeBack={() => {
             const words = queuedTexts(allRows)
             void window.aw.chatUnqueue(agentId).then((ok) => {
               if (!ok) return
@@ -1025,7 +1021,7 @@ function JumpButtons() {
   )
 }
 
-export function RowView({ row: r, fresh, agentId, agentName, busy, asleep, onImage, onRewind, onTakeBack, formOf }: { row: Row; /** A reply that has just arrived. */ fresh?: boolean; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void; onTakeBack?: () => void; /** The form (by its surface id) an answer in this chat was given to, so the answer is drawn in its words. */ formOf?: (surfaceId: string) => Surface | undefined }) {
+export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onRewind, onTakeBack, formOf }: { row: Row; agentId: string; agentName: string; busy: boolean; asleep: boolean; onImage: (src: string, set?: PictureSet) => void; onRewind: (text: string) => void; onTakeBack?: () => void; /** The form (by its surface id) an answer in this chat was given to, so the answer is drawn in its words. */ formOf?: (surfaceId: string) => Surface | undefined }) {
   switch (r.kind) {
     case 'user': {
       const mail = parseAgentMail(r.text)
@@ -1111,7 +1107,7 @@ export function RowView({ row: r, fresh, agentId, agentName, busy, asleep, onIma
             {agentName}
             <Copy text={r.text} />
           </div>
-          <Markdown text={r.text} agentId={agentId} reveal={fresh} />
+          <Markdown text={r.text} agentId={agentId} />
           {r.took !== undefined && <div className="msg-meta">worked for {spanLabel(r.took)}</div>}
         </div>
       )
