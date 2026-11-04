@@ -204,7 +204,6 @@ test('code: the files an agent changed and their diff', async () => {
     writeFileSync(join(ada!.cwd, 'src', 'health.ts'), "export const ok = true\nexport const checkedAt = () => new Date().toISOString()\n")
     writeFileSync(join(ada!.cwd, 'src', 'cart.ts'), 'export const cartTotal = (items: number[]) => items.reduce((a, b) => a + b, 0)\nexport const withTax = (total: number) => Math.round(total * 1.2)\n')
     await o.page.getByRole('tab', { name: 'Code' }).click()
-    await o.page.getByRole('button', { name: 'Expand' }).click()
     await o.page.getByText('health.ts').first().click()
     await expect(o.page.getByText('checkedAt').first()).toBeVisible({ timeout: 15_000 })
     await o.page.waitForTimeout(800)

@@ -151,7 +151,6 @@ aside section > div:first-child { flex: 1; min-width: 0; }
 .message.is-queued .status { color: var(--accent); }
 .message.is-delivered .status { color: var(--ok); }
 .message.is-dropped .status { color: var(--danger); }
-aside.wide { width: min(72vw, 1200px); }
 .terminals[hidden] { display: none; }
 .tabs { display: flex; gap: 4px; padding: 6px 8px 0; border-bottom: 2px solid var(--ink); }
 .tabs [role='tab'] { border-bottom: none; }
@@ -172,7 +171,7 @@ aside.wide { width: min(72vw, 1200px); }
 .code > .tabs { padding-top: 6px; }
 .changes { flex: 1; min-height: 0; display: flex; }
 .change-list { width: 240px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-right: 2px solid var(--ink); min-height: 0; }
-aside:not(.wide) .change-list { width: 190px; }
+aside .change-list { width: 190px; }
 /* A zero-width slot after a list; its grip straddles the list's border, like the sash in VS Code. */
 .side-sizer { position: relative; flex: none; width: 0; z-index: 15; }
 .side-grip { position: absolute; left: -5px; top: 0; bottom: 0; width: 9px; cursor: col-resize; touch-action: none; }
@@ -489,7 +488,6 @@ button.choice.on:hover { background: color-mix(in srgb, var(--selected), var(--a
 /* Narrow windows: the panel slides over the office instead of squeezing it. */
 main { position: relative; }
 aside.drawer { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; width: min(94vw, 560px); box-shadow: -12px 0 32px rgb(0 0 0 / 0.5); }
-aside.drawer.wide { width: min(94vw, 900px); }
 
 /* ---- View controls over the office ------------------------------------------------------------ */
 .stage-ctl { position: absolute; left: 10px; bottom: 10px; z-index: 6; display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
@@ -1433,6 +1431,8 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 .tip-btn:hover::after, .tip-btn:focus-visible::after { display: block; opacity: 1; }
 /* The right-hand buttons sit at the window's edge: their hints open leftwards so the page never grows wider. */
 .tip-btn.push::after, .tip-btn:last-child::after { left: auto; right: 0; transform: none; }
+/* The header ends with two buttons now (the panel and full screen): the one before the last opens leftwards too. */
+header > .tip-btn:nth-last-child(2)::after { left: auto; right: 0; transform: none; }
 .tip-btn[aria-pressed='true'] { background: var(--accent); color: var(--ink); }
 .tip-btn[aria-pressed='true']:hover:not(:disabled) { background: var(--accent-hot); }
 .tip-badge { position: absolute; top: -5px; right: -5px; min-width: 15px; padding: 1px 3px; background: var(--accent); color: var(--ink); font-size: 10px; font-weight: 700; line-height: 1.2; }
@@ -4985,3 +4985,10 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .set-num-in span { color: var(--muted); }
 .set-num small { color: var(--muted); font-size: 11px; max-width: 62ch; }
 .set-num small.set-num-err { color: var(--danger-text); }
+
+/* Full screen: the two top bars (the header and the agent's bar in the panel) leave the page, which gets their room. They slide down over it while the pointer rests on the very top edge. */
+.app.bars-off > header, .app.bars-off aside .tabbar, .app.bars-off aside .head-compact { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.2s; }
+.app.bars-off > header { position: fixed; top: 0; left: 0; right: 0; z-index: 70; transform: translateY(-100%); }
+.app.bars-off aside .tabbar, .app.bars-off aside .head-compact { position: absolute; top: var(--bars-h, 48px); left: 0; right: 0; z-index: 69; transform: translateY(calc(-100% - var(--bars-h, 48px))); }
+/* Reached with the keyboard (Tab into a hidden bar), a bar slides down too, so focus is never somewhere unseen; a click leaves focus on its button without that. */
+.app.bars-peek > header, .app.bars-peek aside .tabbar, .app.bars-peek aside .head-compact, .app.bars-off > header:has(:focus-visible), .app.bars-off aside .tabbar:has(:focus-visible), .app.bars-off aside .head-compact:has(:focus-visible) { transform: none; box-shadow: 0 14px 18px rgb(0 0 0 / 0.55); }
