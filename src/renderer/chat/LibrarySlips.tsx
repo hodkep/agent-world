@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { LibraryItem, Use } from '../../shared/library'
 import { PixelIcon, type IconName } from './PixelIcon'
+import { libraryItems } from '../panel/libraryItems'
 import type { Refresh, Slip } from './slips'
 
 /** What the library did for an agent, and the items it knows by name, kept fresh as the agent works. */
@@ -9,9 +10,20 @@ export function useLibraryUses(agentId: string): { uses: Use[]; items: Map<strin
   const [items, setItems] = useState<Map<string, LibraryItem>>(new Map())
   useEffect(() => {
     let alive = true
-    const load = () => void window.aw.library.uses(agentId).then((u) => alive && setUses(u), () => undefined)
+    // The items are only needed to name what the notes say: not asked for until there is something to say, and one copy for every chat.
+    let named = false
+    const name = () => {
+      if (named) return
+      named = true
+      void libraryItems().then((r) => alive && setItems(new Map(r.items.map((i) => [i.id, i]))), () => ((named = false), undefined))
+    }
+    const load = () =>
+      void window.aw.library.uses(agentId).then((u) => {
+        if (!alive) return
+        setUses(u)
+        if (u.length) name()
+      }, () => undefined)
     load()
-    void window.aw.library.list().then((r) => alive && setItems(new Map(r.items.map((i) => [i.id, i]))), () => undefined)
     const off = window.aw.onLibraryUse((id) => id === agentId && load())
     return () => {
       alive = false
