@@ -54,13 +54,62 @@ function block(node: Node): string {
   return [...node.children].some((c) => /^(H[1-6]|UL|OL|TABLE|PRE|P|DIV|BLOCKQUOTE|HR)$/.test(c.tagName)) ? children(node) : inline(node).trim()
 }
 
+const BLOCK = /^(H[1-6]|UL|OL|LI|TABLE|THEAD|TBODY|TR|PRE|P|DIV|BLOCKQUOTE|HR|SECTION|ARTICLE|FIGURE|DL)$/
+
+// A node on its own line(s): a block tag, or a wrapper that holds blocks. Text and inline elements next to each other are one line, as they read.
+const isBlock = (n: Node): n is Element => n instanceof Element && (BLOCK.test(n.tagName) || [...n.children].some((c) => BLOCK.test(c.tagName)))
+
 function children(el: Node): string {
-  return [...el.childNodes].map(block).filter(Boolean).join('\n\n')
+  const out: string[] = []
+  let run: Node[] = []
+  const flush = () => {
+    const line = run.map(inline).join('').trim()
+    if (line) out.push(line)
+    run = []
+  }
+  for (const n of el.childNodes) {
+    if (isBlock(n)) {
+      flush()
+      const b = block(n)
+      if (b) out.push(b)
+    } else run.push(n)
+  }
+  flush()
+  return out.join('\n\n')
 }
 
 /** The selection as markdown. */
 export function toMarkdown(fragment: DocumentFragment): string {
   return children(fragment)
+}
+
+/** The words of a node as they are shown, with the breaks they have: `keep` is a code block, where every space and line break counts. */
+function words(node: Node, keep: boolean): string {
+  if (node.nodeType === 3) return keep ? (node.textContent ?? '').replace(/\u00a0/g, ' ') : (node.textContent ?? '').replace(/\s+/g, ' ')
+  if (node instanceof Element && (SKIP.has(node.tagName.toUpperCase()) || node.tagName === 'BR')) return node.tagName === 'BR' ? '\n' : ''
+  return [...node.childNodes].map((c) => words(c, keep)).join('')
+}
+
+const inPre = (r: Range) => {
+  const at = r.commonAncestorContainer
+  return !!(at instanceof Element ? at : at.parentElement)?.closest('pre')
+}
+
+/**
+ * What a copy of these ranges puts on the clipboard: a pick inside a code block is its text and nothing else (no fences or backticks, line breaks kept),
+ * a pick inside one paragraph is plain words as they read, and a pick across blocks is markdown, so lists, tables and code keep their shape.
+ */
+export function selectionText(ranges: Range[]): string {
+  const frags = ranges.map((r) => r.cloneContents())
+  const code = (n: ParentNode) => words(n, true).replace(/\n$/, '')
+  if (ranges.every(inPre)) return frags.map(code).join('\n')
+  const frag = document.createDocumentFragment()
+  frag.append(...frags)
+  // A pick that starts in a block and ends just after it (a triple click) clones to that block alone.
+  const kept = [...frag.childNodes].filter((n) => (n.textContent ?? '').trim() || (n instanceof Element && n.tagName === 'PRE'))
+  if (kept.length === 1 && kept[0] instanceof Element && kept[0].tagName === 'PRE') return code(kept[0])
+  if (![...frag.childNodes].some(isBlock)) return words(frag, false).replace(/ *\n */g, '\n').trim()
+  return toMarkdown(frag)
 }
 
 /** Replaces the browser's own clipboard HTML on every copy of page text; a copy out of a text field is left to the browser. */
@@ -70,10 +119,9 @@ export function installCleanCopy(): () => void {
     if (!sel || sel.isCollapsed || !sel.rangeCount || !e.clipboardData) return
     const t = e.target
     if (t instanceof HTMLElement && (t.closest('input, textarea') || t.isContentEditable)) return
-    const frag = document.createDocumentFragment()
-    for (let i = 0; i < sel.rangeCount; i++) frag.append(sel.getRangeAt(i).cloneContents())
-    // Markdown only, with no HTML beside it: a target that prefers HTML would otherwise get the tags back.
-    e.clipboardData.setData('text/plain', toMarkdown(frag) || sel.toString())
+    const ranges = Array.from({ length: sel.rangeCount }, (_, i) => sel.getRangeAt(i))
+    // Text only, with no HTML beside it: a target that prefers HTML would otherwise get the tags back.
+    e.clipboardData.setData('text/plain', selectionText(ranges) || sel.toString())
     e.preventDefault()
   }
   document.addEventListener('copy', onCopy)
