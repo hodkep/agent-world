@@ -4,6 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-11-04
+
+### Added
+
+- Agents: press Cmd+Option+S (Ctrl+Alt+S elsewhere) to put the agent you are talking to to sleep, or to wake it.
+- The app notes in perf.log, in its data folder, anything that freezes it for a tenth of a second or more, so a slow moment can be traced.
+
+### Changed
+
+- Speed: the skills list, workflow cards and chats no longer freeze the app for seconds, and idle checks run less often.
+- Chat: chats open faster; the app no longer reads every conversation at startup, shows the newest messages first, and loads earlier ones as you scroll up.
+- Chat: a reply no longer fades in word by word; the 0.11.0 reveal is removed and may come back later.
+
 ## [0.11.0] - 2026-11-04
 
 ![Agent World 0.11.0: every skill on one screen, runs that cannot get stuck, and an agent you can put to sleep](https://raw.githubusercontent.com/hodkep/agent-world/v0.11.0/docs/images/releases/0.11.0/poster.png)
