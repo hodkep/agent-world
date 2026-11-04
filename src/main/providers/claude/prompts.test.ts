@@ -144,6 +144,18 @@ describe('is Claude visibly working?', () => {
     expect(looksWorking(`· Doing… (1h 2m 3s · thinking)\n${idle}`)).toBe(true)
   })
 
+  it('sees the spinner line of a turn that has just begun, which has no time on it yet', () => {
+    // Measured on Claude 2.1.318: for the first second or two the line is only a glyph, a word and an ellipsis.
+    for (const glyph of ['·', '✢', '✶', '✽', '✻', '*']) expect(looksWorking(`❯ hello\n${glyph} Composing…\n${idle}`), glyph).toBe(true)
+    expect(looksWorking(`  ✽ Zigzagging…\n${idle}`)).toBe(true)
+  })
+
+  it('does not take a sentence of the reply that ends in an ellipsis for a spinner', () => {
+    expect(looksWorking(`⏺ Let me check the logs…\n${idle}`)).toBe(false)
+    expect(looksWorking(`● Waiting for the build…\n${idle}`)).toBe(false)
+    expect(looksWorking(`Loading… and then some more\n${idle}`)).toBe(false)
+  })
+
   it('is false for an idle screen, even one that has just finished a turn', () => {
     expect(looksWorking(idle)).toBe(false)
     expect(looksWorking(`⏺ Done.\n✻ Crunched for 7s · done 2:47 PM\n${idle}`)).toBe(false)
