@@ -20,6 +20,7 @@ import { SkillInstall } from './SkillInstall'
 import { AgyChip } from './AgyChip'
 import { FoundReader, SkillFooter, SkillOverview } from './SkillOverview'
 import { shelfGroups } from './skillGroups'
+import { restartWhenIdle } from './restartWhenIdle'
 import { sizeText } from '../../shared/size'
 
 const SECTIONS: ['skills' | 'playbook' | 'reach', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['reach', 'Usage']]
@@ -135,8 +136,8 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const restartStale = async () => {
     setRestarting(true)
     setError('')
-    const failed: string[] = []
-    for (const a of stale) await window.aw.reconfigure(a.id, {}).catch(() => void failed.push(a.name))
+    const bad = new Set(await restartWhenIdle(stale.map((a) => a.id), (id) => window.aw.reconfigure(id, {})))
+    const failed = stale.filter((a) => bad.has(a.id)).map((a) => a.name)
     setRestarting(false)
     if (failed.length) setError(`${failed.join(', ')} ${failed.length === 1 ? 'is' : 'are'} in the middle of a turn. Try again when ${failed.length === 1 ? 'it finishes' : 'they finish'}.`)
     setTimeout(() => void refreshStale(), 1500)
