@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 import { DEFAULT_RETRIES, auditSetAside, checkFailed, checkGaveUp, checkRuns, readyForAudit, stepStates, lanesOf, openLane, LATER, noWorkRecorded, refusedAsk } from '../../shared/steps'
 import type { StepOn } from './hint'
@@ -86,9 +86,16 @@ export class Workflows {
     private deps: Deps
   ) {}
 
+  /** The history parsed once for as long as the file stays as it is (its size and time); it is asked for many times a second and is megabytes long. */
+  private parsed?: { size: number; mtimeMs: number; events: RunEvent[] }
+
   private events(): RunEvent[] {
     try {
-      return parseRuns(readFileSync(this.file, 'utf8'))
+      const st = statSync(this.file)
+      if (this.parsed && this.parsed.size === st.size && this.parsed.mtimeMs === st.mtimeMs) return this.parsed.events
+      const events = parseRuns(readFileSync(this.file, 'utf8'))
+      this.parsed = { size: st.size, mtimeMs: st.mtimeMs, events }
+      return events
     } catch {
       return []
     }
@@ -98,8 +105,18 @@ export class Workflows {
     appendFileSync(this.file, JSON.stringify(e) + '\n')
   }
 
+  /** The runs from the history, worked out once for as long as the history is the same list (it is read again only when the file changes). */
+  private reduced?: { events: RunEvent[]; runs: Run[] }
+
   runs(): Run[] {
-    return reduceRuns(this.events())
+    const events = this.events()
+    if (this.reduced?.events !== events) this.reduced = { events, runs: reduceRuns(events) }
+    return this.reduced.runs
+  }
+
+  /** Changes whenever the history does: the window asks for the summary with it and is answered nothing when it still holds. */
+  version(): number {
+    return this.events().length
   }
   /** The skills the steps of the agent's open task's workflow name: what the agent may read for the task. */
   skillsOf(agentId: string): string[] {

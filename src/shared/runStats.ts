@@ -50,10 +50,18 @@ export interface Spend {
 
 export type RunSpend = Spend & { known: boolean; rounds: Spend[] }
 
+/** What each round of each run cost, kept: a round that has ended never costs more, and an open one only when the ledger has grown. */
+export const spendMemo = () => new Map<string, { key: string; spend: Spend }>()
+
 /** What the agent spent inside each round's window of a run, from the ledger, and the total. A run the app started has no known window, so `known` is false and the numbers are zero. */
-export function runSpend(run: Run, ledger: LedgerEvent[], now: number): RunSpend {
+export function runSpend(run: Run, ledger: LedgerEvent[], now: number, memo?: ReturnType<typeof spendMemo>): RunSpend {
   if (run.auto) return { usd: 0, tokens: 0, known: false, rounds: run.rounds.map(() => ({ usd: 0, tokens: 0 })) }
   const rounds = run.rounds.map((round): Spend => {
+    // The ledger only grows at its end, in the present: a round that has ended is never touched by it, an open one is when it has grown.
+    const key = `${round.startedAt}:${round.endedAt ?? `open:${ledger.length}`}`
+    const slot = `${run.id}#${round.n}`
+    const have = memo?.get(slot)
+    if (have && have.key === key) return have.spend
     const to = round.endedAt ?? now
     let usd = 0
     let tokens = 0
@@ -62,7 +70,9 @@ export function runSpend(run: Run, ledger: LedgerEvent[], now: number): RunSpend
       if (e.k === 'cost') usd += e.usd
       else tokens += e.input + e.output
     }
-    return { usd, tokens }
+    const spend = { usd, tokens }
+    memo?.set(slot, { key, spend })
+    return spend
   })
   return { usd: rounds.reduce((n, x) => n + x.usd, 0), tokens: rounds.reduce((n, x) => n + x.tokens, 0), known: true, rounds }
 }
