@@ -78,6 +78,22 @@ describe('recording a task', () => {
   })
 })
 
+describe('reading the run history', () => {
+  it('sees what another copy of the service wrote to the file, and what it wrote itself, without parsing the file again for nothing', () => {
+    const { state, open, wf } = make()
+    state.pick = () => undefined as never
+    wf.begin('a1', 'first')
+    expect(wf.runs()).toHaveLength(1)
+    // Another writer (a second service on the same file, as after a restart) adds a run: the first sees it at once.
+    const other = open()
+    other.begin('a2', 'second')
+    expect(wf.runs().map((r) => r.title).sort()).toEqual(['first', 'second'])
+    wf.begin('a1', 'third')
+    expect(wf.runs().length).toBeGreaterThanOrEqual(2)
+    expect(wf.runs().map((r) => r.title)).toContain('third')
+  })
+})
+
 describe('turning workflows off', () => {
   it('starts no new task, but a task already open can still be finished', () => {
     const { wf, state } = make()

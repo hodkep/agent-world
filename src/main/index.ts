@@ -111,7 +111,7 @@ import { troubleOf } from '../shared/trouble'
 import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepClosed, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, enabledHere, pickAsker, usesNoWorkflow } from '../shared/workflows'
-import { runSpend } from '../shared/runStats'
+import { runSpend, spendMemo } from '../shared/runStats'
 import { createRemoteGates } from './remoteGates'
 import { UNPROVEN } from './remoteReply'
 import { fromAgentProgram, peerPids } from './peerPid'
@@ -2301,10 +2301,16 @@ async function main() {
         })
       : []
   )
-  ipcMain.handle('workflows:summary', () => {
+  const spends = spendMemo()
+  ipcMain.handle('workflows:summary', (_, since?: string) => {
     const runs = workflows.runs()
+    const unapproved = runs.filter((r) => r.workflow && checkCommands(r.workflow).length > 0 && !commandsApproved(r.workflow)).map((r) => r.id)
+    const open = runs.filter((r) => r.status === 'open').length
+    // What the window already has is not sent again (it is megabytes, asked for on every event): the cost of an open run moves with the ledger, the rest with the history.
+    const version = `${workflows.version()}|${open ? ledger.length : 0}|${unapproved.join(',')}`
+    if (since === version) return null
     const now = Date.now()
-    return { runs, open: runs.filter((r) => r.status === 'open').length, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now)])), unapproved: runs.filter((r) => r.workflow && checkCommands(r.workflow).length > 0 && !commandsApproved(r.workflow)).map((r) => r.id) }
+    return { version, runs, open, spend: Object.fromEntries(runs.map((r) => [r.id, runSpend(r, ledger, now, spends)])), unapproved }
   })
   ipcMain.handle('workflows:decide', (_, runId: string, state: 'approved' | 'changes' | 'released', o: { note?: string; answers?: { question: string; answer: string }[] }) => {
     const run = workflows.runs().find((r) => r.id === runId)

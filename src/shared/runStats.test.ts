@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LedgerEvent } from './ledger'
 import { type RunEvent, reduceRuns } from './runs'
-import { agentCounts, auditText, workflowRuns, checkText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, runStats, runsThisWeek } from './runStats'
+import { agentCounts, auditText, workflowRuns, checkText, landedText, formatCost, spendText, formatDuration, formatTokens, howRunsBegan, runSpend, spendMemo, runStats, runsThisWeek } from './runStats'
 
 const MIN = 60_000
 // Wednesday 2026-10-14 12:00 local; the week began Monday 2026-10-12.
@@ -70,6 +70,28 @@ describe('what a run cost, from the ledger', () => {
   })
   it('is nothing for a run the app started, whose start it cannot know', () => {
     expect(runSpend(runs.find((r) => r.id === 'r3')!, ledger, NOW)).toMatchObject({ usd: 0, tokens: 0, known: false })
+  })
+  it('with a memo, looks through the ledger once for a round that has ended, and again for an open one only when the ledger has grown', () => {
+    let looked = 0
+    const counted = Object.assign([...ledger], { [Symbol.iterator]: function* (this: LedgerEvent[]) { looked++; yield* Array.prototype[Symbol.iterator].call(this) } }) as LedgerEvent[]
+    const memo = spendMemo()
+    const r1 = runs.find((r) => r.id === 'r1')!
+    const first = runSpend(r1, counted, NOW, memo)
+    const afterFirst = looked
+    expect(runSpend(r1, counted, NOW, memo)).toEqual(first)
+    expect(looked).toBe(afterFirst)
+    // The ledger grows (as it does all day): what the ended rounds cost cannot change, so they are not looked at again.
+    counted.push({ k: 'cost', t: NOW, agent: 'a1', project: '/p', model: 'sonnet', usd: 1 })
+    expect(runSpend(r1, counted, NOW, memo)).toEqual(first)
+    expect(looked).toBe(afterFirst)
+    // An open run is looked at again, and sees the new cost.
+    const r2 = runs.find((r) => r.id === 'r2')!
+    const open = runSpend(r2, counted, NOW, memo)
+    const afterOpen = looked
+    expect(runSpend(r2, counted, NOW, memo)).toEqual(open)
+    expect(looked).toBe(afterOpen)
+    counted.push({ k: 'cost', t: NOW, agent: 'a2', project: '/p', model: 'sonnet', usd: 4 })
+    expect(runSpend(r2, counted, NOW, memo).usd).toBe(open.usd + 4)
   })
 })
 
