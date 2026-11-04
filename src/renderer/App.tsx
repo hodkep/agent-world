@@ -54,6 +54,8 @@ import { type Node, add, addAll, even, isTerm, mapTiles, place, tilesOf } from '
 import { TracesView } from './panel/TracesView'
 import { AgentLibrary } from './panel/AgentLibrary'
 import { useLibraryUses } from './chat/LibrarySlips'
+import { FullscreenButton } from './panel/FullscreenButton'
+import { createPeek } from './barsPeek'
 import { type HeaderIconName, IconButton, OutlineIcon } from './panel/IconButton'
 import { ViewTab } from './panel/ViewTab'
 import { OfficeRail } from './panel/OfficeRail'
@@ -165,7 +167,9 @@ export function App() {
   const [trusts, setTrusts] = useState<Record<string, string>>({})
   const [focusTick, setFocusTick] = useState(0)
   const [view, setView] = useState<'chat' | 'terminal' | 'code' | 'tools' | 'preview' | 'traces' | 'library' | 'workflow' | 'file'>(readTalk)
-  const [wide, setWide] = useState(false)
+  // The top bars hidden (full screen): nothing marks them, and they slide down while the pointer rests on the very top edge.
+  const [barsOff, setBarsOff] = useState(false)
+  const [barsPeek, setBarsPeek] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [hiring, setHiring] = useState(false)
   const [history, setHistory] = useState(false)
@@ -191,8 +195,19 @@ export function App() {
   // The pane at the right of the chat starts under the top bar, whatever its height is.
   useEffect(() => {
     const h = document.querySelector('.app > header')
-    if (h) document.documentElement.style.setProperty('--hdr', `${(h as HTMLElement).offsetHeight}px`)
-  }, [vw])
+    if (!h) return
+    const px = `${(h as HTMLElement).offsetHeight}px`
+    // --bars-h is the bar's own height; --hdr is how far the page starts below it, which is nothing while the bars are hidden.
+    document.documentElement.style.setProperty('--bars-h', px)
+    document.documentElement.style.setProperty('--hdr', barsOff ? '0px' : px)
+  }, [vw, barsOff])
+  useEffect(() => {
+    if (!barsOff) return setBarsPeek(false)
+    const p = createPeek({ set: setBarsPeek })
+    const move = (e: MouseEvent) => p.point(e.clientY <= 6 || (e.target instanceof Element && !!e.target.closest('header, aside .tabbar, aside .head-compact')))
+    document.addEventListener('mousemove', move)
+    return () => (document.removeEventListener('mousemove', move), p.reset())
+  }, [barsOff])
   const [termH, setTermH] = useState(() => Math.max(110, Number(store('aw.termH')) || 230))
   const [termCount, setTermCount] = useState(0)
   const setTermOpen = useCallback(
@@ -961,7 +976,7 @@ export function App() {
   // With the office hidden the panel is the window: it is always showing.
   const showPanel = noOffice || (panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen)
   // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
-  const overW = narrow && showPanel && !panes && !noOffice ? (wide ? 'min(94vw, 900px)' : `min(${panelW ?? 560}px, 94vw)`) : '0px'
+  const overW = narrow && showPanel && !panes && !noOffice ? `min(${panelW ?? 560}px, 94vw)` : '0px'
   const setOffice = (off: boolean) => (setOfficeOff(off), keep('aw.officeHidden', off ? '1' : ''))
   // Mod+Alt+O shows or hides the office, from anywhere (even with a box focused: the key is not typed anywhere).
   useEffect(() => {
@@ -1457,7 +1472,7 @@ export function App() {
     return () => behind.forEach((e) => e.removeAttribute('inert'))
   }, [covered])
   return (
-    <div className="app">
+    <div className={`app${barsOff ? ' bars-off' : ''}${barsPeek ? ' bars-peek' : ''}`}>
       {flight?.shown && <Switcher kind={flight.kind} title={flight.kind === 'agents' ? 'Switch agent' : 'Switch project'} tiles={switchTiles(flight)} at={flight.at} onPick={pickTile} />}
       {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
       {workspaces && !workspaces.active && workspaces.items.length > 0 && (
@@ -1615,6 +1630,7 @@ export function App() {
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} disabled={noOffice} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
+        <FullscreenButton hidden={barsOff} onToggle={() => setBarsOff((o) => !o)} />
       </header>
       {updatedBanner && (
         <div className="upd-banner" role="status">
@@ -1758,7 +1774,7 @@ export function App() {
             onSelect={(id) => (id === selected ? (cardOpen ? setCardOpen(false) : showCard()) : select(id))}
           />
         )}
-        <aside hidden={!showPanel} className={`${wide ? 'wide' : ''} ${narrow && !noOffice ? 'drawer' : ''} ${noOffice ? 'solo' : ''}`} style={!wide && !noOffice && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
+        <aside hidden={!showPanel} className={`${narrow && !noOffice ? 'drawer' : ''} ${noOffice ? 'solo' : ''}`.trim()} style={!noOffice && panelW ? { width: `min(${panelW}px, ${narrow ? '94vw' : '80vw'})` } : undefined}>
           <div
             className="resizer"
             hidden={noOffice}
@@ -1986,9 +2002,6 @@ export function App() {
               ].map((t, i) => (
                 <ViewTab key={t.id} icon={t.icon as HeaderIconName} label={t.label} name={`${t.label}${t.badge ? ` ${t.badge}` : ''}${t.dot ? ' ●' : ''}`} about={t.about} number={i + 1} selected={view === t.id} onClick={t.go} badge={t.badge} dot={t.dot as 'run' | 'live' | undefined} keys={t.keys} reveal={t.reveal} named={t.named} />
               ))}
-              <button className="push icon-btn" onClick={() => setWide((w) => !w)} aria-pressed={wide} aria-label={wide ? 'Narrow' : 'Expand'} title={wide ? 'Narrow the panel' : 'Give the panel more room'}>
-                {wide ? '⤡' : '⤢'}
-              </button>
             </div>
             </div>
           )}

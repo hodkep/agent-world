@@ -44,9 +44,8 @@ test('the grid toolbar stays inside its area, clear of the side panel', async ()
   const { page, shutdown } = await start(1200, 700)
   try {
     await openGrid(page, ['ada', 'linus'])
-    // Bring the panel back beside the grid, wide, which leaves the grid little room: the case that used to overlap.
+    // Bring the panel back beside the grid.
     await page.getByRole('button', { name: 'Show panel' }).click()
-    await page.getByRole('button', { name: 'Expand' }).click()
     const area = (await page.locator('.stage-wrap').boundingBox())!
     const aside = (await page.locator('aside').boundingBox())!
     for (const b of await bar(page).getByRole('button').all()) {

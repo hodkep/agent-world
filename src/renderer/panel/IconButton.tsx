@@ -31,6 +31,9 @@ const ICONS = {
   library: <path d="M3 5h7a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3zM21 5h-7a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7z" />,
   gear: <path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4" />,
   panel: <><rect x="3" y="3" width="18" height="18" /><path d="M15 3v18" /></>,
+  // Full screen: two arrows pulling apart, and pointing at each other once in.
+  expand: <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />,
+  shrink: <path d="M20 10h-6V4M14 10l7-7M4 14h6v6M10 14l-7 7" />,
   keyboard: <><rect x="2" y="6" width="20" height="12" /><path d="M6 10h1M10 10h1M14 10h1M18 10h1M7 14h10" /></>,
   // The picture editor's tools.
   pen: <><path d="M3 21l1-5L16 4l4 4L8 20z" /><path d="M14 6l4 4" /></>,
