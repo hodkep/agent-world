@@ -2,6 +2,7 @@
 # Copies a published GitHub release's installers to the R2 mirror and drops the older folders of the same kind. It needs no Mac: it only moves files.
 #   scripts/mirror-release.sh v0.8.0            takes the files from the release on GitHub (checked against the digests GitHub shows)
 #   scripts/mirror-release.sh v0.8.0 <dir>      takes them from a folder that holds the build, for a release that is not published yet
+# PHASE=upload copies only v<version>/ (no GitHub release needed, so it can run while the build is drafted and main CI runs); PHASE=latest then prunes old folders and refreshes latest/ (run it after the release is published). Default: both.
 # The remote `r2` is the one in rclone.conf on a Mac (on a runner it can be made from RCLONE_CONFIG_R2_* variables). DRYRUN=1 shows what would move and changes nothing.
 # Folder per version: v<version>/ holds the dmgs, the zips and latest-mac.yml. The newest stable and the newest beta are kept; the checksums that decide
 # whether a download is good still come from the GitHub release, so the mirror is only a faster copy.
@@ -10,8 +11,10 @@ TAG="${1:?tag, e.g. v0.8.0}"; DIR="${2:-}"
 [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo "not a release tag: $TAG"; exit 1; }
 VER="${TAG#v}"; REPO="${REPO:-hodkep/agent-world}"
 BUCKET="r2:agent-world-releases"; BASE="https://dl.agent-world.in"
+PHASE="${PHASE:-all}"; [[ "$PHASE" =~ ^(all|upload|latest)$ ]] || { echo "PHASE is all, upload or latest"; exit 1; }
 FLAGS=(--s3-no-check-bucket); [ -n "${DRYRUN:-}" ] && FLAGS+=(--dry-run)
 
+if [ "$PHASE" != latest ]; then
 if [ -z "$DIR" ]; then
   DIR="$(mktemp -d)"; trap 'rm -rf "$DIR"' EXIT
   gh release download "$TAG" --repo "$REPO" --dir "$DIR" --pattern "Agent-World-$VER-*.dmg" --pattern "Agent-World-$VER-*.zip" --pattern latest-mac.yml
@@ -31,6 +34,11 @@ if [ -z "${DRYRUN:-}" ]; then
   done
 fi
 
+# Same bytes as the local files, checked by hash from the mirror's own metadata: nothing is downloaded back.
+[ -z "${DRYRUN:-}" ] && rclone check "$DIR" "$BUCKET/v$VER" --one-way --include "Agent-World-$VER-*.dmg" --include "Agent-World-$VER-*.zip" --include latest-mac.yml --s3-no-check-bucket
+fi
+
+if [ "$PHASE" != upload ]; then
 # Older folders of the same kind go (a beta has a dash in its version). A newer one, or one of the other kind, stays, so mirroring an old release changes nothing else.
 kind() { case "$1" in *-*) echo beta;; *) echo stable;; esac; }
 for d in $(rclone lsf "$BUCKET" --dirs-only | sed 's#/$##'); do
@@ -44,5 +52,6 @@ if [ "$(kind "$VER")" = stable ]; then
   for a in arm64 x64; do rclone copyto "$BUCKET/v$VER/Agent-World-$VER-$a.dmg" "$BUCKET/latest/Agent-World-$a.dmg" "${FLAGS[@]}"; done
   # And its latest-mac.yml, at a fixed address too: an app that GitHub will not answer (its unauthenticated limit is spent) reads the newest version from it.
   rclone copyto "$BUCKET/v$VER/latest-mac.yml" "$BUCKET/latest/latest-mac.yml" "${FLAGS[@]}"
+fi
 fi
 echo "MIRROR-DONE $BASE/v$VER/Agent-World-$VER-arm64.dmg"
