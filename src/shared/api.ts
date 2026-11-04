@@ -272,7 +272,9 @@ export interface AwApi {
   onAgentStats(cb: (agentId: string, s: AgentStats) => void): () => void
   /** The subscription's 5-hour and weekly usage, as last reported by any agent. */
   /** The conversation so far (from Claude's saved transcript) and later additions to it. */
-  chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[] }>
+  chatGet(agentId: string): Promise<{ sessionId: string; items: ChatItem[]; loading: boolean; more: boolean; bytes: number }>
+  /** The next older part of the conversation, to put in front of the items held; `more` says whether the file holds yet earlier ones. */
+  chatEarlier(agentId: string): Promise<{ items: ChatItem[]; more: boolean }>
   /** A project's todo board changed (by the person or an agent): read it again with todos.get. */
   onTodosChanged(cb: (workspace: string) => void): () => void
   /** The notes window asked an agent about a task, or gave it one: this window (of the agent's project) sends the message. */

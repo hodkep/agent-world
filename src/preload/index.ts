@@ -84,6 +84,7 @@ const api: AwApi = {
   onServers: on('servers'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   chatGet: (id) => ipcRenderer.invoke('chat:get', id),
+  chatEarlier: (id) => ipcRenderer.invoke('chat:earlier', id),
   onChatItems: on('chat-items'),
   onLibraryUse: on('library-use'),
   onLibrarySizes: on('library-sizes'),
