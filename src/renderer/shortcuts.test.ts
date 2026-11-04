@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findShortcuts, hint, matches, PLACES, SHORTCUTS, showKey, tabNumber } from './shortcuts'
+import { findShortcuts, hint, matches, PLACES, SHORTCUTS, showKey, sleepOrWake, tabNumber } from './shortcuts'
 
 describe('a key combination as the person sees it', () => {
   it('uses the Mac symbols on a Mac', () => {
@@ -133,6 +133,30 @@ describe('showing or hiding the office', () => {
     expect(SHORTCUTS.find((s) => s.id === 'office')?.place).toBe('Anywhere')
     expect(hint('office', true)).toBe('Show or hide the office (⌘⌥O)')
     expect(hint('office', false)).toBe('Show or hide the office (Ctrl+Alt+O)')
+  })
+})
+
+describe('putting the selected agent to sleep, or waking it', () => {
+  const press = (key: string, code: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({ key, code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
+
+  it('is Mod+Alt+S, read from the key itself since Option+S types ß on a Mac', () => {
+    expect(matches(press('ß', 'KeyS', { metaKey: true, altKey: true }), 'sleep-wake')).toBe(true)
+    expect(matches(press('s', 'KeyS', { ctrlKey: true, altKey: true }), 'sleep-wake')).toBe(true)
+    expect(matches(press('s', 'KeyS', { metaKey: true }), 'sleep-wake')).toBe(false)
+    expect(matches(press('s', 'KeyS', { metaKey: true, altKey: true, shiftKey: true }), 'sleep-wake')).toBe(false)
+    expect(matches(press('d', 'KeyD', { metaKey: true, altKey: true }), 'sleep-wake')).toBe(false)
+  })
+
+  it('is in the sheet under Anywhere and has a hint', () => {
+    expect(SHORTCUTS.find((s) => s.id === 'sleep-wake')?.place).toBe('Anywhere')
+    expect(hint('sleep-wake', true)).toBe('Put the selected agent to sleep, or wake it (⌘⌥S)')
+    expect(hint('sleep-wake', false)).toBe('Put the selected agent to sleep, or wake it (Ctrl+Alt+S)')
+  })
+
+  it('wakes an agent that is asleep, or that has not reported yet, and puts any other to sleep', () => {
+    expect(sleepOrWake('asleep')).toBe('wake')
+    expect(sleepOrWake(undefined)).toBe('wake')
+    for (const act of ['idle', 'waiting', 'thinking', 'running']) expect(sleepOrWake(act)).toBe('sleep')
   })
 })
 

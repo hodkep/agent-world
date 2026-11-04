@@ -42,7 +42,7 @@ import { History } from './panel/History'
 import { Palette } from './panel/Palette'
 import { ShortcutsSheet } from './panel/ShortcutsSheet'
 import { requestAddSelection } from './addSelection'
-import { hint, keysOf, matches, tabNumber } from './shortcuts'
+import { hint, keysOf, matches, sleepOrWake, tabNumber } from './shortcuts'
 import { Switcher, type Tile } from './panel/Switcher'
 import { useSwitcher, type Flight } from './panel/useSwitcher'
 import { waitWord, waitsForPerson } from '../shared/waits'
@@ -1407,6 +1407,20 @@ export function App() {
       await window.aw.wakeAgent(a.id)
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
     })
+  // Mod+Alt+S puts the agent in the chat to sleep, or wakes it, from anywhere. A refusal (working, waiting, has helpers, in a workflow run) shows in the error bar, as from its menu.
+  const currentActivity = current ? world[current.id]?.activity : undefined
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!matches(e, 'sleep-wake')) return
+      e.preventDefault()
+      e.stopPropagation()
+      // Held down, the key repeats: that would sleep and wake the agent (starting and stopping its program) over and over.
+      if (e.repeat) return
+      if (current) void (sleepOrWake(currentActivity) === 'wake' ? wake(current) : run(() => window.aw.sleepAgent(current.id)))
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  }, [current, currentActivity])
 
   const remove = (id: string, mode?: 'discard' | 'keep-worktree') =>
     run(async () => {
