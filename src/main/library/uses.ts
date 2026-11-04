@@ -1,4 +1,4 @@
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs'
+import { appendFileSync, closeSync, mkdirSync, openSync, readSync, statSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 import type { ItemStats, SkillUse, Summary, Tally, Use } from '../../shared/library'
@@ -7,27 +7,56 @@ export type { How, ItemStats, SkillUse, Summary, Tally, Use } from '../../shared
 export class UseLog {
   constructor(private file: string) {}
 
+  /** What has been read of the file so far: the uses, and how many bytes (up to the last whole line) they came from. */
+  private seen: { size: number; offset: number; uses: Use[] } = { size: -1, offset: 0, uses: [] }
+
   add(u: Omit<Use, 't'>): void {
     mkdirSync(dirname(this.file), { recursive: true })
     appendFileSync(this.file, JSON.stringify({ t: Date.now(), ...u }) + '\n')
   }
 
+  /**
+   * Every use, oldest first. The file is megabytes and every chat and every screen asks for it: it is read once, and afterwards only what was added to it
+   * (by this app or another copy of it) is read. The same list comes back while the file is the same, so nobody may change it.
+   */
   all(): Use[] {
+    let size: number
+    try {
+      size = statSync(this.file).size
+    } catch {
+      this.seen = { size: -1, offset: 0, uses: [] }
+      return this.seen.uses
+    }
+    if (size === this.seen.size) return this.seen.uses
+    // A file that got shorter was replaced: start over.
+    const from = size < this.seen.offset ? 0 : this.seen.offset
+    const base = from === 0 ? [] : this.seen.uses
     let text = ''
     try {
-      text = readFileSync(this.file, 'utf8')
-    } catch {
-      return []
-    }
-    const out: Use[] = []
-    for (const line of text.split('\n')) {
+      const fd = openSync(this.file, 'r')
       try {
-        out.push(JSON.parse(line) as Use)
+        const buf = Buffer.alloc(size - from)
+        readSync(fd, buf, 0, buf.length, from)
+        text = buf.toString('utf8')
+      } finally {
+        closeSync(fd)
+      }
+    } catch {
+      return this.seen.uses
+    }
+    // A last line without its newline is still being written: it is read when it is finished.
+    const end = text.lastIndexOf('\n') + 1
+    const added: Use[] = []
+    for (const line of text.slice(0, end).split('\n')) {
+      if (!line) continue
+      try {
+        added.push(JSON.parse(line) as Use)
       } catch {
-        /* a half-written last line */
+        /* a damaged line */
       }
     }
-    return out
+    this.seen = { size, offset: from + Buffer.byteLength(text.slice(0, end)), uses: added.length || from === 0 ? [...base, ...added] : base }
+    return this.seen.uses
   }
 }
 
