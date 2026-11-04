@@ -22,6 +22,7 @@ import { startChecks } from './updateCheck'
 import { AccountService } from './accounts'
 import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
+import { type Chat, chatFollower } from './chatFollow'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { shared } from './shared'
@@ -419,44 +420,11 @@ function trimImages(items: ChatItem[]): ChatItem[] {
     return i
   }).reverse()
 }
-interface Chat {
-  tail: { start(): void; stop(): void }
-  sessionId: string
-  items: ChatItem[]
-}
 const chats = new Map<string, Chat>()
-function followChat(a: AgentRecord) {
-  const now = chats.get(a.id)
-  if (now?.sessionId === a.sessionId) return
-  now?.tail.stop()
-  const chat: Chat = { tail: null as unknown as Chat['tail'], sessionId: a.sessionId, items: [] }
-  chat.tail = providerOf(a).transcript.follow(a, (items, replace) => {
-    chat.items = trimImages((replace ? items : [...chat.items, ...items]).slice(-MAX_CHAT))
-    // A replacement (after a rewind) is told to the window as a reset, so it reloads the whole conversation.
-    if (replace) send('chat-reset', a.id, a.sessionId)
-    else send('chat-items', a.id, a.sessionId, items)
-  })
-  chats.set(a.id, chat)
-  // A different session (after /clear or a fork) is a different conversation: the view starts over.
-  if (now) send('chat-reset', a.id, a.sessionId)
-  chat.tail.start()
-}
-/**
- * /clear starts a new Claude session, but its id only reaches us with a later hook event, so the old conversation
- * would linger on screen. Empty the view at once and let the new session's tail take over when its id arrives.
- */
-function clearChatNow(id: string) {
-  const chat = chats.get(id)
-  const a = byId(id)
-  if (!chat || !a) return
-  chat.items = []
-  send('chat-reset', id, a.sessionId)
-  chat.tail.stop()
-  // If Claude never switches (the command was refused), pick the old conversation back up.
-  setTimeout(() => {
-    if (chats.get(id) === chat && a.sessionId === chat.sessionId) chat.tail.start()
-  }, 60_000)
-}
+const chatFollow = chatFollower({ chats, follow: (a, onItems) => providerOf(a).transcript.follow(a, onItems), send: (...args) => (send as (...x: unknown[]) => void)(...args), byId: (id) => byId(id), max: MAX_CHAT, trim: trimImages })
+// Known about at startup, read when the chat is first opened (or the program starts): only a conversation someone looks at is read.
+const followChat = (a: AgentRecord, start = true) => chatFollow.follow(a, start)
+const clearChatNow = (id: string) => chatFollow.clearNow(id)
 // The permission mode last seen in each agent's footer: hooks only say it changed at their next event, the screen says it at once.
 // Agents whose footer has named a mode since they started: the mode they were started in no longer stands in for a footer that says nothing.
 const leftStartMode = new Set<string>()
@@ -1305,7 +1273,7 @@ async function main() {
   if (!app.isPackaged && process.platform === 'darwin' && !HIDDEN) app.dock?.setIcon(join(__dirname, '../../build/icon.png'))
   mkdirSync(HOME, { recursive: true })
   agents = withoutOrphans(loadAgents(AGENTS_FILE))
-  for (const a of agents) followChat(a)
+  for (const a of agents) followChat(a, false)
   loadUsage()
   loadPrices()
   loadLedger()
@@ -1757,7 +1725,8 @@ async function main() {
     snapshotLimits(all)
     return all
   })
-  ipcMain.handle('chat:get', (_, id: string) => ({ sessionId: chats.get(id)?.sessionId ?? '', items: chats.get(id)?.items ?? [] }))
+  ipcMain.handle('chat:get', (_, id: string) => chatFollow.visit(id))
+  ipcMain.handle('chat:earlier', (_, id: string) => chatFollow.earlier(id))
   // The composer types into the agent's real terminal, exactly as if typed there, so nothing about the session changes.
   // A message typed while the agent is still starting waits for its input box (a terminal that is not reading yet loses what is pasted into it),
   // but not for ever: past this the message goes in as it always did. Messages to one agent go in one at a time, in the order they were sent.

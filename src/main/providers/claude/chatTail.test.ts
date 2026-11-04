@@ -184,3 +184,110 @@ describe('following a transcript file without polling it all the time', () => {
     }
   })
 })
+
+describe('reading only the latest part of a long transcript', () => {
+  const many = (n: number, from = 0) => Array.from({ length: n }, (_, i) => node(`m${from + i}`, from + i === 0 ? null : `m${from + i - 1}`, `msg ${from + i}`)).join('')
+  const texts = (items: ChatItem[]) => items.map((i) => (i.kind === 'user' ? i.text : i.kind))
+  const open = (file: string, o: ConstructorParameters<typeof TranscriptTail>[2] = {}) => {
+    const got: { items: ChatItem[]; replace: boolean }[] = []
+    const tail = new TranscriptTail(file, (items, replace) => got.push({ items, replace }), { chunk: 400, want: 10, ...o })
+    return { got, tail }
+  }
+
+  it('shows the newest messages first and says there are earlier ones', async () => {
+    const file = join(dir, 'long.jsonl')
+    writeFileSync(file, many(200))
+    const { got, tail } = open(file)
+    await tail.load()
+    expect(got).toHaveLength(1)
+    expect(got[0]!.replace).toBe(true)
+    expect(texts(got[0]!.items).at(-1)).toBe('msg 199')
+    expect(got[0]!.items.length).toBeGreaterThanOrEqual(10)
+    expect(got[0]!.items.length).toBeLessThan(60)
+    expect(tail.hasEarlier).toBe(true)
+  })
+
+  it('keeps following from the end after the first read, waiting for a half-written last line', async () => {
+    const file = join(dir, 'grow.jsonl')
+    const half = node('m200', 'm199', 'msg 200')
+    writeFileSync(file, many(200) + half.slice(0, 30))
+    const { got, tail } = open(file)
+    await tail.load()
+    expect(texts(got[0]!.items).at(-1)).toBe('msg 199')
+    appendFileSync(file, half.slice(30))
+    tail.poll()
+    expect(got.at(-1)).toMatchObject({ replace: false, items: [{ text: 'msg 200' }] })
+  })
+
+  it('loads earlier messages on request, in order, until the start of the file', async () => {
+    const file = join(dir, 'back.jsonl')
+    writeFileSync(file, many(100))
+    const { got, tail } = open(file)
+    await tail.load()
+    const shown = got[0]!.items.length
+    let older: ChatItem[] = []
+    for (let k = 0; k < 50 && tail.hasEarlier; k++) {
+      const r = await tail.earlier()
+      expect(r.replace).toBe(false)
+      older = [...r.items, ...older]
+    }
+    expect(tail.hasEarlier).toBe(false)
+    expect(older.length + shown).toBe(100)
+    expect(texts([...older, ...got[0]!.items])).toEqual(Array.from({ length: 100 }, (_, i) => `msg ${i}`))
+  })
+
+  it('gives back control between chunks, so one long read never holds the process', async () => {
+    const file = join(dir, 'yield.jsonl')
+    writeFileSync(file, many(300))
+    let turns = 0
+    const { tail } = open(file, { want: 100_000, yieldLoop: async () => void turns++ })
+    await tail.load()
+    expect(turns).toBeGreaterThan(5)
+  })
+
+  it('stops at its byte budget however long the lines are, and still offers the rest', async () => {
+    const file = join(dir, 'huge.jsonl')
+    writeFileSync(file, many(300))
+    const { got, tail } = open(file, { want: 100_000, budget: 2000 })
+    await tail.load()
+    expect(got[0]!.items.length).toBeLessThan(60)
+    expect(tail.hasEarlier).toBe(true)
+  })
+
+  it('shows a whole short file at once, with nothing earlier', async () => {
+    const file = join(dir, 'short.jsonl')
+    writeFileSync(file, many(3))
+    const { got, tail } = open(file, { chunk: 1 << 20 })
+    await tail.load()
+    expect(texts(got[0]!.items)).toEqual(['msg 0', 'msg 1', 'msg 2'])
+    expect(tail.hasEarlier).toBe(false)
+  })
+
+  it('follows a rewind that happened inside the part it read', async () => {
+    const file = join(dir, 'rew.jsonl')
+    writeFileSync(file, many(100) + node('x', 'm95', 'new direction'))
+    const { got, tail } = open(file)
+    await tail.load()
+    const all = texts(got[0]!.items)
+    expect(all.at(-1)).toBe('new direction')
+    expect(all).not.toContain('msg 99')
+    expect(all).toContain('msg 95')
+  })
+
+  it('does not tell the window about a file that is empty or missing', async () => {
+    const { got, tail } = open(join(dir, 'none.jsonl'))
+    await tail.load()
+    expect(got).toEqual([])
+    expect(tail.hasEarlier).toBe(false)
+  })
+
+  it('reads a replaced, much shorter file from its top', async () => {
+    const file = join(dir, 'shrink.jsonl')
+    writeFileSync(file, many(100))
+    const { got, tail } = open(file)
+    await tail.load()
+    writeFileSync(file, user('z', 'fresh'))
+    tail.poll()
+    expect(texts(got.at(-1)!.items)).toEqual(['fresh'])
+  })
+})

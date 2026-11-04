@@ -238,10 +238,25 @@ export interface PastSession {
   bytes: number
 }
 
+/** A followed conversation. One that reads the newest part of its file first (async, in turns) says so with `ready`, and loads the rest with `earlier`. */
+export interface Following {
+  start(): void
+  stop(): void
+  poll?(): void
+  /** Settles when the first read is over. */
+  ready?: Promise<void>
+  /** Whether the file holds messages before the ones read. */
+  readonly hasEarlier?: boolean
+  /** The size of the file the first read took its window from. */
+  readonly bytes?: number
+  /** Reads the next older part: the items before the ones held, or `replace` with the whole conversation when a rewind changed it. */
+  earlier?(): Promise<{ items: ChatItem[]; replace: boolean }>
+}
+
 /** Where an agent's conversation is kept, and how to read it. */
 export interface TranscriptSource {
   /** Follows the conversation, calling `onItems`; `replace` means the items are the whole conversation now (after a rewind). */
-  follow(agent: AgentRecord, onItems: (items: ChatItem[], replace: boolean) => void): { start(): void; stop(): void; poll?(): void }
+  follow(agent: AgentRecord, onItems: (items: ChatItem[], replace: boolean) => void): Following
   /** Whether the program has already saved a session file for this agent, which it will only reopen, never start again under the same id. */
   exists?(agent: AgentRecord): boolean
   /** The whole saved conversation, read once. */

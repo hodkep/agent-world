@@ -236,31 +236,60 @@ export function ChatView({
     return () => clearTimeout(t)
   }, [stopping])
 
+  // A chat is read when it is first shown, not when the app starts: a loader stands in for the conversation until the newest part of it is in.
+  const [loading, setLoading] = useState(false)
+  const [moreBefore, setMoreBefore] = useState(false)
+  const [fileBytes, setFileBytes] = useState(0)
+  const asked = useRef(false)
+  const askNow = useRef<() => void>(() => {})
+  /** Messages put in front by "earlier", which the cap on what is kept leaves alone. */
+  const extra = useRef(0)
   useEffect(() => {
     let alive = true
+    asked.current = false
     const load = () =>
       void window.aw.chatGet(agentId).then((c) => {
         if (!alive) return
         session.current = c.sessionId
+        extra.current = 0
         setItems(c.items)
+        setLoading(c.loading)
+        setMoreBefore(c.more)
+        setFileBytes(c.bytes)
       })
-    load()
+    askNow.current = () => {
+      if (asked.current) return
+      asked.current = true
+      load()
+    }
+    // What happens to a chat nobody has looked at is of no interest yet: it is read in full when it is first shown.
+    const reload = () => asked.current && load()
     const offItems = window.aw.onChatItems((id, sid, more) => {
-      if (id !== agentId) return
+      if (id !== agentId || !asked.current) return
       if (sid !== session.current) return load()
       setItems((cur) => {
         const seen = new Set(cur.map((i) => i.id))
         const fresh = more.filter((i) => !seen.has(i.id))
-        return fresh.length ? [...cur, ...fresh].slice(-800) : cur
+        return fresh.length ? [...cur, ...fresh].slice(-(800 + extra.current)) : cur
       })
     })
-    const offReset = window.aw.onChatReset((id) => id === agentId && load())
+    const offReset = window.aw.onChatReset((id) => id === agentId && reload())
     return () => {
       alive = false
       offItems()
       offReset()
     }
   }, [agentId])
+  useEffect(() => {
+    if (visible) askNow.current()
+  }, [visible, agentId])
+  // A short read shows no loader at all: it would only flash.
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    if (!loading) return setSlow(false)
+    const t = setTimeout(() => setSlow(true), 150)
+    return () => clearTimeout(t)
+  }, [loading])
 
   // What this agent handed to others is not in its conversation file: it joins the conversation where it was sent.
   const merged = useMemo(() => {
@@ -377,12 +406,35 @@ export function ChatView({
 
   // Loading earlier messages must not move what is being read: the browser does not hold the view at the very top, so the first message in view is put back where it was.
   const reading = useRef<{ el: HTMLElement; top: number } | null>(null)
-  const showEarlier = () => {
+  const holdPlace = () => {
     const l = log.current
     const top = l?.getBoundingClientRect().top ?? 0
     const el = l && [...l.querySelectorAll<HTMLElement>('.msg')].find((m) => m.getBoundingClientRect().bottom > top)
     reading.current = el ? { el, top: el.getBoundingClientRect().top - top } : null
-    setShown((n) => n + WINDOW)
+  }
+  const olderBusy = useRef(false)
+  // What is held is shown first; when all of it is, the file is asked for the next older part.
+  const showEarlier = () => {
+    if (rows.length < found.length) {
+      holdPlace()
+      return setShown((n) => n + WINDOW)
+    }
+    if (!moreBefore || olderBusy.current) return
+    olderBusy.current = true
+    void window.aw
+      .chatEarlier(agentId)
+      .then((r) => {
+        holdPlace()
+        extra.current += r.items.length
+        setItems((cur) => {
+          const seen = new Set(cur.map((i) => i.id))
+          const older = r.items.filter((i) => !seen.has(i.id))
+          return older.length ? [...older, ...cur] : cur
+        })
+        setMoreBefore(r.more)
+        setShown((n) => n + r.items.length + 1)
+      })
+      .finally(() => (olderBusy.current = false))
   }
   useLayoutEffect(() => {
     const l = log.current
@@ -503,6 +555,8 @@ export function ChatView({
     const byReader = pointerHeld.current || performance.now() - readerAt.current < READER_MS
     const follow = jumping.current && !byReader ? false : followsEnd({ gap: now.gap, byReader, was: stick.current, up })
     stick.current = follow
+    // Scrolling up to the top asks for what is before it, without a click.
+    if (up && byReader && el.scrollTop < 160 && (rows.length < found.length || moreBefore)) showEarlier()
     // The Latest button is for when the end is out of reach, not for the few pixels a slow scroll up has just made.
     setAway(!follow && now.gap >= NEAR_END)
   }
@@ -722,7 +776,8 @@ export function ChatView({
       {track}
       <WidgetSlot slot="chat-top" meters={widgetMeters} />
       <div className="chat-log" ref={log} onScroll={onScroll} onWheel={reader} onTouchMove={reader} onPointerDown={() => ((pointerHeld.current = true), reader())} role="log" aria-label={`Conversation with ${agentName}`} aria-live="polite">
-        {rows.length === 0 && (
+        {rows.length === 0 && loading && slow && <ChatLoading name={agentName} bytes={fileBytes} />}
+        {rows.length === 0 && !loading && (
           <p className="chat-empty">
             { asleep ? `${agentName} is asleep. Wake them to continue this conversation.` : `Say something to ${agentName}. The conversation appears here as it happens.`}
           </p>
@@ -733,9 +788,9 @@ export function ChatView({
             <button onClick={() => setLost(null)} aria-label="Dismiss">×</button>
           </section>
         )}
-        {rows.length < found.length && (
+        {(rows.length < found.length || moreBefore) && (
           <button className="earlier" onClick={showEarlier}>
-            Show earlier ({found.length - rows.length} more)
+            {rows.length < found.length ? `Show earlier (${found.length - rows.length} more)` : 'Show earlier'}
           </button>
         )}
         {arranged.map(function draw(r, at, list): ReactNode {
@@ -886,6 +941,32 @@ function describeRow(r: Row): Desc {
 
 /** Commands and servers running under the agent, with a way to stop them. */
 const WINDOW = 150
+
+/** Stands in for a conversation that is being read the first time: the agent at a small desk, and how much there is to read. */
+function ChatLoading({ name, bytes }: { name: string; bytes: number }) {
+  return (
+    <div className="chat-loading" role="status">
+      <svg viewBox="0 0 16 12" width="64" height="48" shapeRendering="crispEdges" aria-hidden="true">
+        <rect x="0" y="9" width="16" height="3" fill="#c68e57" />
+        <rect x="0" y="9" width="16" height="1" fill="#94613a" />
+        <rect x="9" y="3" width="6" height="5" fill="#d9d5c8" />
+        <rect x="10" y="4" width="4" height="3" fill="#0f1d26" />
+        <rect x="11" y="5" width="2" height="1" fill="#6ad0e0" />
+        <g className="cl-type">
+          <rect x="3" y="2" width="3" height="3" fill="#f0c9a0" />
+          <rect x="3" y="1" width="3" height="1" fill="#5a3a22" />
+          <rect x="2" y="5" width="5" height="4" fill="#f2c230" />
+          <rect x="6" y="6" width="3" height="1" fill="#f0c9a0" />
+        </g>
+      </svg>
+      <span>Loading the conversation with {name}…</span>
+      <div className="cl-track" aria-hidden="true">
+        <u />
+      </div>
+      {bytes >= 1 << 20 && <small>reading {Math.round(bytes / (1 << 20))} MB</small>}
+    </div>
+  )
+}
 
 /** A command the agent left running, with when it started (worked out when it was listed, and kept steady between lists). */
 type Running = ProcInfo & { since: number }
