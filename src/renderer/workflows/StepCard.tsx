@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { MergeCheck } from '../../shared/mergeCheck'
 import { stepCardOf } from '../../shared/stepCard'
 import { MoveBranch, type Moved } from './MoveBranch'
-import { startClock } from '../clock'
+import { startClock, whileShown } from '../clock'
 
 /**
  * The step that waits for the person, as the last thing in the conversation: it scrolls with the chat, takes room only inside it, and never opens by itself or sits above
@@ -40,8 +40,9 @@ export function StepCard({ agentId, agentName, active, held, working }: { agentI
     void load()
     // The audit answers a while after it was asked for, and a commit made by hand in the terminal says nothing: so it is looked at again when the office says something changed and now and then.
     const off = [window.aw.onWorkflows(load), window.aw.onLanding(load)]
-    const timer = setInterval(() => void load(), 5000)
-    return () => (off.forEach((f) => f()), clearInterval(timer))
+    // Not while the window is hidden: nobody sees the card, and each look costs several git runs.
+    const stop = startClock(() => void load(), whileShown, 5000)
+    return () => (off.forEach((f) => f()), stop())
   }, [load, active, working, held])
   const spec = stepCardOf({ merge, held, working, unrelated, now })
   if (moved)

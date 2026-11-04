@@ -19,6 +19,15 @@ describe('a once-a-second clock that rests while the window is away', () => {
     expect(tick).toHaveBeenCalledTimes(3)
   })
 
+  it('ticks at the rate it is given', () => {
+    const tick = vi.fn()
+    startClock(tick, env, 5000)
+    vi.advanceTimersByTime(4999)
+    expect(tick).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(tick).toHaveBeenCalledTimes(1)
+  })
+
   it('does not tick while the window is away, and ticks once when it comes back', () => {
     const tick = vi.fn()
     startClock(tick, env)

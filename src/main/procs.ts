@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process'
 import type { ProcInfo } from '../shared/types'
+import { shared } from './shared'
 
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'fish'])
 const seconds = (etime: string) => {
@@ -38,16 +39,21 @@ export function descendants(psOut: string, root: number): ProcInfo[] {
   return out
 }
 
-const ps = () => new Promise<string>((res) => execFile('ps', ['-A', '-o', 'pid=,ppid=,etime=,command='], { maxBuffer: 8e6 }, (_e, so) => res(so ?? '')))
+const run = () => new Promise<string>((res) => execFile('ps', ['-A', '-o', 'pid=,ppid=,etime=,command='], { maxBuffer: 8e6 }, (_e, so) => res(so ?? '')))
+// Every chat asks about its agent's commands every few seconds: one `ps` of the whole machine answers all of them for 2 s.
+const once = shared<string>(2000)
+const ps = (fresh = false) => (fresh ? run() : once('ps', run))
 
 // Windows has no `ps`; the list is simply empty there.
-export const listProcs = async (root: number): Promise<ProcInfo[]> => (process.platform === 'win32' ? [] : descendants(await ps(), root))
+export const listProcs = async (root: number, fresh = false): Promise<ProcInfo[]> => (process.platform === 'win32' ? [] : descendants(await ps(fresh), root))
 
 /** Stops a process only if it is still below the agent, so a recycled pid is never touched. */
 export async function stopProc(root: number, pid: number): Promise<boolean> {
-  if (!(await listProcs(root)).some((p) => p.pid === pid)) return false
+  // Fresh, not shared: a stale list must not let a recycled pid be signalled.
+  if (!(await listProcs(root, true)).some((p) => p.pid === pid)) return false
   try {
     process.kill(pid, 'SIGTERM')
+    once.clear() // the list the chats share still shows it
     return true
   } catch {
     return false

@@ -53,7 +53,7 @@ import { useClock } from './useClock'
 import { noteKey, noteSent } from './ticks'
 import { type MeterName, metersFor } from '../../shared/widgets'
 import type { UsageLimits } from '../../shared/usage'
-import { startClock } from '../clock'
+import { startClock, whileShown } from '../clock'
 
 /** How long the agent is shown working on the strength of a sent message alone, if nothing confirms the turn. */
 const EAGER_MS = 8000
@@ -815,7 +815,7 @@ export function ChatView({
       )}
       {!asleep && (
         <div className="statusrow">
-          <ProcBar agentId={agentId} />
+          <ProcBar agentId={agentId} visible={visible} />
           <CrewLine agentId={agentId} managerName={agentName} waiting={waitingSubagents} />
           <WatchLine
             runs={rows.flatMap((r) => (r.kind === 'tool' ? [r.run] : []))}
@@ -890,7 +890,7 @@ const WINDOW = 150
 /** A command the agent left running, with when it started (worked out when it was listed, and kept steady between lists). */
 type Running = ProcInfo & { since: number }
 
-function ProcBar({ agentId }: { agentId: string }) {
+function ProcBar({ agentId, visible }: { agentId: string; visible: boolean }) {
   const [procs, setProcs] = useState<Running[]>([])
   const take = (list: ProcInfo[]) =>
     setProcs((old) => {
@@ -903,15 +903,17 @@ function ProcBar({ agentId }: { agentId: string }) {
       return old.length === next.length && old.every((o, i) => o.pid === next[i]!.pid && o.since === next[i]!.since && o.command === next[i]!.command) ? old : next
     })
   useEffect(() => {
+    // Only the chat on screen, and only while the window is not hidden: every chat stays mounted, and each look is a `ps` of the whole machine.
+    if (!visible) return
     let live = true
     const tick = () => void window.aw.listProcs(agentId).then((p) => live && take(p))
     tick()
-    const t = setInterval(tick, 3000)
+    const stop = startClock(tick, whileShown, 3000)
     return () => {
       live = false
-      clearInterval(t)
+      stop()
     }
-  }, [agentId])
+  }, [agentId, visible])
   const [open, setOpen] = useState(false)
   // The times count up while the list is open.
   const [now, setNow] = useState(Date.now())

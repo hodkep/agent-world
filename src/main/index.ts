@@ -24,6 +24,7 @@ import { remoteState } from './remoteState'
 import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
+import { shared } from './shared'
 import { type SleepDeps, quietSince, sleepBlocker, sleepIdle } from './sleepIdle'
 import { startPerf, watched } from './perf'
 import { perfMode } from './perfLog'
@@ -513,8 +514,11 @@ const mailbox = new Mailbox({
   },
   notify: (m) => send('agent-message', m)
 })
+// What is shared between callers is dropped when the office says something changed, so nobody is answered with a state from before it.
+const dropWhenChanged: Array<() => void> = []
 // PTYs exit after the window is gone during quit; messages then have nowhere to go.
 const send = (channel: string, ...args: unknown[]) => {
+  if (channel === 'workflows' || channel === 'landing') for (const drop of dropWhenChanged) drop()
   for (const w of liveWindows()) w.webContents.send(channel, ...args)
 }
 // POC: the look an agent wrote for the chat; only the person's Keep makes it permanent.
@@ -3036,11 +3040,15 @@ async function main() {
       return { ok: false, message: e instanceof Error ? e.message : String(e) }
     }
   })
-  ipcMain.handle('finish:status', async (_, id: string, o?: { readOnly?: boolean }) => {
+  const finishStatus = async (id: string, readOnly: boolean) => {
     const { a, base } = await worktreeOf(id)
     const r = await finishReadiness(a.repoPath, a.cwd, a.branch!, base)
-    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead, !o?.readOnly)).check }
-  })
+    return { branch: a.branch!, base, ...r, merge: (await mergeOf(id, a, base, r.ahead, !readOnly)).check }
+  }
+  // The step card looks every few seconds (about six git runs, a second or more in a big repo): looks asked for while one runs share it, and an answer is never kept after it ends. A look that may start an audit is never shared, and an event or a landed merge drops the one running.
+  const lookedAt = shared<Awaited<ReturnType<typeof finishStatus>>>(0)
+  dropWhenChanged.push(lookedAt.clear)
+  ipcMain.handle('finish:status', (_, id: string, o?: { readOnly?: boolean }) => (o?.readOnly ? lookedAt(id, () => finishStatus(id, true)) : finishStatus(id, false)))
   // "Run the audit again" after one failed.
   ipcMain.handle('finish:audit', async (_, id: string) => {
     const { a, base } = await worktreeOf(id)
@@ -3083,6 +3091,7 @@ async function main() {
     workflows.landing(id, head, { anyway: !!o.anyway, auditable })
     send('workflows')
     await mergeInto(a.repoPath, a.branch!, base, { squash: o.squash, message: o.message })
+    lookedAt.clear() // the branch moved: a status asked for before is not the answer now
     if (o.cleanup) return { base, removed: (await removeAgent(id, undefined, true)).ok }
     return { base, removed: false }
   })
