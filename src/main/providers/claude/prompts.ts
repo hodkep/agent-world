@@ -90,5 +90,6 @@ export function answerTrust(io: TerminalIO, trust: boolean) {
  */
 export function looksWorking(screen: string): boolean {
   const text = stripVTControlCharacters(screen)
-  return /\S…\s*\(\d+[hms]\b/.test(text) || /\(running [^)\n]*hooks/i.test(text) || /esc to interrupt/i.test(text)
+  // A turn that has just begun shows only a glyph, a word and an ellipsis ("✻ Composing…") until the first second has passed.
+  return /\S…\s*\(\d+[hms]\b/.test(text) || /^\s*[·✢✣✤✥✦✧✶✷✸✹✺✻✼✽✾✿*]\s+\p{L}+…/mu.test(text) || /\(running [^)\n]*hooks/i.test(text) || /esc to interrupt/i.test(text)
 }

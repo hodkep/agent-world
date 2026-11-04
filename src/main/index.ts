@@ -5,6 +5,7 @@ import { createLibraryService, runsWhenOpened } from './library/service'
 import { syncGuide } from './library/guide'
 import { syncVisuals } from './library/visuals'
 import { createTodoService } from './todos/service'
+import { mayCallIdle } from './idleLook'
 import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
 import { commitsSince, uncommittedFiles } from './gitops'
 import { editedFiles } from './todos/edited'
@@ -258,7 +259,6 @@ const lastOutput = new Map<string, number>()
 const menuSeen = new Set<string>()
 const QUIET_MS = 3000
 // With no spinner on screen and the input box showing, a short quiet is enough to call an agent idle.
-const SETTLED_MS = 700
 const MENU_RETRY_MS = 1000
 const MENU_RETRIES = 60
 const screens = new Map<string, Screen>()
@@ -1368,7 +1368,7 @@ async function main() {
       }
       const sig = btw ? JSON.stringify(btw) : ''
       if (btwSent.get(a.id) !== sig && (btw || btwSent.has(a.id))) (btwSent.set(a.id, sig), send('btw', a.id, btw))
-      if (Date.now() - (lastOutput.get(a.id) ?? 0) <= SETTLED_MS || !ui(a.id).inputReady(text) || ui(a.id).anyMenu(text) || ui(a.id).looksWorking(text)) continue
+      if (!mayCallIdle({ now: Date.now(), lastOutput: lastOutput.get(a.id) ?? 0, lastBusyEvent: busyAt.get(a.id) ?? 0, inputReady: ui(a.id).inputReady(text), menu: ui(a.id).anyMenu(text), working: ui(a.id).looksWorking(text) })) continue
       mailbox.looksIdle(a.id)
       const act = lastActivity.get(a.id)
       if (act && BUSY.has(act)) {
