@@ -2566,6 +2566,7 @@ async function main() {
   ipcMain.handle('library:use-original', async (_, id: string, dir: string) => {
     const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).find((c) => c.dir === dir)
     if (!found) throw new Error('That folder is not a skill the app found.')
+    libraryService.measureSoon()
     const item = await libraryService.library.useOriginal(String(id), found.dir, { kind: found.kind, ...(found.project && { project: found.project }), ...(found.from && { from: found.from }), ...(found.license && { license: found.license }), label: found.source })
     send('library-sizes')
     return item
@@ -2583,6 +2584,7 @@ async function main() {
   ipcMain.handle('library:import', async (_, folder: string | undefined, dirs: string[]) => {
     const found = await scanSources({ home: userHome(), folder: folder && isDir(folder) ? folder : undefined, folders: allProjects(), accounts: claudeAccounts() })
     const r = await importCandidates(libraryService.library, found.filter((c) => dirs.includes(c.dir)))
+    libraryService.measureSoon()
     void libraryService.addLogos(r.added)
     return r
   })
@@ -2602,6 +2604,7 @@ async function main() {
     const landed = new Set(done.map((d) => real(d.path)))
     const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).filter((c) => landed.has(real(c.dir)))
     const r = await importCandidates(libraryService.library, found)
+    libraryService.measureSoon()
     void libraryService.addLogos(r.added)
     send('library-sizes')
     return { names: done.map((d) => d.name), ...r }

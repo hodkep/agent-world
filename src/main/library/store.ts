@@ -28,6 +28,13 @@ function sameFile(a: string, b: string): boolean {
   }
 }
 
+/** Folders a program installs into a skill (dependencies, caches): not files an agent reads, and often tens of thousands of them. */
+const INSTALLED = new Set(['node_modules', '__pycache__', 'venv', 'site-packages'])
+/** The most files listed for one skill. */
+const MAX_FILES = 500
+/** How long a skill's file list and token counts are kept. */
+const DETAIL_TTL_MS = 30_000
+
 /** What reading each of a skill's other files costs: text files under 100 KB only (others are left out). */
 function fileTokens(dir: string, files: string[]): Record<string, number> {
   const out: Record<string, number> = {}
@@ -46,7 +53,16 @@ function fileTokens(dir: string, files: string[]): Record<string, number> {
 
 /** Everything the app keeps for agents to use: skills (folders), instructions and prompts (files), in one global folder. */
 export class Library {
-  constructor(readonly root: string) {}
+  constructor(
+    readonly root: string,
+    private readonly now: () => number = Date.now
+  ) {}
+
+  /**
+   * A skill's files and what reading each costs, kept for half a minute. The list of skills is asked for many times a minute (each chat, each agent that uses a skill,
+   * each prompt): without this every call read every text file of every skill.
+   */
+  private detail = new Map<string, { at: number; stamp: string; files: string[]; tokens: Record<string, number> }>()
 
   private skillDir = (id: string) => join(this.root, 'skills', id)
 
@@ -68,18 +84,42 @@ export class Library {
   }
   private file = (kind: Exclude<Kind, 'skill'>, id: string) => join(this.root, FOLDER[kind], `${id}.md`)
 
+  /** The skill's files, the ones nearest its folder first, so the most files listed (MAX_FILES) cuts the deepest ones. */
   private skillFiles(dir: string): string[] {
     const out: string[] = []
-    const walk = (d: string) => {
-      for (const e of readdirSync(d, { withFileTypes: true })) {
-        if (e.name.startsWith('.') || e.isSymbolicLink()) continue
+    const queue = [dir]
+    for (let d = queue.shift(); d !== undefined && out.length < MAX_FILES; d = queue.shift()) {
+      let entries
+      try {
+        entries = readdirSync(d, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      for (const e of entries.sort((x, y) => (x.name < y.name ? -1 : 1))) {
+        if (e.name.startsWith('.') || e.isSymbolicLink() || (e.isDirectory() && INSTALLED.has(e.name))) continue
         const p = join(d, e.name)
-        if (e.isDirectory()) walk(p)
-        else if (relative(dir, p) !== 'SKILL.md') out.push(relative(dir, p))
+        if (e.isDirectory()) queue.push(p)
+        else if (relative(dir, p) !== 'SKILL.md' && out.length < MAX_FILES) out.push(relative(dir, p))
       }
     }
-    walk(dir)
     return out.sort()
+  }
+
+  /** The skill's files and their token counts, from the cache while it is fresh and the skill's SKILL.md and folder have not changed. */
+  private filesOf(dir: string, id: string): { files: string[]; tokens: Record<string, number> } {
+    const stamp = (() => {
+      try {
+        return `${statSync(join(dir, 'SKILL.md')).mtimeMs}:${statSync(dir).mtimeMs}`
+      } catch {
+        return ''
+      }
+    })()
+    const have = this.detail.get(id)
+    if (have && have.stamp === stamp && this.now() - have.at < DETAIL_TTL_MS) return have
+    const files = this.skillFiles(dir)
+    const fresh = { at: this.now(), stamp, files, tokens: fileTokens(dir, files) }
+    this.detail.set(id, fresh)
+    return fresh
   }
 
   private readSkill(id: string): Item | null {
@@ -100,8 +140,8 @@ export class Library {
         return 'unknown'
       }
     })()
-    const files = this.skillFiles(dir)
-    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files, fileTokens: fileTokens(dir, files), dir, tokens: { description: tokens(d.description), body: tokens(d.body) }, ...(place && { place }) }
+    const { files, tokens: fileSizes } = this.filesOf(dir, id)
+    return { id, kind: 'skill', name: d.name || id, description: d.description, body: d.body, source, files, fileTokens: fileSizes, dir, tokens: { description: tokens(d.description), body: tokens(d.body) }, ...(place && { place }) }
   }
 
   private readFile(kind: Exclude<Kind, 'skill'>, id: string): Item | null {

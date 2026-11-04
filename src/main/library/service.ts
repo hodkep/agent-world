@@ -116,7 +116,11 @@ export function createLibraryService(d: Deps) {
   }
   const DAY = 86_400_000
   let measuring: Promise<void> | null = null
+  let lookedAt = -Infinity
   const measureAll = (): Promise<void> => {
+    // The list is asked for many times a minute: listing every skill again each time to find one that is not measured was the cost.
+    if (!measuring && now() - lookedAt < 60_000) return Promise.resolve()
+    lookedAt = now()
     measuring ??= (async () => {
       const sizes = readSizes()
       for (const i of library.listSync()) {
@@ -322,6 +326,11 @@ export function createLibraryService(d: Deps) {
     /** How often each item was used, by program (what the Library pane shows beside an item). */
     async usage(): Promise<Record<string, { claude: number; agy: number; total: number }>> {
       return Object.fromEntries(summarize(log.all()).top.map((i) => [i.id, { claude: i.byProvider.claude?.used ?? 0, agy: i.byProvider.agy?.used ?? 0, total: i.used }]))
+    },
+
+    /** A skill was added or changed: the next list looks for skills to measure at once, not within the minute. */
+    measureSoon(): void {
+      lookedAt = -Infinity
     },
 
     /** The library's items with the sizes measured so far; the rest are measured in the background (onSizes says when each is). */
