@@ -25,7 +25,8 @@ import { singleFlight } from './singleFlight'
 import { cleanPrefs, loadPrefs, savePrefs } from './prefs'
 import { listProcs, stopProc } from './procs'
 import { type SleepDeps, quietSince, sleepBlocker, sleepIdle } from './sleepIdle'
-import { startPerf } from './perf'
+import { startPerf, watched } from './perf'
+import { perfMode } from './perfLog'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -133,9 +134,10 @@ const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(joi
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 process.env.AW_APP_HOME = HOME
-// Off unless asked for: records what stalls this process, and what the page reports, in perf.log (see perf.ts). Started before any handler is registered so each call is timed.
-const PERF = process.env.AW_PERF === '1'
-if (PERF) startPerf(HOME)
+// The watchdog (perf.ts): names what holds this process for 100 ms or more in perf.log, on unless AW_PERF=0. AW_PERF=1 adds detail to a stall and the page's long tasks.
+const PERF_MODE = perfMode(process.env)
+const PERF = PERF_MODE === 'verbose'
+if (PERF_MODE !== 'off') startPerf(HOME, PERF_MODE)
 ipcMain.handle('perf:enabled', () => PERF)
 const AGENTS_FILE = join(HOME, 'agents.json')
 let prefs = loadPrefs(join(HOME, 'preferences.json'))
@@ -1450,10 +1452,10 @@ async function main() {
     // The agent that asked has it at work in the office, like one of Claude's own subagents.
     announce: (what, parent, child) => send('agent-event', { type: what === 'start' ? 'subagent-start' : 'subagent-stop', agentId: parent.id, sessionId: parent.sessionId, subagentId: child.id, ...(what === 'start' && { subagentType: child.provider ?? 'claude' }) } as AgentEvent)
   })
-  setInterval(() => subagents.tick(), 2000)
+  setInterval(watched('subagents.tick', () => subagents.tick()), 2000)
   // Subagents whose program has ended are cleared away an hour on, when they have been read; their worktree goes with them unless it holds unmerged work.
   const clearOld = () => void Promise.all(staleChildren(agents, new Set(sessions.keys()), Date.now()).map((id) => removeAgent(id).catch(() => undefined)))
-  setInterval(clearOld, 60_000)
+  setInterval(watched('clearOld', clearOld), 60_000)
   setTimeout(clearOld, 5_000)
   writeGitHooks(GIT_HOOKS_DIR)
   // Merges into the base branch that git held, by agent: they wait here for the person's word, shown in that agent's chat.
@@ -2014,7 +2016,7 @@ async function main() {
     if (u.protocol !== 'https:' && !local) throw new Error('Only https links and local addresses can be opened from here.')
     return shell.openExternal(u.toString())
   })
-  setInterval(() => void probeServers(), 3000)
+  setInterval(watched('probeServers', () => void probeServers()), 3000)
   // Each window has its own project, chosen on the picker a fresh window opens with; the saved list is shared.
   const workspaceInfo = async (windowId: number) => {
     const active = windowWorkspaces.get(windowId)
@@ -2963,7 +2965,7 @@ async function main() {
       }
     }
   }
-  const noticing = setInterval(() => void noticePushes(), 20_000)
+  const noticing = setInterval(watched('noticePushes', () => void noticePushes()), 20_000)
   app.on('before-quit', () => clearInterval(noticing))
   autoAudit = async (id) => {
     const a = byId(id)
@@ -3481,16 +3483,16 @@ async function main() {
     if (why) throw new Error(why)
     sessions.get(id)?.kill()
   })
-  const heartbeat = setInterval(noteRunning, 2000)
+  const heartbeat = setInterval(watched('noteRunning', noteRunning), 2000)
   // An agent idle for long holds its program's memory for nothing: stop it; its Wake button starts it again with --resume, as after a restart.
   let sleeping = false
-  const sleeper = setInterval(() => {
+  const sleeper = setInterval(watched('sleeper', () => {
     if (sleeping) return
     sleeping = true
     void sleepIdle(sleepDeps(Date.now(), (!app.isPackaged && +(process.env.AW_SLEEP_AFTER_MS ?? 0)) || prefs.sleepIdleMinutes * 60_000))
       .catch(() => {})
       .finally(() => (sleeping = false))
-  }, (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)
+  }), (!app.isPackaged && +(process.env.AW_SLEEP_TICK_MS ?? 0)) || 60_000)
 
   // Before the app closes: stop what the agents left running and commit their unfinished work (a Settings choice), then quit for real.
   let wrapped = false
