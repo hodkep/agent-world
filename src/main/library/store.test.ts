@@ -143,4 +143,50 @@ describe('the library store', () => {
     expect(item.files).toEqual(['pages/a.md'])
     expect(item.fileTokens!['pages/a.md']).toBeGreaterThan(20)
   })
+
+  describe('what reading the list of skills costs', () => {
+    const skill = (id: string, extra: (d: string) => void = () => undefined) => {
+      const d = join(dir, 'library', 'skills', id)
+      mkdirSync(d, { recursive: true })
+      writeFileSync(join(d, 'SKILL.md'), `---\nname: ${id}\ndescription: d\n---\nbody`)
+      extra(d)
+      return d
+    }
+    it('leaves out the folders a program installs (node_modules, a Python environment) and never lists more than 500 files', () => {
+      skill('heavy', (d) => {
+        mkdirSync(join(d, 'node_modules', 'left-pad'), { recursive: true })
+        writeFileSync(join(d, 'node_modules', 'left-pad', 'index.js'), 'x')
+        mkdirSync(join(d, 'video', 'node_modules', 'a'), { recursive: true })
+        writeFileSync(join(d, 'video', 'node_modules', 'a', 'b.js'), 'x')
+        mkdirSync(join(d, 'venv', 'lib'), { recursive: true })
+        writeFileSync(join(d, 'venv', 'lib', 'c.py'), 'x')
+        mkdirSync(join(d, '__pycache__'), { recursive: true })
+        writeFileSync(join(d, '__pycache__', 'd.pyc'), 'x')
+        writeFileSync(join(d, 'notes.md'), 'real file')
+        mkdirSync(join(d, 'many'), { recursive: true })
+        for (let i = 0; i < 600; i++) writeFileSync(join(d, 'many', `f${String(i).padStart(3, '0')}.md`), 'x')
+      })
+      const item = lib.listSync().find((i) => i.id === 'heavy')!
+      expect(item.files.some((f) => /node_modules|venv|__pycache__/.test(f))).toBe(false)
+      expect(item.files).toContain('notes.md')
+      expect(item.files.length).toBe(500)
+    })
+    it('reads a skill\'s files once, and again only after the skill or its folder changed or half a minute has passed', () => {
+      let now = 1_000_000
+      const l = new Library(join(dir, 'library'), () => now)
+      const d = skill('cached', (x) => (mkdirSync(join(x, 'sub')), writeFileSync(join(x, 'sub', 'a.md'), 'first file')))
+      const files = () => l.listSync().find((i) => i.id === 'cached')!.files
+      expect(files()).toEqual(['sub/a.md'])
+      // A file added in a subfolder does not change the skill's own folder: it is seen when the half minute is up.
+      writeFileSync(join(d, 'sub', 'b.md'), 'second file')
+      now += 5_000
+      expect(files()).toEqual(['sub/a.md'])
+      now += 30_000
+      expect(files()).toEqual(['sub/a.md', 'sub/b.md'])
+      expect(l.listSync().find((i) => i.id === 'cached')!.fileTokens).toMatchObject({ 'sub/a.md': expect.any(Number), 'sub/b.md': expect.any(Number) })
+      // A file added to the skill's own folder is seen at once.
+      writeFileSync(join(d, 'top.md'), 'third file')
+      expect(files()).toContain('top.md')
+    })
+  })
 })

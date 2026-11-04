@@ -68,6 +68,17 @@ describe('the sizes of the library\'s skills', () => {
   })
 })
 
+describe('what asking for the library\'s items costs', () => {
+  it('looks for skills to measure once a minute, not on every call: the list is asked for by every chat each time an agent uses a skill', async () => {
+    const spy = vi.spyOn(svc.library, 'listSync')
+    for (let i = 0; i < 3; i++) await svc.items()
+    await new Promise((r) => setTimeout(r, 50))
+    // Each call lists once for its own answer; only the first also lists to look for skills that are not measured.
+    expect(spy.mock.calls.length).toBeLessThanOrEqual(4)
+    spy.mockRestore()
+  })
+})
+
 describe('the logos of the library\'s skills', () => {
   it('come with the items once asked for: the picture of the GitHub owner, fetched through the service\'s fetch and kept in the library folder', async () => {
     const real = join(dir, 'elsewhere', 'tidy')
