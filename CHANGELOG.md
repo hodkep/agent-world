@@ -4,7 +4,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
-## [0.11.1] - 2026-11-04
+## [0.11.2] - 2026-11-04
 
 ### Added
 
@@ -16,6 +16,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 - Speed: the skills list, workflow cards and chats no longer freeze the app for seconds, and idle checks run less often.
 - Chat: chats open faster; the app no longer reads every conversation at startup, shows the newest messages first, and loads earlier ones as you scroll up.
 - Chat: a reply no longer fades in word by word; the 0.11.0 reveal is removed and may come back later.
+
+### Fixed
+
+- Agents: an agent that is composing in its terminal is no longer shown as idle in the chat, the header and the office.
+- Library: Restart agents on the stale-playbook note waits for an agent to finish its turn, instead of being refused once and leaving the note.
+- Chat: copying part of a reply gives the words as shown, with no blank line between words, and a pick inside a code block gives just the text, with no backticks and with its line breaks.
 
 ## [0.11.0] - 2026-11-04
 
