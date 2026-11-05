@@ -1,4 +1,5 @@
 import type { BetaState, InstallState, UpdateChannel, UpdateRel } from './updateInstall'
+import type { ShareDay } from './attribution'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
@@ -192,6 +193,8 @@ export interface AwApi {
   overview(days: number): Promise<Overview>
   /** Where every token of the last `days` days went, by program, account, agent, project and model. */
   tokenMix(days: number, account?: string): Promise<TokenMix>
+  /** How much of each account's allowance this app used, by day of a month (month is 0 to 11). */
+  shareReport(year: number, month: number, kind: 'five_hour' | 'weekly'): Promise<{ days: ShareDay[] }>
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** One subagent's own conversation: what it thought and said, each call and what it returned. */
