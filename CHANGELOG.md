@@ -4,6 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-11-05
+
+### Added
+
+- Header: press Cmd+Option+F (Ctrl+Alt+F elsewhere) to hide or show the top bars from anywhere; with the office open, the agent's name line slides down with the other bars in full screen.
+- Library: the Skills window groups skills by who made them, imports and removes skills in bulk, and asks for confirmations in a bubble over the button.
+- Usage: a Share tab shows, day by day, how much of each account's allowance this app used.
+
+### Fixed
+
+- Preview: the app's Cmd+Option shortcuts, Cmd+K and Cmd+/ work after clicking into a page in Preview, instead of the page swallowing them.
+- Agents: an agent restarted when the app launches starts with its project's GitHub account, instead of sometimes falling back to the machine's other login.
+
 ## [0.11.3] - 2026-11-05
 
 ### Added
