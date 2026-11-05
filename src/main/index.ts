@@ -47,6 +47,7 @@ import { contextItems, revealItem } from './contextMenu'
 import { zoomKey, zoomTo } from '../shared/previewZoom'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
+import { shareReport } from '../shared/attribution'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
 import { isProviderId } from '../shared/types'
 import type { AccountInfo, Activity, Detection, AgentEvent, AgentOptions, AgentProfile, AgentRecord, AgentStats, Decision, PermissionMode, PermissionRequest, LimitWindow, ProviderId, ProviderInfo, Question, QuestionAnswer, RawEvent, RemoteState } from '../shared/types'
@@ -3293,6 +3294,7 @@ async function main() {
     tokenMix(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name])), account))
   ipcMain.handle('ledger:overview', (_, days: number) =>
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
+  ipcMain.handle('ledger:share', (_, year: number, month: number, kind: 'five_hour' | 'weekly') => shareReport(ledger, Math.min(Math.max(Math.round(year) || new Date().getFullYear(), 2000), 2100), Math.min(Math.max(Math.round(month) || 0, 0), 11), kind === 'five_hour' ? 'five_hour' : 'weekly', Date.now()))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)
