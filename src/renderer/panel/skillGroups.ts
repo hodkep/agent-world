@@ -15,6 +15,8 @@ export interface ShelfRow {
   candidate?: LibraryCandidate
   /** The skill's logo (a data link), when it has one. */
   logo?: string
+  /** For a plugin skill: who made it, and its version and license, so the plugins of one creator sit under one heading. */
+  creator?: { name: string; detail: string }
 }
 
 export interface ShelfGroup {
@@ -81,21 +83,62 @@ export function shelfGroups(items: LibraryItem[], found: LibraryCandidate[], que
   const rowOf = (i: LibraryItem): ShelfRow => {
     const p = i.place
     const fact = i.missing ? 'The folder is gone' : !p ? 'Kept in the library' : p.kind === 'plugin' ? [p.from, p.license].filter(Boolean).join(' · ') : p.kind === 'project' ? skillFolder(i) : (p.from ?? homeFolder((p.real.split('/').slice(0, -1).join('/')) || p.real))
-    return { key: i.id, name: i.name, fact, ...(i.size && { bytes: i.size.bytes }), ...(i.logo && { logo: i.logo }), ...(i.missing && { warn: 'The folder is gone' }) }
+    return { key: i.id, name: i.name, fact, ...(i.size && { bytes: i.size.bytes }), ...(i.logo && { logo: i.logo }), ...(i.missing && { warn: 'The folder is gone' }), ...(p && !i.missing && { creator: p.kind === 'plugin' && p.from ? creatorOf(p.from, p.license) : p.from ? { name: p.from, detail: '' } : { name: 'Added by hand', detail: p.kind === 'project' ? skillFolder(i) : homeFolder(p.real.split('/').slice(0, -1).join('/') || p.real) } }) }
   }
   const mine = skills.filter((i) => match(i.name, i.description))
   add('global', 'global', 'Global', '~/.claude · ~/.agents', mine.filter((i) => i.place?.kind === 'global').map(rowOf))
   const projects = [...new Set(mine.flatMap((i) => (i.place?.kind === 'project' && i.place.project ? [i.place.project] : [])))].sort((a, b) => base(a).localeCompare(base(b)))
   for (const p of projects) add(`project:${p}`, 'project', base(p), p, mine.filter((i) => i.place?.kind === 'project' && i.place.project === p).map(rowOf))
   add('plugin', 'plugin', 'Plugins', 'read only · managed by Claude', mine.filter((i) => i.place?.kind === 'plugin').map(rowOf))
+  // Each source's skills together (sources in name order, what was added by hand last), biggest first inside.
+  const byCreator = (a: ShelfRow, b: ShelfRow) => (a.creator?.name === 'Added by hand' ? 1 : 0) - (b.creator?.name === 'Added by hand' ? 1 : 0) || (a.creator?.name ?? '').localeCompare(b.creator?.name ?? '') || (a.creator?.detail ?? '').localeCompare(b.creator?.detail ?? '') || bySize(a, b)
+  for (const g of groups) g.rows.sort(byCreator)
   // A copy the library holds, whose original was found as well: it says so, so the copy can be swapped for the original.
   const originals = new Map(found.map((c) => [slug(c.name), c]))
   add('library', 'library', 'Kept in the library', '~/.agent-world/library', mine.filter((i) => !i.place).map((i) => {
     const o = originals.get(i.id)
     return { ...rowOf(i), ...(o && { warn: `Its original is still at ${shortPath(o.real)}`, original: o.dir }) }
   }))
-  add('found', 'found', 'Found, not in the library', 'click one to add a link', found
-    .filter((c) => !have.has(c.real) && !ids.has(slug(c.name)) && match(c.name, c.description))
-        .map((c) => ({ key: c.dir, name: c.name, fact: foundFact(c), found: true as const, candidate: c })))
+  add('found', 'found', 'Found, not in the library', 'click one to add a link', importable(items, found, query).map((r) => ({ key: r.candidate.dir, name: r.name, fact: foundFact(r.candidate), found: true as const, candidate: r.candidate })))
   return groups
+}
+
+/** A plugin's "name 1.2.3" as the creator and its version, with the license beside it. */
+function creatorOf(from: string, license?: string): { name: string; detail: string } {
+  const m = /^(.*\S)\s+(\d[\w.+-]*)$/.exec(from)
+  return { name: m ? m[1]! : from, detail: [m?.[2], license].filter(Boolean).join(' · ') }
+}
+
+export interface ImportRow {
+  name: string
+  candidate: LibraryCandidate
+  /** The other places the same skill was found, named by their folder. */
+  also: string[]
+}
+
+/**
+ * What can still be added to the library from this computer: each skill once (the same folder behind two links, or the same name in two places, is one row naming the other places),
+ * and nothing the library holds already, as a link or as a copy (by the folder it leads to, or by its name).
+ */
+export function importable(items: LibraryItem[], found: LibraryCandidate[], query: string): ImportRow[] {
+  const q = query.trim().toLowerCase()
+  const skills = items.filter((i) => i.kind === 'skill')
+  const have = new Set(skills.flatMap((i) => (i.place ? [i.place.real] : [])))
+  const ids = new Set(skills.map((i) => i.id))
+  const rows = new Map<string, ImportRow>()
+  const reals = new Set<string>()
+  for (const c of found) {
+    if (have.has(c.real) || ids.has(slug(c.name))) continue
+    if (q && !c.name.toLowerCase().includes(q) && !c.description.toLowerCase().includes(q)) continue
+    const key = slug(c.name)
+    const row = rows.get(key)
+    if (row) {
+      if (c.dir !== row.candidate.dir && !row.also.includes(c.source)) row.also.push(c.source)
+      continue
+    }
+    if (reals.has(c.real)) continue
+    reals.add(c.real)
+    rows.set(key, { name: c.name, candidate: c, also: [] })
+  }
+  return [...rows.values()]
 }
