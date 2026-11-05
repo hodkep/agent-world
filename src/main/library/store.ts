@@ -226,22 +226,33 @@ export class Library {
     return this.get(id)
   }
 
+  /** The files of a copy the library holds that are not in the original with the same content (hidden ones aside, which a copy never had). Empty: the original is the same skill and more. */
+  async originalDiff(id: string, src: string): Promise<string[]> {
+    if (!SAFE.test(id)) throw new Error(`Not a library item: ${id}`)
+    const copy = this.skillDir(id)
+    const real = realpathSync(src)
+    return this.skillFiles(copy)
+      .concat('SKILL.md')
+      .filter((f) => {
+        try {
+          return !sameFile(join(copy, f), join(real, f))
+        } catch {
+          return true
+        }
+      })
+      .sort()
+  }
+
   /**
-   * Swaps a skill the library holds as a copy for a link to the original, freeing the copy. Only when every file of the copy (hidden ones aside, which a copy never had)
-   * is in the original with the same size: the original is then the same skill and more, and nothing the copy had is lost.
+   * Swaps a skill the library holds as a copy for a link to the original, freeing the copy. Without `anyway` only when every file of the copy is in the original with the same content:
+   * the original is then the same skill and more, and nothing the copy had is lost. With `anyway` the copy is freed whatever it had that the original lacks.
    */
-  async useOriginal(id: string, src: string, place: Partial<SkillPlace>): Promise<Item> {
+  async useOriginal(id: string, src: string, place: Partial<SkillPlace>, o: { anyway?: boolean } = {}): Promise<Item> {
     if (!SAFE.test(id)) throw new Error(`Not a library item: ${id}`)
     const copy = this.skillDir(id)
     if (this.records()[id] || lstatSync(copy, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${id} is already a link.`)
     const real = realpathSync(src)
-    const missing = this.skillFiles(copy).concat('SKILL.md').filter((f) => {
-      try {
-        return !sameFile(join(copy, f), join(real, f))
-      } catch {
-        return true
-      }
-    })
+    const missing = o.anyway ? [] : await this.originalDiff(id, src)
     if (missing.length) throw new Error(`${missing[0]} is not in the original (or differs), so the copy is kept.`)
     rmSync(copy, { recursive: true, force: true })
     symlinkSync(real, copy, 'dir')

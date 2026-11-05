@@ -579,7 +579,9 @@ export interface AwApi {
     file(id: string, file: string | null, action: 'open' | 'show'): Promise<void>
     /** Per item: loads and reads in the last 30 days, the last one ever, and which agents and accounts used it. */
     /** Swaps a copy the library holds for a link to its original (a folder the scan found), freeing the copy. */
-    useOriginal(id: string, dir: string): Promise<LibraryItem>
+    useOriginal(id: string, dir: string, anyway?: boolean): Promise<LibraryItem>
+    /** The files of the copy that the original does not have the same: empty when the original is the same skill and more. */
+    originalDiff(id: string, dir: string): Promise<string[]>
     /** Asks again for a skill's logo after a miss (the picture of its GitHub owner). */
     refreshLogo(id: string): Promise<void>
     /** The skills a GitHub repository holds, from the skills CLI. */
