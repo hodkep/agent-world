@@ -4990,5 +4990,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .app.bars-off > header, .app.bars-off aside .tabbar, .app.bars-off aside .head-compact { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.2s; }
 .app.bars-off > header { position: fixed; top: 0; left: 0; right: 0; z-index: 70; transform: translateY(-100%); }
 .app.bars-off aside .tabbar, .app.bars-off aside .head-compact { position: absolute; top: var(--bars-h, 48px); left: 0; right: 0; z-index: 69; transform: translateY(calc(-100% - var(--bars-h, 48px))); }
+/* With the office open the panel has the agent line and, under it, the tabs: they stack, the tabs below the line. */
+.app.bars-off aside .tabbar { top: var(--tab-top, var(--bars-h, 48px)); transform: translateY(calc(-100% - var(--tab-top, var(--bars-h, 48px)))); }
 /* Reached with the keyboard (Tab into a hidden bar), a bar slides down too, so focus is never somewhere unseen; a click leaves focus on its button without that. */
 .app.bars-peek > header, .app.bars-peek aside .tabbar, .app.bars-peek aside .head-compact, .app.bars-off > header:has(:focus-visible), .app.bars-off aside .tabbar:has(:focus-visible), .app.bars-off aside .head-compact:has(:focus-visible) { transform: none; box-shadow: 0 14px 18px rgb(0 0 0 / 0.55); }

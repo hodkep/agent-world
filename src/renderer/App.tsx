@@ -973,6 +973,12 @@ export function App() {
   const panes = grid && !!paneLayout && agents.length > 0
   useEffect(() => setPeek(false), [panes])
   const noOffice = officeHidden(officeOff, agents.length, grid)
+  // With the office open the panel has two bars (the agent line, then the tabs): hidden, the tabs slide down under the agent line, not on top of it.
+  useEffect(() => {
+    const head = document.querySelector('.app > header')
+    const line = document.querySelector('aside .head-compact')
+    document.documentElement.style.setProperty('--tab-top', `${(head ? (head as HTMLElement).offsetHeight : 0) + (line ? (line as HTMLElement).offsetHeight : 0)}px`)
+  }, [vw, barsOff, noOffice, selected])
   // With the office hidden the panel is the window: it is always showing.
   const showPanel = noOffice || (panes ? peek : narrow ? drawer || agents.length === 0 : panelOpen)
   // In a narrow window the panel slides over the office; the terminals under the office stop where the panel starts, so no line of them is behind it (the office itself stays full width, the panel being over it).
