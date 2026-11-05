@@ -80,6 +80,7 @@ import { deleteRole, discoverRoles, loadRoles, saveRole } from './roles'
 import { findLocalServers, isListening } from './servers'
 import { reviewRequest } from './review'
 import { cleanIdentity, ghToken, identityEnv, loadIdentity, parseGhLogins, profileFor, saveIdentity } from './identity'
+import { createGhTokens } from './ghTokens'
 import type { Identity, IdentityState } from '../shared/identity'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
@@ -331,15 +332,17 @@ const setWorkspaces = (next: WorkspaceState) => {
 // Which GitHub login and commit name a project's agents and terminals act as. Tokens are asked of gh and kept in memory only (never written), so a profile whose login has signed out sends none.
 const IDENTITY_FILE = join(HOME, 'identity.json')
 let identity: Identity = { profiles: [], byProject: {} }
-const ghTokens = new Map<string, string>()
 const ghRun = (file: string, args: string[]) => new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 10_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
-const refreshGhTokens = async () => {
-  for (const login of new Set(identity.profiles.map((p) => p.login))) {
-    const t = await ghToken(login, ghRun)
-    if (t) ghTokens.set(login, t)
-    else ghTokens.delete(login)
+// The token of a login asked for right now, for an agent that starts before the background lookup has it (short: a login that is signed out fails at once).
+const ghTokenNow = (login: string) => {
+  try {
+    return execFileSync('gh', ['auth', 'token', '--user', login], { timeout: 3000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined
+  } catch {
+    return undefined
   }
 }
+const ghTokens = createGhTokens((login) => ghToken(login, ghRun), ghTokenNow)
+const refreshGhTokens = () => ghTokens.refresh(identity.profiles.map((p) => p.login))
 const identityFor = (folder: string) => {
   const p = profileFor(identity, folder)
   return identityEnv(p, p && ghTokens.get(p.login))
@@ -1279,7 +1282,8 @@ async function main() {
   loadLedger()
   workspaces = loadWorkspaces(WORKSPACES_FILE)
   identity = loadIdentity(IDENTITY_FILE)
-  void refreshGhTokens()
+  // Asked for in the background, but agents that were running are not started again until it ends (below): they would start without the token.
+  const ghReady = refreshGhTokens()
   // The terminals of the agents get the bundled git first on their path, so the agent's own git and the commit hook run it.
   const env = withGitOnPath({ ...providerOf({}).env(process.env), PATH: loginShellPath() }, gitProgram(), delimiter)
 
@@ -3441,6 +3445,8 @@ async function main() {
   createWindow()
   ready = true
 
+  // The token lookup is waited for, but at most a few seconds: a gh that hangs must not push the restart below past its 20 s (a start with no token asks again then).
+  await Promise.race([ghReady, new Promise((r) => setTimeout(r, 5000))])
   // A restart within seconds (a code change in dev, a crash) brings back the agents that were running, so nothing
   // you had open goes to sleep. A restart after a longer gap starts asleep, as before.
   for (const id of recentlyRunning(RUNNING_FILE, Date.now(), 20_000)) {
