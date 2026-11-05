@@ -5023,3 +5023,43 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .sh-legend > span { display: inline-flex; align-items: center; gap: 5px; color: var(--text); }
 .sh-legend i { display: inline-block; width: 14px; height: 8px; }
 .sh-legend small { font-size: 11px; color: var(--muted); }
+/* Plugin skills under their creator: a quiet sub-heading inside the Plugins panel. */
+.sk2-cr { display: flex; align-items: baseline; gap: 10px; padding: 8px 14px 6px 22px; background: var(--panel-3); border-bottom: 1px solid var(--line-soft); font-size: 12px; color: var(--muted); }
+.sk2-cr b { color: var(--text); font-weight: 600; }
+.sk2-cr span:not(.sk2-tot) { font: 11px Menlo, Consolas, monospace; color: var(--hint); }
+.sk2-cr .sk2-tot { margin-left: auto; font-weight: 400; color: var(--hint); }
+
+/* Adding and removing skills in bulk: a screen of its own over the list. */
+.skb { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.skb-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 2px solid var(--ink); background: var(--panel-3); }
+.skb-head h3 { margin: 0; font-size: 14px; }
+.skb-bar { display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 2px solid var(--ink); }
+.settings .skb-all, .skb-all { display: flex; flex-direction: row; align-items: center; gap: 8px; white-space: nowrap; font-size: 13px; }
+.skb-head .hint { flex: 1 1 100%; order: 5; }
+.skb-list { flex: 1; min-height: 0; overflow: auto; }
+.skb-row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: center; padding: 0 14px; border-bottom: 1px solid var(--line-soft); }
+.skb-row:hover { background: var(--panel-2); }
+.skb-row.sel { background: var(--selected); }
+.skb-row.open { background: var(--panel-2); box-shadow: inset 0 0 0 2px var(--accent-dim); }
+.skb-open { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; padding: 8px 0; background: none; border: 0; box-shadow: none; text-align: left; }
+.skb-act { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-top: 2px solid var(--ink); background: var(--panel-3); }
+.skb-list > .hint { padding: 14px; margin: 0; }
+
+/* A speech bubble over the button that was pressed. */
+.callout { position: fixed; z-index: 1000; width: max-content; max-width: 380px; padding: 8px 12px; background: var(--ink); color: var(--text); border: 2px solid var(--line); box-shadow: 3px 3px 0 var(--ink); font-size: 12.5px; line-height: 1.4; }
+.callout p { margin: 4px 0 8px; }
+.callout.ok b { color: var(--ok-text); }
+.callout.bad { border-color: var(--danger); }
+.callout.ask { border-color: var(--accent-dim); }
+.callout .bad { color: var(--danger-text); }
+.callout::after { content: ''; position: absolute; left: 22px; bottom: -9px; border: 7px solid transparent; border-top-color: var(--line); border-bottom: 0; }
+.callout::before { content: ''; position: absolute; left: 24px; bottom: -5px; border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; z-index: 1; }
+.callout.below::after { bottom: auto; top: -9px; border-top-color: transparent; border-bottom-color: var(--line); border-top: 7px solid transparent; border-bottom: 7px solid var(--line); }
+.callout.below::before { bottom: auto; top: -5px; border-top: 5px solid transparent; border-bottom: 5px solid var(--ink); }
+.settings .callout, .callout { display: block; flex-direction: initial; }
+.callout > b { display: block; }
+.callout .su-row { display: flex; flex-direction: row; gap: 8px; flex-wrap: wrap; }
+.callout.ok { color: var(--ok-text); }
+.callout-list { margin: 4px 0 8px; padding-left: 18px; font: 11.5px Menlo, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
+.callout .hint { margin: 4px 0 8px; }
+.callout .warn { margin: 4px 0 8px; color: var(--think); }

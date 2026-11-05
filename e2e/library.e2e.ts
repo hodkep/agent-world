@@ -48,12 +48,14 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     const pane = dialog
     expect((await dialog.boundingBox())!.width).toBeGreaterThanOrEqual(1000)
     // Import the two skills found on this computer, and write one instruction.
-    await pane.getByRole('button', { name: 'Import from this computer…' }).click()
-    const importing = pane.getByRole('group', { name: 'Import from this computer' })
+    await pane.getByRole('button', { name: 'Import skills from device…' }).click()
+    const importing = pane.getByRole('region', { name: 'Skills in bulk' })
     await expect(importing).toContainText('caveman')
     await expect(importing).toContainText('~/.claude/skills')
-    await importing.getByRole('button', { name: 'Import 2 selected' }).click()
-    await expect(pane.getByRole('status')).toContainText('Imported 2')
+    await importing.getByLabel('Select all').check()
+    await importing.getByRole('button', { name: 'Add 2 as links' }).click()
+    await expect(pane.getByRole('status')).toContainText('Added 2')
+    await importing.getByRole('button', { name: '← Back to skills' }).click()
     await expect(pane.getByRole('button', { name: 'Open caveman' })).toBeVisible()
     // Every item is in one list that can be searched, with each item's cost beside its name.
     const box = pane.getByRole('region', { name: 'Items' })

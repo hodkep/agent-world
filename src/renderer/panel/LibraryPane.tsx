@@ -21,6 +21,9 @@ import { AgyChip } from './AgyChip'
 import { FoundReader, SkillFooter, SkillOverview } from './SkillOverview'
 import { shelfGroups } from './skillGroups'
 import { restartWhenIdle } from './restartWhenIdle'
+import { SkillBulk, type Said } from './SkillBulk'
+import { Callout } from './Callout'
+import { IconButton } from './IconButton'
 import { sizeText } from '../../shared/size'
 
 const SECTIONS: ['skills' | 'playbook' | 'reach', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['reach', 'Usage']]
@@ -57,9 +60,11 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const [draft, setDraft] = useState<{ id?: string; kind: LibraryKind; name: string; description: string; body: string } | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [found, setFound] = useState<LibraryCandidate[] | null>(null)
+  // The screen for adding and removing skills in bulk, over the list; null shows the list.
+  const [bulk, setBulk] = useState<'add' | 'remove' | null>(null)
+  // A copy that is not the same as its original, waiting for the person to say it may be deleted for a link.
+  const [differs, setDiffers] = useState<{ id: string; dir: string; files: string[]; at: DOMRect } | null>(null)
   const [installing, setInstalling] = useState(false)
-  const [picked, setPicked] = useState<Set<string>>(new Set())
   const [scope, setScope] = useState<'global' | 'workspace'>(folder ? 'workspace' : 'global')
   const [books, setBooks] = useState<{ global: PlaybookRule[]; workspace: PlaybookRule[] }>({ global: [], workspace: [] })
   const ready = providers.filter((p) => p.detection.state === 'ready')
@@ -181,28 +186,42 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const named = useMemo(() => new Set(effective.filter((r) => r.mode !== 'off').map((r) => r.id)), [effective])
   const whenOf = useCallback((id: string) => [...books.workspace, ...books.global].find((r) => r.id === id)?.when ?? '', [books])
 
-  const startImport = async () => {
+  const openBulk = (m: 'add' | 'remove') => {
     setError('')
     setNotice('')
-    try {
-      const c = await window.aw.library.sources(folder || undefined)
-      const have = new Set(items.map((i) => i.id))
-      setFound(c)
-      setPicked(new Set(c.filter((x) => !have.has(x.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''))).map((x) => x.dir)))
-    } catch (e) {
-      setError(clean(e))
-    }
+    setOpen(null)
+    setDraft(null)
+    refreshScan()
+    setBulk(m)
   }
-  const doImport = async () => {
+  const bulkAdd = async (dirs: string[]): Promise<Said> => {
     try {
-      const r = await window.aw.library.import(folder || undefined, [...picked])
-      setNotice(`Imported ${r.added.length}${r.skipped.length ? `, skipped ${r.skipped.length} already here` : ''}.`)
-      setFound(null)
+      const r = await window.aw.library.import(folder || undefined, dirs)
       await load()
       refreshScan()
+      return { text: `Added ${r.added.length}${r.skipped.length ? `, skipped ${r.skipped.length} already here` : ''}.` }
     } catch (e) {
-      setError(clean(e))
+      return { text: clean(e), bad: true }
     }
+  }
+  const bulkRemove = async (ids: string[]): Promise<Said> => {
+    try {
+      for (const id of ids) await window.aw.library.remove(id)
+      return { text: `Removed ${ids.length}.` }
+    } catch (e) {
+      return { text: clean(e), bad: true }
+    } finally {
+      await load()
+      refreshScan()
+    }
+  }
+  // A copy that is the same as its original is swapped at once; one that differs says what differs, over the button, and waits to be told.
+  const useOriginal = async (id: string, dir: string, at: DOMRect) => {
+    const files = await window.aw.library.originalDiff(id, dir)
+    if (files.length) return setDiffers({ id, dir, files, at })
+    await window.aw.library.useOriginal(id, dir)
+    await load()
+    refreshScan()
   }
   const saveDraft = async () => {
     if (!draft) return
@@ -216,8 +235,11 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       setError(clean(e))
     }
   }
-  const remove = async (id: string) => {
-    if (!window.confirm(`Remove ${id} from the library? Playbooks that use it stop using it.`)) return
+  // Asked over the button that was pressed: nothing is removed until it is answered.
+  const [removing, setRemoving] = useState<{ id: string; at: DOMRect } | null>(null)
+  const remove = (id: string, at?: DOMRect) => setRemoving({ id, at: at ?? (document.activeElement as HTMLElement | null)?.getBoundingClientRect() ?? new DOMRect(300, 300, 0, 0) })
+  const doRemove = async (id: string) => {
+    setRemoving(null)
     await window.aw.library.remove(id)
     setOpen(null)
     setDraft(null)
@@ -269,13 +291,38 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       <div role="tabpanel" id="lib-panel-skills" aria-labelledby="lib-tab-skills" className="lib-panel lib-panel-shelf">
       <div className="lib-col">
       {notice && <p className="mc-done" role="status">{notice}</p>}
+      {removing && (
+        <Callout at={removing.at} tone="ask" label={`Remove ${removing.id}`} onClose={() => setRemoving(null)}>
+          <b>Remove {removing.id} from the library?</b>
+          <p>Playbooks that use it stop using it.{byId.get(removing.id)?.place ? ' Its folder stays where it is.' : ' It has no other copy: its files are deleted.'}</p>
+          <div className="su-row">
+            <button className="danger sm" onClick={() => void doRemove(removing.id)}>Remove</button>
+            <button className="sm" onClick={() => setRemoving(null)}>Cancel</button>
+          </div>
+        </Callout>
+      )}
+      {differs && (
+        <Callout at={differs.at} tone="ask" onClose={() => setDiffers(null)}>
+          <b>Use the original of {differs.id}?</b>
+          <p>The copy differs from it in {differs.files.length} {differs.files.length === 1 ? 'file' : 'files'}: {differs.files.slice(0, 3).join(', ')}{differs.files.length > 3 ? `, and ${differs.files.length - 3} more` : ''}. <span className="bad">It is deleted</span> and the library links to the original; changes made only in the copy are lost.</p>
+          <div className="su-row">
+            <button className="danger sm" disabled={busy} onClick={() => void place(async () => { await window.aw.library.useOriginal(differs.id, differs.dir, true); setDiffers(null); await load(); refreshScan() })}>Link and delete the copy</button>
+            <button className="sm" onClick={() => setDiffers(null)}>Cancel</button>
+          </div>
+        </Callout>
+      )}
+      {bulk ? (
+        <SkillBulk key={bulk} mode={bulk} items={items} found={scan} open={open} onOpen={(key) => (setOpen(key), setDraft(null))} onBack={() => setBulk(null)} onAdd={bulkAdd} onRemove={bulkRemove} />
+      ) : (
+      <>
       <div className="lib-bar" role="group" aria-label="Library items">
         <input aria-label="Find an item" placeholder="Find an item…" value={find} onChange={(e) => setFind(e.target.value)} />
         <span className="lib-sp" />
-        <button aria-expanded={installing} onClick={() => setInstalling((v) => !v)}>Install skills…</button>
-        <button aria-label="Import from this computer…" title="Copy skills found on this computer into the library" onClick={() => void startImport()}>Add skill…</button>
-        <button onClick={() => (setOpen(null), setDraft({ kind: 'instruction', name: '', description: '', body: '' }))}>New instruction</button>
-        <button onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))}>New prompt</button>
+        <IconButton icon="plug" label="Install skills…" tip="Install skills from a GitHub repository" expanded={installing} onClick={() => setInstalling((v) => !v)} />
+        <IconButton icon="desktop" label="Import skills from device…" tip="Add skills found on this computer to the library, as links" onClick={() => openBulk('add')} />
+        <IconButton icon="ticks" label="Select…" tip="Remove skills in bulk" onClick={() => openBulk('remove')} />
+        <IconButton icon="pencil" label="New instruction" tip="Write text agents are told as written" onClick={() => (setOpen(null), setDraft({ kind: 'instruction', name: '', description: '', body: '' }))} />
+        <IconButton icon="chat" label="New prompt" tip="Write text an agent reads when its work calls for it" onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))} />
       </div>
       {places && (() => {
         const skills = items.filter((i) => i.kind === 'skill')
@@ -292,26 +339,11 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
         />
       )}
 
-      {found && (
-        <div className="lib-box" role="group" aria-label="Import from this computer">
-          {found.length === 0 && <p className="hint">No skills found in the usual places.</p>}
-          {found.map((c) => (
-            <label key={c.dir} className="lib-src">
-              <input type="checkbox" checked={picked.has(c.dir)} onChange={(e) => setPicked((p) => { const n = new Set(p); if (e.target.checked) n.add(c.dir); else n.delete(c.dir); return n })} />
-              <span><b>{c.name}</b> <small>{c.source}</small><small>{c.description}</small></span>
-            </label>
-          ))}
-          <div className="su-row">
-            <button className="primary" disabled={picked.size === 0} onClick={() => void doImport()}>Import {picked.size} selected</button>
-            <button onClick={() => setFound(null)}>Cancel</button>
-            <span className="hint">Copies them into the library; the originals stay where they are.</span>
-          </div>
-        </div>
-      )}
-
       {items.length === 0 && scan.length === 0 && <p className="hint">Nothing here yet. Add skills from this computer, or write an instruction.</p>}
       {(items.length > 0 || scan.length > 0) && (
         <SkillShelf groups={shelfGroups(items, scan, find)} others={findItems(items.filter((i) => i.kind !== 'skill'), find)} open={open} live={live} onOpen={(key) => (setOpen(key), setDraft(null))} />
+      )}
+      </>
       )}
       </div>
 
@@ -342,13 +374,13 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
               places={places}
               busy={busy}
               original={shelf.find((g) => g.kind === 'library')?.rows.find((r) => r.key === current.id)?.original}
-              onUseOriginal={(dir) => void place(async () => { await window.aw.library.useOriginal(current.id, dir); await load(); refreshScan() })}
+              onUseOriginal={(dir, at) => void place(() => useOriginal(current.id, dir, at))}
               where={<SkillWhere id={current.id} colour={spineLook(current).colour} dir={current.place?.real ?? current.dir} places={places} busy={busy} onClaude={(on) => void place(() => window.aw.library.setClaude(current.id, on))} onLink={(t, on) => void place(() => window.aw.library.link(current.id, t, on, folder || undefined))} />}
             />
           ) : undefined}
-          footer={current.kind === 'skill' ? <SkillFooter item={current} busy={busy} onRemove={() => void remove(current.id)} onDeleted={() => (setOpen(null), void load(), refreshScan())} /> : undefined}
+          footer={current.kind === 'skill' ? <SkillFooter item={current} busy={busy} onRemove={(at) => remove(current.id, at)} onDeleted={() => (setOpen(null), void load(), refreshScan())} /> : undefined}
           onEdit={() => edit(current)}
-          onRemove={() => void remove(current.id)}
+          onRemove={() => remove(current.id)}
         />
       )}
       {draft && (() => {
@@ -496,7 +528,7 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       )}
       {tab === 'reach' && (
       <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
-      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} projects={places.projects} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => void remove(id)} />}
+      {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} projects={places.projects} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => remove(id)} />}
       <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
       </div>
       )}
