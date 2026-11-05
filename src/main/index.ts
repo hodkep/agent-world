@@ -45,6 +45,7 @@ import { createMenuTracker } from './menuTracker'
 import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems, revealItem } from './contextMenu'
 import { zoomKey, zoomTo } from '../shared/previewZoom'
+import { appKey, forwarded } from './appKeys'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { costDelta, limitDue, overview, parseLedger, tokensReport, usageReport, weekReport, weekStartOf, type LedgerEvent } from '../shared/ledger'
@@ -3432,6 +3433,13 @@ async function main() {
     // Pinch zooms the page (Electron has it off), and Cmd+ / Cmd- / Cmd+0 over the page zoom it, not the app: the key is taken here, before the menu's own zoom shortcuts.
     void contents.setVisualZoomLevelLimits(1, 4).catch(() => {})
     contents.on('before-input-event', (e, input) => {
+      // A page clicked in Preview is a window of its own and takes every key: the app's own shortcuts are taken here and handed to the window that holds it.
+      if (appKey(input)) {
+        e.preventDefault()
+        const host = contents.hostWebContents
+        if (host && !host.isDestroyed()) host.send('app-key', forwarded(input))
+        return
+      }
       const to = zoomKey(input, process.platform === 'darwin')
       if (!to) return
       e.preventDefault()
