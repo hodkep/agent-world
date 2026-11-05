@@ -2548,11 +2548,16 @@ async function main() {
   })
   ipcMain.handle('library:usage30', () => libraryService.usage30())
   // Only a folder a fresh scan finds can stand in for a copy, so the window can never name any other folder.
-  ipcMain.handle('library:use-original', async (_, id: string, dir: string) => {
+  const foundOriginal = async (dir: string) => {
     const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).find((c) => c.dir === dir)
     if (!found) throw new Error('That folder is not a skill the app found.')
+    return found
+  }
+  ipcMain.handle('library:original-diff', async (_, id: string, dir: string) => libraryService.library.originalDiff(String(id), (await foundOriginal(String(dir))).dir))
+  ipcMain.handle('library:use-original', async (_, id: string, dir: string, anyway?: boolean) => {
+    const found = await foundOriginal(String(dir))
     libraryService.measureSoon()
-    const item = await libraryService.library.useOriginal(String(id), found.dir, { kind: found.kind, ...(found.project && { project: found.project }), ...(found.from && { from: found.from }), ...(found.license && { license: found.license }), label: found.source })
+    const item = await libraryService.library.useOriginal(String(id), found.dir, { kind: found.kind, ...(found.project && { project: found.project }), ...(found.from && { from: found.from }), ...(found.license && { license: found.license }), label: found.source }, { anyway: anyway === true })
     send('library-sizes')
     return item
   })
