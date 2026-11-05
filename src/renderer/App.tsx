@@ -997,6 +997,18 @@ export function App() {
   }, [officeOff])
   // A shortcut pressed with a page in Preview clicked comes back from the main process: the handlers above listen on this window.
   useEffect(() => window.aw.onAppKey((k) => window.dispatchEvent(new KeyboardEvent('keydown', { ...k, bubbles: true, cancelable: true }))), [])
+
+  // Mod+Alt+F hides or shows the two top bars, from anywhere (even with a box focused).
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      if (!matches(e, 'full-screen')) return
+      e.preventDefault()
+      e.stopPropagation()
+      setBarsOff((o) => !o)
+    }
+    window.addEventListener('keydown', on, true)
+    return () => window.removeEventListener('keydown', on, true)
+  }, [])
   // An agent's card over the office has nothing to show over while it is hidden, and its timers would go on.
   useEffect(() => void (noOffice && setCardOpen(false)), [noOffice])
   // Hidden, the office draws nothing at all.
@@ -1638,7 +1650,7 @@ export function App() {
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
         <IconButton icon="panel" label={showPanel ? 'Hide panel' : 'Show panel'} disabled={noOffice} onClick={() => (panes ? setPeek((o) => !o) : narrow ? setDrawer((o) => !o) : setPanelOpen((o) => !o))} expanded={showPanel} tip={showPanel ? 'Hide panel' : 'Show panel'} />
-        <FullscreenButton hidden={barsOff} onToggle={() => setBarsOff((o) => !o)} />
+        <FullscreenButton hidden={barsOff} onToggle={() => setBarsOff((o) => !o)} keys={keysOf('full-screen')} />
       </header>
       {updatedBanner && (
         <div className="upd-banner" role="status">
