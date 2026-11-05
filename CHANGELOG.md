@@ -4,6 +4,16 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-11-05
+
+### Added
+
+- Header: a full screen button at the right end of the top bar hides the top bars to give the page the whole window; point at the top edge to slide them back in, and press it again to keep them.
+
+### Changed
+
+- The small Expand button at the end of the agent's tabs is gone.
+
 ## [0.11.2] - 2026-11-04
 
 ### Added
