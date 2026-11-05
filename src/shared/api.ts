@@ -550,6 +550,8 @@ export interface AwApi {
     /** Throws the draft away. */
     discardProposal(agentId: string): Promise<void>
   }
+  /** A shortcut pressed while a page in Preview had the keyboard: the app's own, handed back so its handlers run. */
+  onAppKey(cb: (k: { key: string; code: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }) => void): () => void
   /** Fires when a run began, finished, got a commit or was stopped. */
   onWorkflows(cb: () => void): () => void
   onLanding(cb: () => void): () => void

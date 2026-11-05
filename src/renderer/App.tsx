@@ -989,6 +989,8 @@ export function App() {
     window.addEventListener('keydown', on, true)
     return () => window.removeEventListener('keydown', on, true)
   }, [officeOff])
+  // A shortcut pressed with a page in Preview clicked comes back from the main process: the handlers above listen on this window.
+  useEffect(() => window.aw.onAppKey((k) => window.dispatchEvent(new KeyboardEvent('keydown', { ...k, bubbles: true, cancelable: true }))), [])
   // An agent's card over the office has nothing to show over while it is hidden, and its timers would go on.
   useEffect(() => void (noOffice && setCardOpen(false)), [noOffice])
   // Hidden, the office draws nothing at all.

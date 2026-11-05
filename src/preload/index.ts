@@ -239,6 +239,7 @@ const api: AwApi = {
   },
   mailStale: (id) => ipcRenderer.invoke('provider:mail-stale', id),
   forgetMail: (id, name) => ipcRenderer.invoke('provider:mail-forget', id, name),
+  onAppKey: on<[{ key: string; code: string; metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }]>('app-key'),
   onUsage: on('usage'),
   onWorkflows: on('workflows'),
   onLanding: on('landing'),
