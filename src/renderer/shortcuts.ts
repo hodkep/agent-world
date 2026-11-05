@@ -18,6 +18,7 @@ export interface Shortcut {
 export const SHORTCUTS: Shortcut[] = [
   { id: 'palette', place: 'Anywhere', text: 'Command palette for the selected agent', keys: ['Mod+K'] },
   { id: 'office', place: 'Anywhere', text: 'Show or hide the office', keys: ['Mod+Alt+O'] },
+  { id: 'full-screen', place: 'Anywhere', text: 'Hide or show the top bars, for the whole window', keys: ['Mod+Alt+F'] },
   { id: 'sleep-wake', place: 'Anywhere', text: 'Put the selected agent to sleep, or wake it', keys: ['Mod+Alt+S'] },
   { id: 'terminals', place: 'Anywhere', text: 'Show or hide the terminals', keys: ['Ctrl+`'] },
   { id: 'shortcuts', place: 'Anywhere', text: 'Show these shortcuts', keys: ['Mod+/'] },
@@ -74,7 +75,7 @@ export function showKey(combo: string, mac: boolean): string {
 type KeyPress = Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'> & Partial<Pick<KeyboardEvent, 'code'>>
 
 // A bracket is read from the key itself where the press says which one it was: with Shift the character is { or } on a US keyboard.
-const CODE: Record<string, string> = { '[': 'BracketLeft', ']': 'BracketRight', O: 'KeyO', S: 'KeyS' }
+const CODE: Record<string, string> = { '[': 'BracketLeft', ']': 'BracketRight', O: 'KeyO', S: 'KeyS', F: 'KeyF' }
 
 /** What Mod+Alt+S does to an agent: wake it when it is asleep (or has not reported yet), otherwise put it to sleep, which the app refuses with a reason while something depends on it. */
 export const sleepOrWake = (activity: string | undefined): 'sleep' | 'wake' => ((activity ?? 'asleep') === 'asleep' ? 'wake' : 'sleep')
@@ -87,7 +88,9 @@ export function matches(e: KeyPress, id: string): boolean {
     const parts = combo.split('+')
     const key = parts[parts.length - 1]!
     // With Shift held a letter arrives as a capital, and with Caps Lock as the other case: a letter is compared without case.
-    const same = e.code && CODE[key] ? e.code === CODE[key] : key.length === 1 && /[a-z]/i.test(key) ? e.key.toLowerCase() === key.toLowerCase() : e.key === key
+    // F is read from the key itself only with Alt (Option+F types ƒ on a Mac); plain Mod+F, find, stays read from the character, so it works where the F key is elsewhere.
+    const code = key === 'F' && !parts.includes('Alt') ? undefined : CODE[key]
+    const same = e.code && code ? e.code === code : key.length === 1 && /[a-z]/i.test(key) ? e.key.toLowerCase() === key.toLowerCase() : e.key === key
     // Ctrl alone means the Ctrl key even on a Mac (where Mod is Cmd); Mod is Cmd or Ctrl.
     const mod = parts.includes('Ctrl') ? e.ctrlKey && !e.metaKey : (e.metaKey || e.ctrlKey) === parts.includes('Mod')
     return same && mod && e.shiftKey === parts.includes('Shift') && e.altKey === parts.includes('Alt')

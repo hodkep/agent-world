@@ -248,3 +248,31 @@ describe('the notes shortcuts and the keys the system keeps', () => {
     expect(new Set(all).size).toBe(all.length)
   })
 })
+
+describe('full screen: hiding or showing the two top bars', () => {
+  const press = (key: string, code: string, mods: Partial<Record<'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey', boolean>> = {}) => ({ key, code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...mods })
+
+  it('is Mod+Alt+F, read from the key itself since Option+F types ƒ on a Mac, and no other press', () => {
+    expect(matches(press('ƒ', 'KeyF', { metaKey: true, altKey: true }), 'full-screen')).toBe(true)
+    expect(matches(press('f', 'KeyF', { ctrlKey: true, altKey: true }), 'full-screen')).toBe(true)
+    // Find in the conversation (Mod+F), the Mac's own full screen (Ctrl+Cmd+F) and a shifted press are other things.
+    expect(matches(press('f', 'KeyF', { metaKey: true }), 'full-screen')).toBe(false)
+    expect(matches(press('f', 'KeyF', { metaKey: true, ctrlKey: true }), 'full-screen')).toBe(false)
+    expect(matches(press('F', 'KeyF', { metaKey: true, altKey: true, shiftKey: true }), 'full-screen')).toBe(false)
+    expect(matches(press('o', 'KeyO', { metaKey: true, altKey: true }), 'full-screen')).toBe(false)
+  })
+
+  it('is in the sheet under Anywhere, has a hint, and shares no keys with another shortcut of its place', () => {
+    const it_ = SHORTCUTS.find((s) => s.id === 'full-screen')!
+    expect(it_.place).toBe('Anywhere')
+    expect(hint('full-screen', true)).toBe('Hide or show the top bars, for the whole window (⌘⌥F)')
+    expect(hint('full-screen', false)).toBe('Hide or show the top bars, for the whole window (Ctrl+Alt+F)')
+    const clash = SHORTCUTS.filter((s) => s.id !== 'full-screen' && s.place === 'Anywhere' && s.keys.some((k) => it_.keys.includes(k)))
+    expect(clash).toEqual([])
+  })
+
+  it('leaves find (Mod+F) read from the character, so it still works where the F key is elsewhere (Dvorak types U on that key)', () => {
+    expect(matches(press('f', 'KeyY', { metaKey: true }), 'chat-find')).toBe(true)
+    expect(matches(press('f', 'KeyF', { metaKey: true }), 'chat-find')).toBe(true)
+  })
+})
