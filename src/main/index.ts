@@ -115,7 +115,8 @@ import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
 import { troubleOf } from '../shared/trouble'
-import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepClosed, stepRefusedLater, stepSkippedOnward, stepReply, stepSkipped, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { checkPassed, laneStepIds, runDropped, runEnded, stepAskedAgain, stepClosed, stepRefusedLater, stepReply, stepSkipped, stepsSkippedTogether, stepDeclined, stepStarted, stepsKept, stepsSkipped } from '../shared/steps'
+import { skipHold } from './skipNotes'
 import { checkCommands, commandDiff, pickEntry, toRunWorkflow } from '../shared/workflow'
 import { askModel, auditModel, defaultWorkflow, enabledHere, pickAsker, usesNoWorkflow } from '../shared/workflows'
 import { runSpend, spendMemo } from '../shared/runStats'
@@ -2409,6 +2410,20 @@ async function main() {
   // The person pressed Run on a step of the agent's (the plan, a build) that starts that way: the agent is told to begin.
   // A comment sent with an answer comes from the page: only text counts, and the message builders cut it.
   const noteOf = (n: unknown): string | undefined => (typeof n === 'string' && n.trim() ? n : undefined)
+  // Steps skipped one after another are told once, after the last. With none left the workflow is over: the run is closed here and the agent, which has nothing more to do, is not woken.
+  const skipNote = skipHold((runId, names, _last, note) => {
+    const run = workflows.runs().find((r) => r.id === runId)
+    if (!run) return
+    const next = workflows.nextLeft(run)?.name
+    const text = names.length === 1 ? stepSkipped(names[0]!, next, note) : stepsSkippedTogether(names, next, note)
+    // Nothing left, or the agent already ended the run: the person still sees what they did, as a card in the chat that the agent never gets.
+    if (run.status !== 'open' || workflows.left(run) === 0) {
+      if (run.status === 'open') workflows.done(run.agent, undefined, { byApp: true })
+      send('receipt', run.agent, `[Agent World] ${text}`, Date.now())
+      return send('workflows')
+    }
+    mailbox.fromOffice(run.agent, text)
+  })
   ipcMain.handle('workflows:start-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.startStep(runId, String(step))
@@ -2421,7 +2436,7 @@ async function main() {
     const found = run?.workflow?.steps.find((s) => s.id === step)
     if (!run || !found) throw new Error('No such step.')
     // Optional: the person passes it over and the run goes on. Required: the step fails and the workflow stops there.
-    if (found.optional) mailbox.fromOffice(run.agent, stepSkipped(workflows.skipStep(runId, String(step)), workflows.nextAfter(run, String(step))?.name, noteOf(note)))
+    if (found.optional) skipNote(runId, workflows.skipStep(runId, String(step)), String(step), noteOf(note))
     else mailbox.fromOffice(run.agent, stepDeclined(workflows.declineStep(runId, String(step)), noteOf(note)) + remote.hint(run.agent))
     send('workflows')
   })
@@ -2449,11 +2464,11 @@ async function main() {
     if (run) mailbox.fromOffice(run.agent, stepClosed(name, next))
     send('workflows')
   })
-  // The person ends a run that cannot go on: what is left is set aside, and the agent is told to stop.
+  // The person ends a run that cannot go on: what is left is set aside. The agent is not told: a note would start a turn after the work is over.
   ipcMain.handle('workflows:end-run', (_, runId: string, why?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     workflows.endRun(runId, typeof why === 'string' ? why : '')
-    if (run) mailbox.fromOffice(run.agent, runEnded(run.title))
+    if (run) send('receipt', run.agent, `[Agent World] ${runEnded(run.title)}`, Date.now())
     send('workflows')
   })
   // The person asks for a step they refused once more: it asks for their Run again, and the agent is told.
@@ -2474,11 +2489,11 @@ async function main() {
   ipcMain.handle('workflows:refused-answer', (_, runId: string, step: string, choice: 'skip' | 'later' | 'stop', note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     if (!run) throw new Error('No such run.')
-    if (choice === 'skip') mailbox.fromOffice(run.agent, stepSkippedOnward(workflows.skipRefused(runId, String(step)), workflows.nextAfter(run, String(step))?.name, noteOf(note)))
+    if (choice === 'skip') skipNote(runId, workflows.skipRefused(runId, String(step)), String(step), noteOf(note))
     else if (choice === 'later') mailbox.fromOffice(run.agent, stepRefusedLater(workflows.deferRefused(runId, String(step)), noteOf(note)))
     else if (choice === 'stop') {
       workflows.endRun(runId, 'The person stopped the run after refusing a step.')
-      mailbox.fromOffice(run.agent, runEnded(run.title, noteOf(note)))
+      send('receipt', run.agent, `[Agent World] ${runEnded(run.title, noteOf(note))}`, Date.now())
     } else throw new Error('Choose skip, later or stop.')
     send('workflows')
   })
@@ -2486,7 +2501,7 @@ async function main() {
   ipcMain.handle('workflows:skip-step', (_, runId: string, step: string, note?: string) => {
     const run = workflows.runs().find((r) => r.id === runId)
     const name = workflows.skipStep(runId, String(step))
-    if (run) mailbox.fromOffice(run.agent, stepSkipped(name, workflows.nextAfter(run, String(step))?.name, noteOf(note)))
+    if (run) skipNote(runId, name, String(step), noteOf(note))
     send('workflows')
   })
   // What the person is shown before approving a project file's commands: where they come from, and what changed since the version approved before.
