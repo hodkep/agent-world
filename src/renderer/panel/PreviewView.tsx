@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DevServer } from '../../shared/api'
 import { PICKER_SOURCE, PICK_MARK, contextText, type PickedElement } from './picker'
-import { DEVICES, USER_AGENT, fitScale, sizeOf, viewOf, type DeviceKind } from './devices'
+import { DEVICES, USER_AGENT, fitScale, frameOf, pageScale, sizeOf, viewOf, type DeviceKind } from './devices'
 import { MAX_VISITS, addVisit, ago, completion, forget, suggest, type Visit } from './addressHistory'
 import { OutlineIcon } from './IconButton'
 import { pageLabels, pagePaths } from '../files/context'
 import { pagePath } from '../../shared/pagePath'
 import { PREVIEW_EVENT, isPreviewable, isWebUrl, webAddress } from '../links'
 import { SiteData } from './SiteData'
+import { SiteAsk } from './SiteAsk'
+import { BrowserFrame } from './BrowserFrame'
+import type { BrowserActivity } from '../../shared/api'
 import { allowSite, forgetSite, hostOf, loadSites, needsAsking } from './previewSites'
 
 // The subset of the <webview> element used here.
@@ -21,6 +24,7 @@ interface WebviewEl extends HTMLElement {
   getZoomFactor(): number
   loadURL(url: string): Promise<void>
   getUserAgent(): string
+  getWebContentsId(): number
   setUserAgent(ua: string): void
   executeJavaScript(code: string): Promise<unknown>
   capturePage(rect?: { x: number; y: number; width: number; height: number }): Promise<{ toDataURL(): string; isEmpty(): boolean }>
@@ -155,13 +159,30 @@ async function shrunk(dataUrl: string): Promise<Blob | null> {
 }
 
 /** The page itself. Only the address it is made with matters: later moves are the page's own, and a new size makes a new one. */
-function Frame({ url, ua, viewRef }: { url: string; ua?: string; viewRef: { current: WebviewEl | null } }) {
+function Frame({ url, ua, viewRef, agentId }: { url: string; ua?: string; viewRef: { current: WebviewEl | null }; agentId: string }) {
   const [src] = useState(url)
+  // The app is told which web page is this agent's, so the agent's browser tool (if the person allows tools) can be given it, and no other.
+  useEffect(() => {
+    const el = viewRef.current
+    if (!el) return
+    const tell = () => {
+      try {
+        window.aw.previewPage(agentId, el.getWebContentsId())
+      } catch {
+        /* the page is not ready; it tells again when it is */
+      }
+    }
+    el.addEventListener('dom-ready', tell)
+    return () => {
+      el.removeEventListener('dom-ready', tell)
+      window.aw.previewPage(agentId, null)
+    }
+  }, [agentId, viewRef])
   return <webview ref={viewRef as never} src={src} useragent={ua} className="preview-frame" partition="persist:preview" />
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
-export function PreviewView({ servers, agentName, agentId, folder, onAttached, target }: { servers: DevServer[]; agentName: string; agentId: string; folder: string; onAttached: () => void; target?: { url: string; n: number } }) {
+export function PreviewView({ servers, agentName, agentId, folder, onAttached, target, browser }: { servers: DevServer[]; agentName: string; agentId: string; folder: string; onAttached: () => void; target?: { url: string; n: number; by?: string }; browser?: BrowserActivity }) {
   const [picking, setPicking] = useState(false)
   const [port, setPort] = useState<number | null>(null)
   const view = useRef<WebviewEl | null>(null)
@@ -196,9 +217,13 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       window.removeEventListener('keydown', esc, true)
     }
   }, [devMenu])
-  const size = sizeOf(dev.kind, dev.preset, dev.rotated)
+  // An agent's browser tool may set the page's size: the frame takes it, the page really has it, and it is the person's own again when the tool leaves.
+  const agentFrame = frameOf(sizeOf(dev.kind, dev.preset, dev.rotated), browser?.connections ? browser.size : null)
+  const size = agentFrame.size
   // The page's zoom (the app opens at 120%): a device of 390 px must be 390 × zoom wide here for the page to see 390.
   const [zoom, setZoom] = useState(1)
+  // How wide the frame must be for the page to see the width asked for: measured from the page itself, once it has loaded and when the size changes.
+  const [measured, setMeasured] = useState<number | null>(null)
   const holder = useRef<HTMLDivElement>(null)
   const [room, setRoom] = useState({ w: 0, h: 0 })
   useEffect(() => {
@@ -226,6 +251,25 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   const [loading, setLoading] = useState(false)
   // The sites on the internet this Preview was told it may show.
   const [sites, setSites] = useState(() => loadSites())
+  // A browser tool's agent waits on the person's answer about a site: the app passes the allowed sites on, so allowing answers it.
+  useEffect(() => window.aw.previewSitesAllowed(sites), [sites])
+  // A site an agent's browser tool asked for and the person has not allowed yet. It is asked about beside the page, which stays: the tool is working on it.
+  const [toolAsk, setToolAsk] = useState<{ url: string; by: string } | null>(null)
+  useEffect(() => {
+    if (!toolAsk) return
+    if (sites.includes(hostOf(toolAsk.url))) return setToolAsk(null)
+    const t = setTimeout(() => setToolAsk(null), 120_000) // the tool gives up then too
+    return () => clearTimeout(t)
+  }, [toolAsk, sites])
+  const toolCard = toolAsk && (
+    <SiteAsk
+      host={hostOf(toolAsk.url)}
+      http={toolAsk.url.startsWith('http:')}
+      by={toolAsk.by}
+      onOpen={() => (setSites(allowSite(localStorage, hostOf(toolAsk.url))), setToolAsk(null))}
+      onOther={() => (window.aw.previewAskAnswer(agentId, toolAsk.url, false), setToolAsk(null))}
+    />
+  )
   // A link clicked in the chat opens here, whether or not the agent started that server.
   const [opened, setOpened] = useState<string | null>(null)
   // A page on the internet is not a dev server: nothing is watched for it, and it is shown once its site is allowed.
@@ -253,8 +297,32 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   // Each screen size is a page of its own: a page given its size when it is made is the way to be sure the page sees that size.
   // A site that is not allowed yet has no page, so the page that comes when it is allowed is a new one too.
   const frameKey = `${current?.url}|${dev.kind}|${dev.preset}|${dev.rotated}|${ask}`
+  // The page says how wide it is. A frame is made the width for which the page sees what a device asked for (the app's zoom and the page's both play a part, and guessing which has been wrong).
+  useEffect(() => {
+    const el = view.current
+    if (!el) return
+    let live = true
+    const measure = () => {
+      try {
+        const shown = el.offsetWidth
+        void el.executeJavaScript('innerWidth').then((w) => live && shown > 0 && setMeasured(pageScale(Number(w), shown, zoom)), () => undefined)
+      } catch {
+        /* the page is not ready; it is measured when it is */
+      }
+    }
+    const t1 = setTimeout(measure, 600)
+    const t2 = setTimeout(measure, 2200)
+    el.addEventListener('dom-ready', measure)
+    return () => {
+      live = false
+      clearTimeout(t1)
+      clearTimeout(t2)
+      el.removeEventListener('dom-ready', measure)
+    }
+  }, [frameKey, size?.w, zoom]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!target || !isWebUrl(target.url)) return
+    if (target.by) return setToolAsk({ url: target.url, by: target.by })
     const u = new URL(target.url)
     const match = isPreviewable(target.url) ? servers.find((s) => String(s.port) === u.port) : undefined
     // Another page on a server already shown: go there in place. Anything else is shown by its own address.
@@ -406,11 +474,13 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         <div className="preview-nav">
           <AddressField agentId={agentId} shown="" live={live} history={history} onForget={forgetVisit} />
         </div>
+        {toolCard}
       </div>
     )
 
-  const k = size ? fitScale(size.w * zoom, size.h * zoom, room.w, room.h) : 1
-  const frame = size ? { width: size.w * zoom, height: size.h * zoom, transform: `scale(${k})`, marginBottom: size.h * zoom * (k - 1) } : undefined
+  const z = measured ?? zoom
+  const k = size ? fitScale(size.w * z, size.h * z, room.w, room.h) : 1
+  const frame = size ? { width: size.w * z, height: size.h * z, transform: `scale(${k})`, marginBottom: size.h * z * (k - 1) } : undefined
   const DEVICE_ICON = { desktop: 'desktop', tablet: 'tablet', mobile: 'phone' } as const
   const presets = DEVICES[dev.kind].presets
   return (
@@ -453,14 +523,9 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       </div>
       {/* Nothing answering, or a page that would not load: say so here instead of showing a blank white page. */}
       {/* A site on the internet that was not allowed yet is not loaded: the person says where it opens. */}
+      {toolCard}
       {ask && web && (
-        <div className="preview-ask" role="group" aria-label="Open this site here?">
-          <span>
-            <b>{hostOf(web)}</b> is on the internet. In the Preview it has no access to your files or to Agent World.{web.startsWith('http:') ? ' The connection is not encrypted.' : ''}
-          </span>
-          <button className="primary" onClick={() => setSites(allowSite(localStorage, hostOf(web)))}>Open here</button>
-          <button onClick={() => (void window.aw.openExternal(web), setOpened(null))}>In my browser</button>
-        </div>
+        <SiteAsk host={hostOf(web)} http={web.startsWith('http:')} onOpen={() => setSites(allowSite(localStorage, hostOf(web)))} onOther={() => (void window.aw.openExternal(web), setOpened(null))} />
       )}
       {!ask && (!current.alive || error) && (
         <div className="preview-down" role="status">
@@ -500,9 +565,10 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       {/* Keyed by address so each server gets a fresh, isolated page; it is only there while something answers. */}
       {!ask && current.alive && (
         <div className="preview-holder" ref={holder} style={error ? { display: 'none' } : undefined}>
-          <div className={`device-frame is-${dev.kind}`} style={frame}>
-            <Frame key={frameKey} url={shown || current.url} ua={dev.kind === 'desktop' ? undefined : USER_AGENT[dev.kind]} viewRef={view} />
+          <div className={`device-frame is-${agentFrame.kind ?? dev.kind}`} style={frame}>
+            <Frame key={frameKey} url={shown || current.url} ua={dev.kind === 'desktop' ? undefined : USER_AGENT[dev.kind]} viewRef={view} agentId={agentId} />
           </div>
+          <BrowserFrame who={agentName} connections={browser?.connections ?? 0} at={browser?.at ?? 0} method={browser?.method} action={browser?.action} size={browser?.size} onDisconnect={() => window.aw.browserDisconnect(agentId)} />
         </div>
       )}
     </div>

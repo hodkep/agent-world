@@ -40,6 +40,22 @@ export function sizeOf(kind: DeviceKind, preset: string, rotated: boolean): { w:
   return rotated ? { w: p.h, h: p.w } : { w: p.w, h: p.h }
 }
 
+/**
+ * The size and kind of frame the page gets: the size an agent's browser tool set, when it set one (a phone-sized page is drawn in a phone's frame), otherwise the device
+ * you chose. The page is really resized, not told to pretend: a page laid out at a size it does not have draws wrong.
+ */
+export function frameOf(own: { w: number; h: number } | null, agent: { w: number; h: number; label: string } | null | undefined): { size: { w: number; h: number } | null; kind: DeviceKind | null } {
+  if (!agent) return { size: own, kind: null }
+  return { size: { w: agent.w, h: agent.h }, kind: agent.label === 'phone' ? 'mobile' : agent.label === 'tablet' ? 'tablet' : 'desktop' }
+}
+
+/**
+ * How wide to make the frame for a device of a given width, as a multiple of that width. The page itself says: `inner` is the width it sees, `shown` the width its frame has here,
+ * and a frame that shows a page this many pixels wide as that many pixels is one pixel per pixel. (The app's own zoom and the page's are both in play, and which one wins has differed;
+ * measuring is the one way to be sure the page sees 390 when asked for 390.) `guess` is used until there is a measure.
+ */
+export const pageScale = (inner: number, shown: number, guess: number) => (Number.isFinite(inner) && inner > 0 && Number.isFinite(shown) && shown > 0 ? shown / inner : guess)
+
 /** How much to shrink a device of this size to fit the room, leaving a little around it; it is never enlarged. */
 export const fitScale = (w: number, h: number, roomW: number, roomH: number) => Math.min(1, (roomW - 24) / w, (roomH - 24) / h)
 

@@ -530,7 +530,8 @@ aside.drawer { position: absolute; right: 0; top: 0; bottom: 0; z-index: 20; wid
 .chat { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; background: var(--well); }
 .chat[hidden] { display: none; }
 .preview-keep { display: contents; }
-.preview-keep[hidden] { display: none; }
+/* A Preview that is not on screen stays laid out at the panel's size, unseen and not clickable, rather than removed: an agent's browser tool measures and takes a screenshot of its page whether or not you are looking at it. */
+.preview-keep[hidden] { display: flex; flex-direction: column; position: absolute; inset: 0; opacity: 0; pointer-events: none; z-index: -1; }
 .chat-log { flex: 1; min-height: 96px; overflow-y: auto; padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: auto; }
 .chat-loading { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: 30ch; text-align: center; color: var(--muted); }
 .chat-loading svg { image-rendering: pixelated; }
@@ -2190,6 +2191,59 @@ dialog.handoff { width: min(640px, 94vw); }
 .dev-menu button small { grid-column: 2; color: var(--muted); font-size: 11px; }
 .dev-menu button:hover { background: var(--selected); }
 .dev-menu button.on { color: var(--accent); }
+/* A run of the agent's browser commands in the chat: a timeline, a plain sentence per step. */
+.bc { display: flex; flex-direction: column; min-width: 0; background: var(--panel-3); border: 2px solid var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.bc-head { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); }
+.bc-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; background: var(--ok); color: var(--ink); border: 2px solid var(--ink); }
+.bc.is-working .bc-ic { background: var(--accent); }
+.bc.has-failed:not(.is-working) .bc-ic { background: var(--danger); color: #fff; }
+.bc-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bc-title b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-title small { color: var(--muted); font-size: 11px; }
+.bc-open { font-size: 11px; padding: 0 8px; height: 22px; flex: none; white-space: nowrap; }
+.bc-steps { position: relative; display: flex; flex-direction: column; padding: 8px 10px 8px 14px; }
+.bc-steps::before { content: ''; position: absolute; left: 19px; top: 14px; bottom: 18px; width: 2px; background: var(--line); }
+.bc-step { position: relative; display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: start; padding: 3px 0; }
+.bc-dot { width: 12px; height: 12px; margin-top: 3px; z-index: 1; background: var(--panel-3); border: 2px solid var(--muted); }
+.bc-step.ok .bc-dot { background: var(--ok); border-color: var(--ok); }
+.bc-step.now .bc-dot { background: var(--accent); border-color: var(--accent); }
+.bc-step.bad .bc-dot { background: var(--danger); border-color: var(--danger); }
+.bc-dot.live { animation: browser-blink 1s steps(2) infinite; }
+.bc-w { min-width: 0; font-size: 12px; overflow-wrap: anywhere; }
+.bc-w code { font: 12px Menlo, Consolas, monospace; color: var(--think); }
+.bc-step.bad .bc-w b { color: var(--danger-text); }
+.bc-note { display: block; color: var(--muted); font-size: 11px; }
+.bc-x { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bc-shot { all: unset; display: block; margin-top: 6px; cursor: zoom-in; width: max-content; max-width: 220px; border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.bc-shot img { display: block; max-width: 100%; max-height: 140px; }
+.bc-bar { height: 3px; background: var(--line); overflow: hidden; position: relative; }
+.bc-bar b { position: absolute; inset: 0 auto 0 0; width: 25%; background: var(--accent); animation: sg-slide 1.6s linear infinite; }
+.bc-fold { all: unset; box-sizing: border-box; cursor: pointer; padding: 5px 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.bc-fold:hover { color: var(--text); background: var(--panel-2); }
+.bc-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bc-raw { display: flex; flex-direction: column; gap: 6px; padding: 6px 10px 8px; border-top: 1px solid var(--line); }
+@media (prefers-reduced-motion: reduce) { .bc-dot.live, .bc-bar b { animation: none; } }
+/* An agent's browser tool is connected to the page: a frame round it, and a tab on its bottom edge that says whose and cuts it off. */
+.browser-frame { position: absolute; inset: 0; z-index: 4; pointer-events: none; border: 3px solid var(--dim); box-shadow: inset 0 0 0 1px var(--ink); }
+.browser-frame.acting { border-color: var(--accent); }
+.browser-tab { position: absolute; left: 12px; bottom: 0; z-index: 5; display: flex; gap: 8px; align-items: center; background: var(--dim); color: var(--text); font: 700 11px Menlo, Consolas, monospace; padding: 3px 4px 4px 10px; border: 2px solid var(--ink); border-bottom: 0; max-width: calc(100% - 24px); }
+.browser-tab.acting { background: var(--accent); color: var(--ink); }
+.browser-tab i { width: 8px; height: 8px; background: currentColor; flex: none; }
+.browser-tab i.live { animation: browser-blink 1s steps(2) infinite; }
+.browser-tab span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-tab .who { opacity: 0.7; font-weight: 400; flex: none; }
+.browser-tab .pill { background: var(--ink); color: var(--accent); padding: 0 6px; font-weight: 700; flex: none; }
+.browser-tab .tgt { background: rgb(0 0 0 / 0.14); padding: 0 6px; font-weight: 400; min-width: 0; }
+.browser-tab.refused { background: var(--danger); color: #fff; }
+.browser-tab.refused .pill { color: var(--danger-text); }
+.browser-tab.refused button { color: #fff; }
+.browser-frame.refused { border-color: var(--danger); }
+.browser-size { position: absolute; right: 12px; top: 0; z-index: 5; background: var(--think); color: var(--ink); border: 2px solid var(--ink); border-top: 0; padding: 4px 10px 3px; font: 700 11px Menlo, Consolas, monospace; }
+.browser-tab button { font: inherit; background: var(--ink); color: var(--text); border: 0; box-shadow: none; padding: 0 6px; cursor: pointer; flex: none; }
+.browser-tab.acting button { color: var(--accent); }
+@keyframes browser-blink { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .browser-tab i.live { animation: none; } }
+.preview-ask .ask-who { color: var(--accent); }
 /* Site data: what the Preview's one session keeps for each site. Same menu look as the screen sizes. */
 .sd-btn { position: relative; }
 .sd-btn.has-data { color: var(--accent); }
@@ -2211,7 +2265,7 @@ dialog.handoff { width: min(640px, 94vw); }
 .preview-cap { display: flex; align-items: center; justify-content: center; gap: 8px; height: 26px; flex: none; font: 11px Menlo, Consolas, monospace; color: var(--muted); background: var(--well); }
 .preview-cap select { font: 11px Menlo, Consolas, monospace; color: var(--text); background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; }
 .preview-cap button { padding: 0 7px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
-.preview-holder { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; background: var(--well); }
+.preview-holder { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; background: var(--well); position: relative; }
 .device-frame { flex: none; transform-origin: top center; background: #fff; overflow: hidden; width: 100%; height: 100%; display: flex; flex-direction: column; }
 .device-frame.is-tablet { box-shadow: 0 0 0 12px var(--frame); border-radius: 10px; margin-top: 12px; }
 .device-frame.is-mobile { box-shadow: 0 0 0 10px var(--frame); border-radius: 22px; margin-top: 10px; }
