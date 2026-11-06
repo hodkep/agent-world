@@ -4,7 +4,7 @@ import { isWorkflowId } from '../shared/workflow'
 import { isDial } from '../shared/workflows'
 import { DEFAULT_PROVIDER, PROVIDER_IDS, type Prefs, isProviderId } from '../shared/types'
 
-export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, todoTracking: 'deferred', todoListLimit: 0, libraryEnabled: true, officeLife: true, updateMirror: true, sleepIdleMinutes: 30, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, defaults: {} } }
+export const DEFAULT_PREFS: Prefs = { notifications: 'all', keepAwake: true, wrapUp: true, openPagesInApp: true, agentBrowser: true, openPreviewOnBrowse: false, todoTracking: 'deferred', todoListLimit: 0, libraryEnabled: true, officeLife: true, updateMirror: true, sleepIdleMinutes: 30, subagents: { maxDepth: 2, maxRunning: 3 }, setup: { done: false, defaultProvider: '' }, providers: {}, seenVersion: '', houseRules: '', roleModels: {}, defaults: { provider: '', model: '', permissionMode: '', inPlace: false, accounts: {} }, accounts: [], ownNames: {}, workflows: { enabled: false, dial: 'balanced', since: 0, defaults: {} } }
 
 const isMode = (v: unknown): v is Prefs['notifications'] => v === 'all' || v === 'attention' || v === 'off'
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : undefined)
@@ -18,6 +18,8 @@ export function cleanPrefs(raw: unknown, base: Prefs = DEFAULT_PREFS): Prefs {
     keepAwake: typeof r.keepAwake === 'boolean' ? r.keepAwake : base.keepAwake,
     wrapUp: typeof r.wrapUp === 'boolean' ? r.wrapUp : base.wrapUp,
     openPagesInApp: typeof r.openPagesInApp === 'boolean' ? r.openPagesInApp : base.openPagesInApp,
+    agentBrowser: typeof r.agentBrowser === 'boolean' ? r.agentBrowser : base.agentBrowser,
+    openPreviewOnBrowse: typeof r.openPreviewOnBrowse === 'boolean' ? r.openPreviewOnBrowse : base.openPreviewOnBrowse,
     libraryEnabled: typeof r.libraryEnabled === 'boolean' ? r.libraryEnabled : base.libraryEnabled,
     officeLife: typeof r.officeLife === 'boolean' ? r.officeLife : base.officeLife,
     updateMirror: typeof r.updateMirror === 'boolean' ? r.updateMirror : base.updateMirror,
