@@ -487,9 +487,23 @@ export class Workflows {
   }
 
   /** The step after `id` in the run's workflow, for the agent to be told what comes next (its name, whether it may be skipped, and what it is for). */
-  nextAfter(run: Run, id: string): { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } | undefined {
+  nextAfter(run: Run, id: string) {
     const steps = run.workflow?.steps ?? []
-    const n = steps[steps.findIndex((s) => s.id === id) + 1]
+    return this.shape(steps[steps.findIndex((s) => s.id === id) + 1])
+  }
+
+  /** How many steps of the run are neither done nor skipped. */
+  left(run: Run): number {
+    return run.workflow ? this.states(run).filter((s) => s.state !== 'passed' && s.state !== 'skipped').length : 0
+  }
+
+  /** The first step of the run that is neither done nor skipped, in the shape the agent is told a next step in. */
+  nextLeft(run: Run) {
+    const open = this.states(run).find((s) => s.state !== 'passed' && s.state !== 'skipped')
+    return this.shape(run.workflow?.steps.find((s) => s.id === open?.id))
+  }
+
+  private shape(n: RunWorkflow['steps'][number] | undefined): { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } | undefined {
     // A step the person finishes is not waited on before it starts: its gate is their answer after the agent reports it.
     // Only a pull request that asks first waits for the person before it starts; a plan's or a step's approval comes after the work is handed in.
     return n && { id: n.id, name: n.name, optional: !!n.optional, start: n.start === 'run' || (n.kind === 'pr' && n.gate === 'approve'), ...(n.by === 'person' && { by: 'person' as const }), ...(n.brief && { brief: n.brief }) }
