@@ -63,7 +63,7 @@ An agent that works directly in your folder has no branch. **Code** then shows a
 
 To open something, type `5287` (for `localhost:5287`), `localhost:3000/app`, `example.com` or a path like `~/design/index.html` in the address bar, or pick from **Running now** and **Recent**. ⌘-click (Ctrl-click) a link in the chat to use your browser instead.
 
-The first time a site on the internet opens, Preview asks **Open here** or **In my browser**. Pages there cannot reach your files or Agent World, use the camera, location or notifications, or download files. A site you sign in to stays signed in for thirty days, between runs and for every agent and project at once; **Site data** takes a login back.
+The first time a site on the internet opens, Preview asks **Open here** or **In my browser**. Pages there cannot reach your files or Agent World, use the camera, location or notifications, or download files. A site you sign in to stays signed in for thirty days, between runs and for every agent and project at once; **Site data** takes a login back. The installed app stores those logins encrypted, with a key kept in your Keychain.
 
 The toolbar has **Back**, **Forward**, **Reload**, **Site data** (the cookies the Preview keeps for each site, with a **Clear** for one site and for all), **Screen size** (**Desktop**, **Tablet**, **Mobile**), **Select element** (click something on the page to send it to the agent as words and a picture) and **Open in browser**.
 
