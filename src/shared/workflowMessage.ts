@@ -44,6 +44,7 @@ function parse(text: string): WorkflowMessage | null {
   if (body.startsWith('The person lifted the hold on your edits')) return { tone: 'skip', icon: 'skip', title: 'Hold lifted', told: text }
   if ((m = new RegExp(`^The person pressed Run: start your step ${q} now\\.`).exec(body))) return { tone: 'go', icon: 'run', title: 'Run', sub: m[1]!, told: text }
   if ((m = new RegExp(`^Your step ${q} was skipped by the person`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
+  if ((m = /^Your steps ((?:"[^"\n]+"(?:, | and )?)+) were skipped by the person/.exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${[...m[1]!.matchAll(/"([^"\n]+)"/g)].map((x) => x[1]!).reduce((a, n, i, all) => (i === 0 ? n : `${a}${i === all.length - 1 ? ' and ' : ', '}${n}`), '')}`, told: text }
   if ((m = new RegExp(`^The person skipped your step ${q} and wants the task to go on`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
   if ((m = new RegExp(`^The person will ask for ${q} again later`).exec(body))) return { tone: 'skip', icon: 'skip', title: 'Ask again later', sub: m[1]!, told: text }
   if ((m = /^The person dropped your task "(.+?)": no workflow was needed/.exec(body))) return { tone: 'no', icon: 'cross', title: 'Dropped this run', sub: m[1]!, told: text }
