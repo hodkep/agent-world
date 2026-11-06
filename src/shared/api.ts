@@ -115,6 +115,13 @@ export interface Workspaces {
   items: WorkspaceInfo[]
 }
 
+/** A site in the Preview's shared session, with the cookies it holds. */
+export type PreviewSite = { host: string; cookies: number }
+export type PreviewSites = { current: PreviewSite | null; others: PreviewSite[] }
+
+/** An agent's browser tool at work on its Preview page: how many are connected and the command that ran last. */
+export type BrowserActivity = { agentId: string; connections: number; method?: string; at: number; /** What the agent is doing, in the words of the tab: a pill (CLICKING) and what it is done to. */ action?: { pill: string; target?: string; refused?: boolean }; /** The size the agent set on the page; null when it put it back. */ size?: { w: number; h: number; label: string } | null }
+
 export interface DevServer {
   port: number
   url: string
@@ -617,6 +624,24 @@ export interface AwApi {
   onServers(cb: (s: Record<string, DevServer[]>) => void): () => void
   /** Open a local address in the system browser. */
   openExternal(url: string): Promise<void>
+  /** What the Preview's one shared session holds: the page being shown (by host, with its port) and the other sites with cookies. */
+  previewSites(current?: string): Promise<PreviewSites>
+  /** Clear one site's cookies and stored data from that session; it is also what every agent's Preview sees. */
+  clearPreviewSite(site: string): Promise<void>
+  clearPreviewSites(): Promise<void>
+  /** The Preview tells the app which web page is this agent's (null: it is gone), so a browser tool can be given it. */
+  previewPage(agentId: string, webContentsId: number | null): void
+  /** The sites the person allowed in the Preview, passed on so a browser tool's ask is answered by them. */
+  previewSitesAllowed(sites: string[]): void
+  /** The person's answer to "csr-1 wants to open this site". Allowing is told by the list above; this is for no. */
+  previewAskAnswer(agentId: string, url: string, ok: boolean): void
+  /** Cut an agent's browser tools off; a tool may connect again by itself, on its next command. */
+  browserDisconnect(agentId: string): void
+  onBrowserActivity(cb: (a: BrowserActivity) => void): () => void
+  /** A browser tool wants to open a site the person has not allowed yet. */
+  onPreviewAsk(cb: (a: { agentId: string; url: string }) => void): () => void
+  /** A browser tool asked for a page and the agent has none: the Preview makes one. */
+  onPreviewOpen(cb: (a: { agentId: string; url: string }) => void): () => void
   onUsage(cb: (u: UsageLimits) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */

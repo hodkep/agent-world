@@ -85,6 +85,7 @@ const ICONS = {
   handoff: <path d="M3 12h14M12 6l6 6-6 6M21 5v14" />,
   pencil: <path d="M4 20l1-5L16 4l4 4L9 19zM13 7l4 4" />,
   tag: <path d="M3 3h8l10 10-8 8L3 11zM7.5 7.5h.01" />,
+  data: <><ellipse cx="12" cy="6" rx="7" ry="3" /><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" /></>,
   traces: <path d="M3 8h14M13 4l4 4-4 4M21 16H7M11 12l-4 4 4 4" />
 } satisfies Record<string, ReactNode>
 
