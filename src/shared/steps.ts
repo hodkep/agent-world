@@ -279,6 +279,9 @@ export const stepStarted = (name: string, note?: string) => said(`The person pre
 
 const list = (names: string[]) => (names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`)
 
+/** What the agent is told when the person skips several steps one after another: one note for all, not one each. */
+export const stepsSkippedTogether = (names: string[], next?: string, note?: string) => said(`Your steps ${list(names.map((n) => `"${n}"`))} were skipped by the person. ${next ? `Go on with the next step, "${next}".` : 'Go on with the next step.'}`, note)
+
 /** What the agent is told when the person approves skipping steps it asked to skip. */
 export const stepsSkipped = (names: string[], why: string, note?: string) => said(`The person approved skipping ${list(names)}${why ? `: ${why}` : ''}. They are done with. If nothing else is left, call task_done.`, note)
 

@@ -1339,6 +1339,20 @@ describe('steps are reported in order, and finishing a task never claims a step 
 
   const stateOf = (wf: Workflows) => stepStates(wf.runs()[0]!, { auditOn: false }).map((x) => `${x.id}:${x.state}`)
 
+  it('counts the steps that are neither done nor skipped, and says the first of them', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'x' })
+    wf.stepDone('a1', 'build')
+    const id = wf.runs()[0]!.id
+    expect(wf.left(wf.runs()[0]!)).toBe(2)
+    wf.skipStep(id, 'commit')
+    expect(wf.left(wf.runs()[0]!)).toBe(1)
+    expect(wf.nextLeft(wf.runs()[0]!)).toMatchObject({ id: 'push', name: 'Push', start: true })
+    wf.skipStep(id, 'push')
+    expect(wf.left(wf.runs()[0]!)).toBe(0)
+    expect(wf.nextLeft(wf.runs()[0]!)).toBeUndefined()
+  })
+
   it('a step the person refused is asked again when it is reopened, and then waits for their Run like any other', () => {
     const { wf } = started()
     wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })

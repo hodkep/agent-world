@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { type RunEvent, type RunWorkflow, reduceRuns } from './runs'
-import { openLane, checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, nextStepLine, readyForAudit, stepReply, stepSkipped, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
+import { openLane, checkFailed, checkGaveUp, checkPanels, checkPassed, needsApproval, nextStepLine, readyForAudit, stepReply, stepSkipped, stepsSkippedTogether, stepStarted, stepStates, toRunSteps, waitingSteps } from './steps'
 
 const STANDARD: RunWorkflow = { id: 'standard', name: 'Standard', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'build', kind: 'work', name: 'Build' }, { id: 'review', kind: 'audit', name: 'Audit' }, { id: 'land', kind: 'merge', name: 'Land' }] }
 const REVIEWED: RunWorkflow = { id: 'reviewed', name: 'Reviewed', steps: [{ id: 'plan', kind: 'plan', name: 'Plan' }, { id: 'fix', kind: 'work', name: 'Fix' }, { id: 'ok', kind: 'approve', name: 'Your review', gate: 'approve' }, { id: 'land', kind: 'merge', name: 'Land' }] }
@@ -457,6 +457,8 @@ describe('the same settings on every kind of step', () => {
     expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('was sent back: cover the edge')
     expect(stepReply('Tests', 'changes', 'cover the edge', 'check')).toContain('the check runs again')
     expect(stepSkipped('Extra')).toBe('Your step "Extra" was skipped by the person. Go on with the next step.')
+    expect(stepsSkippedTogether(['Commit', 'Push'], 'Pull request')).toBe('Your steps "Commit" and "Push" were skipped by the person. Go on with the next step, "Pull request".')
+    expect(stepsSkippedTogether(['A', 'B', 'C'], undefined, 'Not needed.')).toBe('Your steps "A", "B" and "C" were skipped by the person. Go on with the next step. They said: Not needed.')
   })
 })
 

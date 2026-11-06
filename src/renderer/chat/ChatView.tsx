@@ -129,6 +129,7 @@ export function ChatView({
   todosUpdated,
   waitingSubagents,
   outgoing,
+  receipts,
   remote,
   onWake,
   onTerminal
@@ -139,6 +140,8 @@ export function ChatView({
   waitingSubagents?: Set<string>
   /** Work this agent handed to others, to show in the conversation. */
   outgoing?: Extract<ChatItem, { kind: 'handoff-out' }>[]
+  /** Cards for what the person did on a workflow that the agent was not told, drawn where they happened. */
+  receipts?: Extract<ChatItem, { kind: 'user' }>[]
   /** Whether this agent is continued from a phone; absent when its program cannot be. */
   remote?: RemoteState
   activity: Activity
@@ -293,15 +296,15 @@ export function ChatView({
 
   // What this agent handed to others is not in its conversation file: it joins the conversation where it was sent.
   const merged = useMemo(() => {
-    if (!outgoing?.length) return items
+    if (!outgoing?.length && !receipts?.length) return items
     const out = [...items]
-    for (const o of [...outgoing].sort((a, b) => a.at - b.at)) {
+    for (const o of [...(outgoing ?? []), ...(receipts ?? [])].sort((a, b) => a.at - b.at)) {
       let at = out.length
       while (at > 0 && out[at - 1]!.at > o.at && out[at - 1]!.at > 0) at--
       out.splice(at, 0, o)
     }
     return out
-  }, [items, outgoing])
+  }, [items, outgoing, receipts])
   // What waits in Claude's own queue shows only while the agent works: a line left behind by a session that ended is not waiting for anything.
   const allRows = useMemo(() => toRows(merged, sent).filter((r) => !(r.kind === 'user' && r.waiting && !realBusy)), [merged, sent, realBusy])
   // What the library did for this agent, shown beside the message it answered: pointed at, read, and the text it started with.
@@ -1114,7 +1117,7 @@ export function RowView({ row: r, agentId, agentName, busy, asleep, onImage, onR
       }
       // What the person pressed on a workflow card is a receipt on their side, with the sentence the agent got folded under it.
       const receipt = parseWorkflowMessage(r.text)
-      if (receipt) return <WorkflowReceipt msg={receipt} rowId={r.id} {...(r.at !== undefined && { at: r.at })} {...(r.pending && { pending: true })} />
+      if (receipt) return <WorkflowReceipt msg={receipt} rowId={r.id} {...(r.id.startsWith('receipt:') && { local: true })} {...(r.at !== undefined && { at: r.at })} {...(r.pending && { pending: true })} />
       // The answer to a form is drawn as a card in the form's words; the text the agent got is folded under it.
       const answer = parseFormAnswer(r.text)
       if (answer) {

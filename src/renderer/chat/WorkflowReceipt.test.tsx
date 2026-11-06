@@ -7,9 +7,9 @@ import { WorkflowReceipt } from './WorkflowReceipt'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
-const draw = async (text: string) => {
+const draw = async (text: string, local = false) => {
   const host = document.body.appendChild(document.createElement('div'))
-  await act(async () => createRoot(host).render(<WorkflowReceipt msg={parseWorkflowMessage(text)!} rowId="r1" at={Date.UTC(2026, 0, 1, 10, 0)} />))
+  await act(async () => createRoot(host).render(<WorkflowReceipt msg={parseWorkflowMessage(text)!} rowId="r1" at={Date.UTC(2026, 0, 1, 10, 0)} local={local} />))
   return host
 }
 
@@ -22,5 +22,12 @@ describe('a workflow answer in the chat', () => {
     expect(host.querySelector('details')!.hasAttribute('open')).toBe(false)
     expect(host.textContent).not.toContain('Rewind')
     expect(host.textContent).not.toContain('Copy')
+  })
+
+  it('says so when it was never typed to the agent, because nothing was left of the workflow', async () => {
+    const host = await draw('[Agent World] Your steps "Commit", "Push" and "Pull request" were skipped by the person. Go on with the next step.', true)
+    expect(host.querySelector('summary')!.textContent).toContain('Skipped Commit, Push and Pull request')
+    expect(host.querySelector('.wf-told')!.textContent).toContain('Not told to the agent')
+    expect(host.querySelector('.wf-told')!.textContent).not.toContain('Go on with the next step')
   })
 })

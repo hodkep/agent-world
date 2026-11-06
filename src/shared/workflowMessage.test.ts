@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planReply } from './plan'
-import { said, runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
+import { said, runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepsSkippedTogether, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
 import { parseWorkflowMessage } from './workflowMessage'
 
 const office = (t: string) => `[Agent World] ${t}`
@@ -33,6 +33,7 @@ describe('what the app typed into the chat for the person, read back as a receip
     expect(parseWorkflowMessage(office(stepAskedAgain('Commit')))).toMatchObject({ tone: 'go', title: 'Asked again', sub: 'Commit' })
   })
   it('knows what the person chose after refusing a step: skip it and go on, ask again later, or drop a run that needed no workflow', () => {
+    expect(parseWorkflowMessage(office(stepsSkippedTogether(['Commit', 'Push', 'Pull request'])))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Skipped Commit, Push and Pull request' })
     expect(parseWorkflowMessage(office(stepSkippedOnward('Commit', 'Push')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Skipped Commit' })
     expect(parseWorkflowMessage(office(stepSkippedOnward('Commit')))).toMatchObject({ title: 'Skipped Commit' })
     expect(parseWorkflowMessage(office(stepRefusedLater('Verify the changes')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Ask again later', sub: 'Verify the changes' })
