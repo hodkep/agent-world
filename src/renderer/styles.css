@@ -2148,7 +2148,7 @@ dialog.handoff { width: min(640px, 94vw); }
 /* The Preview's browser bar: back, forward and reload, the address (with its list of pages), the screen size, and two icons. */
 .preview-nav { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 2px solid var(--ink); }
 .preview.empty .preview-nav { border-bottom: 0; padding: 8px 10px; }
-.preview-nav > button, .preview-dev .dev-btn { padding: 3px 7px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; flex: none; }
+.preview-nav > button, .preview-dev .dev-btn, .preview-dev .sd-btn { padding: 3px 7px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; flex: none; }
 .preview-nav > button:disabled { opacity: 0.4; }
 .preview-nav > button.primary { background: var(--accent); color: var(--ink); }
 .pa { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; }
@@ -2190,6 +2190,24 @@ dialog.handoff { width: min(640px, 94vw); }
 .dev-menu button small { grid-column: 2; color: var(--muted); font-size: 11px; }
 .dev-menu button:hover { background: var(--selected); }
 .dev-menu button.on { color: var(--accent); }
+/* Site data: what the Preview's one session keeps for each site. Same menu look as the screen sizes. */
+.sd-btn { position: relative; }
+.sd-btn.has-data { color: var(--accent); }
+.sd-dot { position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; background: var(--accent); border: 2px solid var(--ink); }
+.sd-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; width: 310px; max-width: calc(100vw - 24px); max-height: 70vh; overflow: auto; background: var(--panel); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--accent), 0 10px 28px rgb(0 0 0 / 0.65); padding: 4px; }
+.sd-menu button { font-size: 11px; padding: 1px 7px; }
+.sd-menu h5 { margin: 6px 8px 2px; font: 700 10px Menlo, Consolas, monospace; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.sd-here { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 8px 8px 10px; }
+.sd-here b { font: 600 13px Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.sd-here small { grid-column: 1 / -1; color: var(--muted); }
+.sd-row { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 5px 8px; }
+.sd-row:hover { background: var(--selected); }
+.sd-row span { font: 12px Menlo, Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-row small { font: 11px Menlo, Consolas, monospace; background: var(--well); border: 1px solid var(--line); padding: 0 6px; color: var(--muted); }
+.sd-none, .sd-note { margin: 0; padding: 6px 8px; color: var(--muted); font-size: 11px; }
+.sd-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--line); margin-top: 4px; padding: 6px 8px 2px; color: var(--muted); }
+.sd-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--danger-well); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--danger); padding: 6px 8px; margin: 4px; }
+.sd-ask span { flex: 1 1 100%; }
 .preview-cap { display: flex; align-items: center; justify-content: center; gap: 8px; height: 26px; flex: none; font: 11px Menlo, Consolas, monospace; color: var(--muted); background: var(--well); }
 .preview-cap select { font: 11px Menlo, Consolas, monospace; color: var(--text); background: var(--panel); border: 1px solid var(--line); padding: 1px 4px; }
 .preview-cap button { padding: 0 7px; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
