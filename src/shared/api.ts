@@ -618,6 +618,8 @@ export interface AwApi {
   /** Open a local address in the system browser. */
   openExternal(url: string): Promise<void>
   onUsage(cb: (u: UsageLimits) => void): () => void
+  /** What the person did on a workflow that the agent was not told (it was over): a card for the chat, in the words the agent would have got. */
+  onReceipt(cb: (agent: string, text: string, at: number) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */
   onPlanMenu(cb: (agentId: string, open: boolean) => void): () => void

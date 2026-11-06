@@ -966,6 +966,7 @@ export function App() {
       waitingSubagents={waitingOf(a.id)}
       remote={providers?.find((p) => p.id === (a.provider ?? DEFAULT_PROVIDER))?.capabilities.remote ? (remotes[a.id] ?? { state: 'off' }) : undefined}
       outgoing={outgoingOf(a)}
+      receipts={receipts[a.id]}
       onWake={() => wake(a)}
       onTerminal={() => (select(a.id), chooseTalk('terminal'), setFocusTick((n) => n + 1))}
     />
@@ -1255,6 +1256,9 @@ export function App() {
     void window.aw.getServers().then(setServers)
     return window.aw.onServers(setServers)
   }, [])
+  // What the person did on a workflow that the agent was not told: a card in that agent's chat, kept until the window reloads.
+  const [receipts, setReceipts] = useState<Record<string, Extract<ChatItem, { kind: 'user' }>[]>>({})
+  useEffect(() => window.aw.onReceipt((agent, text, at) => setReceipts((r) => ({ ...r, [agent]: [...(r[agent] ?? []), { kind: 'user', id: `receipt:${at}`, at, text }] }))), [])
   useEffect(() => {
     void window.aw.getUsage().then(setLimits)
     // Each report from an agent also refreshes what the tanks, the chips and every agent's controls show.
