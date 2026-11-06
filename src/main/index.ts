@@ -46,6 +46,7 @@ import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems, revealItem } from './contextMenu'
 import { zoomKey, zoomTo } from '../shared/previewZoom'
 import { appKey, forwarded } from './appKeys'
+import { clearAllSites, clearSite, keepSessionCookies, listSites } from './siteData'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { shareReport } from '../shared/attribution'
@@ -3429,8 +3430,12 @@ async function main() {
   })
 
   // The preview panes are <webview>s: each shows a web page (a dev server on this computer, or a site on the internet the person allowed) with no access to the app,
-  // in a session of its own that keeps nothing between runs, and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
-  const preview = session.fromPartition('preview')
+  // in a session of its own, shared by every agent and every project and kept between runs (logins stay), and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
+  const preview = session.fromPartition('persist:preview')
+  keepSessionCookies(preview.cookies)
+  ipcMain.handle('preview:sites', (_, current?: string) => listSites(preview, typeof current === 'string' ? current : undefined))
+  ipcMain.handle('preview:clear-site', (_, site: string) => clearSite(preview, String(site)))
+  ipcMain.handle('preview:clear-all', () => clearAllSites(preview))
   preview.setPermissionRequestHandler((_wc, _permission, done) => done(false))
   preview.setPermissionCheckHandler(() => false)
   preview.on('will-download', (e) => e.preventDefault())

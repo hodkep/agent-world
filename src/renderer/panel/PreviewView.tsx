@@ -7,6 +7,7 @@ import { OutlineIcon } from './IconButton'
 import { pageLabels, pagePaths } from '../files/context'
 import { pagePath } from '../../shared/pagePath'
 import { PREVIEW_EVENT, isPreviewable, isWebUrl, webAddress } from '../links'
+import { SiteData } from './SiteData'
 import { allowSite, forgetSite, hostOf, loadSites, needsAsking } from './previewSites'
 
 // The subset of the <webview> element used here.
@@ -156,7 +157,7 @@ async function shrunk(dataUrl: string): Promise<Blob | null> {
 /** The page itself. Only the address it is made with matters: later moves are the page's own, and a new size makes a new one. */
 function Frame({ url, ua, viewRef }: { url: string; ua?: string; viewRef: { current: WebviewEl | null } }) {
   const [src] = useState(url)
-  return <webview ref={viewRef as never} src={src} useragent={ua} className="preview-frame" partition="preview" />
+  return <webview ref={viewRef as never} src={src} useragent={ua} className="preview-frame" partition="persist:preview" />
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
@@ -425,6 +426,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
           <OutlineIcon name="reload" />
         </button>
         <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={web ? undefined : current.alive ? 'up' : 'down'} web={web ? (ask ? 'asking' : error ? 'failed' : loading ? 'loading' : 'loaded') : undefined} live={live} history={history} onForget={forgetVisit} />
+        <SiteData page={current.url} loading={loading} />
         <span className="preview-dev" ref={devWrap}>
           <button className="dev-btn" aria-haspopup="menu" aria-expanded={devMenu} aria-label={`Screen size: ${DEVICES[dev.kind].label}`} title="Screen size: see the page as it looks on a tablet or phone" onClick={() => setDevMenu((o) => !o)}>
             <OutlineIcon name={DEVICE_ICON[dev.kind]} />

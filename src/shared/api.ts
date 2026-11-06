@@ -115,6 +115,10 @@ export interface Workspaces {
   items: WorkspaceInfo[]
 }
 
+/** A site in the Preview's shared session, with the cookies it holds. */
+export type PreviewSite = { host: string; cookies: number }
+export type PreviewSites = { current: PreviewSite | null; others: PreviewSite[] }
+
 export interface DevServer {
   port: number
   url: string
@@ -617,6 +621,11 @@ export interface AwApi {
   onServers(cb: (s: Record<string, DevServer[]>) => void): () => void
   /** Open a local address in the system browser. */
   openExternal(url: string): Promise<void>
+  /** What the Preview's one shared session holds: the page being shown (by host, with its port) and the other sites with cookies. */
+  previewSites(current?: string): Promise<PreviewSites>
+  /** Clear one site's cookies and stored data from that session; it is also what every agent's Preview sees. */
+  clearPreviewSite(site: string): Promise<void>
+  clearPreviewSites(): Promise<void>
   onUsage(cb: (u: UsageLimits) => void): () => void
   onBudgetAlert(cb: (agentId: string, level: 'near' | 'over') => void): () => void
   /** Claude's plan approval menu opened (true) or closed (false) in an agent's terminal. */
