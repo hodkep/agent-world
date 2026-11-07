@@ -12,7 +12,7 @@ const place = (name: string, gb: number, kind: Place['kind'], over: Partial<Plac
 const ws = (name: string, places: Place[]): Storage => ({ path: `/p/${name}`, name, bytes: places.reduce((n, p) => n + p.bytes, 0), places })
 const app = ws('agent-world', [place('Project folder', 0.7, 'folder', { note: 'os works here' }), place('delta', 2.7, 'agent', { regen: 1.2 * GB }), place('review-1', 0, 'sub', { of: 'delta', note: "subagent · shares delta's folder" }), place('old-pr-fix', 0.5, 'orphan', { note: 'no agent', regen: 0.1 * GB })])
 const other = ws('nhm-csr', [place('Project folder', 1.6, 'folder')])
-const data = ws('Agent World data', [place('ledger.jsonl', 0.02, 'data')])
+const data = ws('Agent World data', [place('ledger.jsonl', 0.3, 'data')])
 const report = { at: Date.now() - 120_000, measuring: false, workspaces: [other, app], data, active: '/p/agent-world' }
 
 async function setup(r: typeof report) {
@@ -79,5 +79,37 @@ describe('what each workspace takes on disk', () => {
   it('measures at once the first time, when nothing was ever measured', async () => {
     const { measureStorage } = await setup({ ...report, at: null as never, workspaces: [], data: null as never })
     expect(measureStorage).toHaveBeenCalledTimes(1)
+  })
+
+  it('lays the workspaces out as a treemap: each tile\'s area follows its size, the biggest is top left, and they fill the box', async () => {
+    const { host } = await setup(report)
+    const tiles = [...host.querySelectorAll<HTMLElement>('.sg-block')]
+    const pct = (t: HTMLElement) => ({ x: parseFloat(t.style.left), y: parseFloat(t.style.top), w: parseFloat(t.style.width), h: parseFloat(t.style.height) })
+    const rects = tiles.map(pct)
+    expect([...host.querySelectorAll<HTMLElement>('.sg-block, .sg-more')].map(pct).reduce((n, r) => n + (r.w * r.h) / 100, 0)).toBeCloseTo(100, 1)
+    const big = tiles.findIndex((t) => t.textContent!.includes('agent-world'))
+    expect(rects[big]).toMatchObject({ x: 0, y: 0 })
+    // agent-world is 3.9 GB of the 5.6 GB shown (the app's data is 0.3), nhm-csr 1.6: the areas keep that order.
+    const areaOf = (name: string) => { const r = rects[tiles.findIndex((t) => t.textContent!.includes(name))]!; return r.w * r.h }
+    expect(areaOf('agent-world')).toBeGreaterThan(areaOf('nhm-csr'))
+    expect((host.querySelector('.sg-map') as HTMLElement).style.height).toBe('260px')
+  })
+
+  it('folds tiles too small to read into one "smaller" tile that is not a button, and keeps the open workspace\'s own tile however small', async () => {
+    const sizes = [100, 50, 30, 20, 10, 1, 1, 1]
+    const many = sizes.map((g, i) => ws(`w${i}`, [place('Project folder', g, 'folder')]))
+    const { host } = await setup({ ...report, workspaces: many, data: null as never, active: '/p/w7' })
+    const names = [...host.querySelectorAll('.sg-block')].map((b) => b.querySelector('span')!.textContent)
+    expect(names).toEqual(expect.arrayContaining(['w0', 'w4', 'w7']))
+    expect(names).not.toContain('w5')
+    const more = host.querySelector('.sg-more')!
+    expect(more.textContent).toContain('2 smaller')
+    expect(more.tagName).not.toBe('BUTTON')
+    expect(host.querySelector('.sg-block.on')!.textContent).toContain('w7')
+  })
+
+  it('has no smaller tile when every workspace is big enough to read', async () => {
+    const { host } = await setup({ ...report, data: ws('Agent World data', [place('ledger.jsonl', 1, 'data')]) })
+    expect(host.querySelector('.sg-more')).toBeNull()
   })
 })
