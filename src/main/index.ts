@@ -84,6 +84,7 @@ import { reviewRequest } from './review'
 import { cleanIdentity, ghToken, identityEnv, loadIdentity, parseGhLogins, profileFor, saveIdentity } from './identity'
 import { createGhTokens } from './ghTokens'
 import type { Identity, IdentityState } from '../shared/identity'
+import { StorageService } from './storage'
 import { activate as activateWorkspace, forget as forgetWorkspace, loadWorkspaces, remember as rememberWorkspace, saveWorkspaces, workspacePaths, type WorkspaceState } from './workspaces'
 import { WindowWorkspaces } from './windowWorkspaces'
 import { createNoteStore } from './notes/store'
@@ -3321,6 +3322,11 @@ async function main() {
   ipcMain.handle('ledger:overview', (_, days: number) =>
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:share', (_, year: number, month: number, kind: 'five_hour' | 'weekly') => shareReport(ledger, Math.min(Math.max(Math.round(year) || new Date().getFullYear(), 2000), 2100), Math.min(Math.max(Math.round(month) || 0, 0), 11), kind === 'five_hour' ? 'five_hour' : 'weekly', Date.now()))
+  // Measured only when the Storage tab asks, in the background; the screen is told as each folder is done.
+  const storage = new StorageService({ file: join(HOME, 'storage.json'), home: HOME, worktrees: join(HOME, 'worktrees'), slug: repoSlug, agents: () => agents.map((a) => ({ id: a.id, name: a.name, cwd: a.cwd, repoPath: a.repoPath, ...(a.parent && { parent: a.parent }), ...(a.activeAt && { activeAt: a.activeAt }) })), workspaces: () => workspacePaths(workspaces, null, agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir) })
+  storage.onChange(() => send('storage'))
+  ipcMain.handle('storage:report', (e) => ({ ...storage.report(), active: windowWorkspaces.get(e.sender.id) }))
+  ipcMain.handle('storage:measure', () => void storage.measure().catch((err) => console.error('storage measure failed:', err)))
   ipcMain.handle('ledger:usage', (_, days: number) => usageReport(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now()))
   ipcMain.handle('agent:profile', async (_, id: string): Promise<AgentProfile> => {
     const a = byId(id)
