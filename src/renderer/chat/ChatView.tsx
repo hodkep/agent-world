@@ -32,6 +32,8 @@ import type { SubagentInfo } from '../../shared/chat'
 import type { PictureSet } from './gallery'
 import { sendMessageCard } from './subagentMessage'
 import { StepGroupView } from './StepGroupView'
+import { BrowserCard } from './BrowserCard'
+import { type BrowserGroup, groupBrowser } from './browserGroup'
 import { OfficeLine } from './OfficeLine'
 import { type OfficeGroup, broadcastCall, groupOffice } from './officeCalls'
 import { BroadcastSentCard, WaveIcon } from './BroadcastCard'
@@ -368,8 +370,8 @@ export function ChatView({
   // The only numbers a widget is ever given; it asks for them by name and gets nothing else of the app's.
   const widgetMeters = (want: MeterName[]) => metersFor(want, { limits, tokens: info?.tokens ?? null, costUsd: info?.costUsd, todosUpdated })
   const arranged = useMemo(() => {
-    type Drawn = Row | StepGroup | OfficeGroup
-    const settle = (rs: Row[]) => groupOffice(groupSteps(rs)) as Drawn[]
+    type Drawn = Row | StepGroup | OfficeGroup | BrowserGroup
+    const settle = (rs: Row[]) => groupOffice(groupSteps(groupBrowser(rs))) as Drawn[]
     if (searching) return settle(rows)
     const out: (Drawn | Pack<Drawn>)[] = []
     let run: Row[] = []
@@ -798,10 +800,11 @@ export function ChatView({
         )}
         {arranged.map(function draw(r, at, list): ReactNode {
           if (r.kind === 'pack') return <PackView key={r.id} pack={r} draw={(i) => draw(i, 0, [i])} />
-          const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : r.kind === 'office' ? r.calls.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
+          const here = r.kind === 'group' ? r.steps.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : r.kind === 'office' || r.kind === 'browser' ? r.calls.flatMap((x) => slipsByRow.inline.get(x.id) ?? []) : slipsByRow.inline.get(r.id) ?? []
           // A step with a note beside it gets the same wrapper as a message does: a margin for the note in a wide chat, the note under it in a narrow one.
           const withNote = (el: ReactElement) => (here.length ? <div key={r.id} className="turn step"><div className="turn-row">{el}</div><LibrarySlips slips={here} starts={[]} told={0} items={lib.items} /></div> : el)
           if (r.kind === 'group') return withNote(<StepGroupView key={r.id} group={r} active={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
+          if (r.kind === 'browser') return withNote(<BrowserCard key={r.id} group={r} agentId={agentId} agentName={agentName} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onOpenPreview={(id) => window.dispatchEvent(new CustomEvent('aw-open-preview', { detail: { agentId: id } }))} onImage={showPicture} />)
           if (r.kind === 'office') return withNote(<OfficeLine key={r.id} group={r} working={busy && list.slice(at + 1).every((x) => x.kind === 'user' && x.pending)} onImage={showPicture} />)
           const lb = slipsByRow.byUser.get(r.id)
           const row = <RowView key={r.id} row={r} agentId={agentId} agentName={agentName} busy={busy} asleep={asleep} onImage={showPicture} onRewind={(text) => void window.aw.rewindTo(agentId, text).catch((err) => setError(errText(err)))} onTakeBack={() => {

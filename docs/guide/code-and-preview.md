@@ -63,11 +63,39 @@ An agent that works directly in your folder has no branch. **Code** then shows a
 
 To open something, type `5287` (for `localhost:5287`), `localhost:3000/app`, `example.com` or a path like `~/design/index.html` in the address bar, or pick from **Running now** and **Recent**. ⌘-click (Ctrl-click) a link in the chat to use your browser instead.
 
-The first time a site on the internet opens, Preview asks **Open here** or **In my browser**. Pages there cannot reach your files or Agent World, use the camera, location or notifications, or download files.
+The first time a site on the internet opens, Preview asks **Open here** or **In my browser**. Pages there cannot reach your files or Agent World, use the camera, location or notifications, or download files. A site you sign in to stays signed in for thirty days, between runs and for every agent and project at once; **Site data** takes a login back. The installed app stores those logins encrypted, with a key kept in your Keychain.
 
-The toolbar has **Back**, **Forward**, **Reload**, **Screen size** (**Desktop**, **Tablet**, **Mobile**), **Select element** (click something on the page to send it to the agent as words and a picture) and **Open in browser**.
+The toolbar has **Back**, **Forward**, **Reload**, **Site data** (the cookies the Preview keeps for each site, with a **Clear** for one site and for all), **Screen size** (**Desktop**, **Tablet**, **Mobile**), **Select element** (click something on the page to send it to the agent as words and a picture) and **Open in browser**.
 
 To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back, and the rest of the app keeps its size.
+
+## Using the Preview as a browser (for agents)
+
+An agent can drive its own Preview page with a browser tool, on the logins the Preview keeps: it opens pages, reads them, clicks, types, takes screenshots. Every action is visible in that agent's Preview tab, inside a frame that names the agent and has a cross that disconnects the tool (it can connect again on its next command). Settings > General has a switch, **Agents can use the Preview as a browser** (on by default); off cuts every tool off at once, for good.
+
+An agent learns about this from the library: a built-in skill, Preview browser, is read whenever a task needs a real browser (logging in, clicking through pages, filling in forms), so you only have to ask: "log in to the portal and read me the total of order 1002". Nothing has to be installed: the agent runs the tool with `npx`.
+
+Each agent is given the address of its own page, under the names both tools read, so the commands need no flags:
+
+```sh
+npx -y agent-browser@0.41.2 open https://example.com
+npx -y agent-browser@0.41.2 snapshot -i
+npx -y agent-browser@0.41.2 click @e2
+```
+
+`AGENT_BROWSER_CDP` and `AGENT_BROWSER_SESSION` (one session per agent, so two agents never share the tool's background process) are set for agent-browser. `AW_BROWSER_CDP` is the same address for Playwright: `chromium.connectOverCDP(process.env.AW_BROWSER_CDP)`, or `--cdp-endpoint "$AW_BROWSER_CDP"` for Playwright MCP. The app does not bundle either tool.
+
+To check how a page looks on a phone or a tablet, the agent resizes its page (`set viewport 390 844`, or `set device "iPhone 14"`) and takes a screenshot; the page lays out at that size, and the frame shows the size until the agent closes the browser or sets another. This works while the agent's Preview is not on screen too.
+
+In the chat, a run of browser commands is one card: a timeline with a plain sentence per step ("Opened localhost:5391", "Clicked “Sign in”", "Resized to 390 × 844 · phone"), the commands one click away, and an Open Preview button. The frame's tab says what the agent is doing right now (clicking “Sign in”, scrolling down, resizing to 390 × 844, taking a screenshot). Settings has a switch, **Open the Preview when an agent starts browsing**, off until you turn it on.
+
+What to know:
+
+- One page per agent: its Preview. A tool sees that tab and nothing else, never the app or another agent's page. If the agent has no Preview page yet, `open` makes one. Use `Page.navigate` (`open`) to move it, not a new tab.
+- The Preview's rules apply. A page on this computer opens at once. A site on the internet opens only once the person has allowed it: the Preview asks them ("csr-1 wants to open example.com") and the tool waits a few seconds, then is told the site is waiting for the person: the question stays on screen, and once you press **Open here** the site is remembered and the agent's next try opens it at once. If you say no, the tool is told why.
+- Cookies: a tool can read and set those of the page being shown, no others. Reading or clearing every site's cookies is refused: the person does that from Site data.
+- Not available: file uploads and choosers, downloads, new windows, closing the page, permission prompts. Typing goes to the page itself, so it never reaches a terminal.
+- The page works best while it is on screen. A page in the background is slowed by the system, and a command that waits for the screen to draw (some of Playwright's clicks) can time out; `agent-browser` does not wait for it.
 
 ## Terminal, Agent Memory, Traces, History
 

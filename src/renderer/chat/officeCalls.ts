@@ -1,6 +1,7 @@
 import type { Row } from './format'
 import { humanize, parseMcpName } from './mcp'
 import type { ToolRun } from './ToolCard'
+import type { BrowserGroup } from './browserGroup'
 import type { StepGroup } from './stepGroups'
 import { todoPath } from '../todos/todoStore'
 
@@ -48,8 +49,8 @@ export interface OfficeGroup {
  * Runs of office calls between other rows become one group, a single call too. A failed call is in the group as a red stamp, with its reason in the tip and its card
  * one click away. The calls that move a run leave the chat altogether (the track shows them), unless one failed.
  */
-export function groupOffice(rows: (Row | StepGroup)[]): (Row | StepGroup | OfficeGroup)[] {
-  const out: (Row | StepGroup | OfficeGroup)[] = []
+export function groupOffice(rows: (Row | StepGroup | BrowserGroup)[]): (Row | StepGroup | BrowserGroup | OfficeGroup)[] {
+  const out: (Row | StepGroup | BrowserGroup | OfficeGroup)[] = []
   let run: Call[] = []
   const flush = () => {
     if (run.length) out.push({ kind: 'office', id: run[0]!.id, calls: run })

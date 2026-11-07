@@ -75,6 +75,22 @@ describe('the subagent limits', () => {
   })
 })
 
+describe('opening the Preview as an agent starts browsing', () => {
+  it('is off unless it was switched on, and a stray value is off', () => {
+    expect(cleanPrefs({}).openPreviewOnBrowse).toBe(false)
+    expect(cleanPrefs({ openPreviewOnBrowse: true }).openPreviewOnBrowse).toBe(true)
+    expect(cleanPrefs({ openPreviewOnBrowse: 'yes' }).openPreviewOnBrowse).toBe(false)
+  })
+})
+
+describe('agents using the Preview as a browser', () => {
+  it('is on unless it was switched off, and a stray value is on', () => {
+    expect(cleanPrefs({}).agentBrowser).toBe(true)
+    expect(cleanPrefs({ agentBrowser: false }).agentBrowser).toBe(false)
+    expect(cleanPrefs({ agentBrowser: 'no' }).agentBrowser).toBe(true)
+  })
+})
+
 describe('opening pages in the app', () => {
   it('is on unless it was switched off, and a stray value is on', () => {
     expect(cleanPrefs({}).openPagesInApp).toBe(true)

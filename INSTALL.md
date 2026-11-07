@@ -10,6 +10,8 @@
    - **Any version:** run `xattr -dr com.apple.quarantine "/Applications/Agent World.app"` in a terminal, then open it normally.
 
    Because the app is not signed, it cannot replace itself when a new version comes out. It tells you when one is available and opens its page on GitHub, and you download and install it the same way.
+
+   The Preview keeps the logins it stores encrypted, with a key in your Keychain (an item called "Agent World Safe Storage"). If macOS ever asks whether Agent World can use it, press **Always Allow**. If you press **Deny**, the Preview may not be able to keep logins; the rest of the app works as before.
 4. Follow the setup screens: install and sign in to Claude Code, choose a project folder, click **+ Agent**, and the character walks in.
 
 With Homebrew, three commands do steps 1 to 3:

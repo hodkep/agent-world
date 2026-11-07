@@ -1,3 +1,4 @@
+import type { BrowserGroup } from './browserGroup'
 import type { Row } from './format'
 
 /** The steps an agent takes on its way to an answer: they fold together. Edits, questions, plans, watchers and subagents stay cards of their own. */
@@ -14,8 +15,8 @@ export interface StepGroup {
 const isStep = (r: Row): r is Step => r.kind === 'thinking' || (r.kind === 'tool' && STEP_TOOLS.has(r.run.name))
 
 /** Runs of two or more steps between other rows become one group. A message, or a card of another kind, ends it. */
-export function groupSteps(rows: Row[]): (Row | StepGroup)[] {
-  const out: (Row | StepGroup)[] = []
+export function groupSteps(rows: (Row | BrowserGroup)[]): (Row | StepGroup | BrowserGroup)[] {
+  const out: (Row | StepGroup | BrowserGroup)[] = []
   let run: Step[] = []
   const flush = () => {
     if (run.length > 1 && run.some((s) => s.kind === 'tool')) out.push({ kind: 'group', id: run[0]!.id, steps: run })
@@ -23,7 +24,7 @@ export function groupSteps(rows: Row[]): (Row | StepGroup)[] {
     run = []
   }
   for (const r of rows) {
-    if (isStep(r)) run.push(r)
+    if (r.kind !== 'browser' && isStep(r)) run.push(r)
     else (flush(), out.push(r))
   }
   flush()

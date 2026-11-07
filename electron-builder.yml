@@ -9,6 +9,9 @@ files:
 asarUnpack:
   - node_modules/node-pty/**
 npmRebuild: true
+# The Preview keeps its logins for thirty days: with this fuse Electron stores the cookies' values encrypted (the key is in the Keychain, under "Agent World Safe Storage"), not as plain text.
+electronFuses:
+  enableCookieEncryption: true
 # Apache 2.0 section 4: the license and the NOTICE file travel with the app, next to its resources; so does the changelog, which the installed version's What's new is read from.
 extraResources:
   - LICENSE
