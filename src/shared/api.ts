@@ -1,5 +1,6 @@
 import type { BetaState, InstallState, UpdateChannel, UpdateRel } from './updateInstall'
 import type { ShareDay } from './attribution'
+import type { Storage } from './storage'
 import type { Overview, TokensReport, UsageReport, WeekReport } from './ledger'
 import type { TokenMix } from './tokenMix'
 import type { ChatItem, SubagentInfo } from './chat'
@@ -195,6 +196,11 @@ export interface AwApi {
   tokenMix(days: number, account?: string): Promise<TokenMix>
   /** How much of each account's allowance this app used, by day of a month (month is 0 to 11). */
   shareReport(year: number, month: number, kind: 'five_hour' | 'weekly'): Promise<{ days: ShareDay[] }>
+  /** The last measured storage of the workspaces and of the app's folder; `active` is the project this window is on. */
+  storageReport(): Promise<{ at: number | null; measuring: boolean; workspaces: Storage[]; data: Storage | null; active: string | null }>
+  /** Starts measuring again in the background; `onStorage` says when something new is ready. */
+  measureStorage(): Promise<void>
+  onStorage(cb: () => void): () => void
   /** What an agent's subagents have done so far. */
   subagents(agentId: string): Promise<SubagentInfo[]>
   /** One subagent's own conversation: what it thought and said, each call and what it returned. */
