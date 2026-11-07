@@ -6,6 +6,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [0.11.5] - 2026-11-07
 
+### Added
+
+- Usage has a new Storage tab: it shows what each project takes on disk, where its agents work, and what could be cleared, without deleting anything.
+
 ### Changed
 
 - Workflows: agents see each step's instructions and attached skills on every turn, not only when a task begins.
