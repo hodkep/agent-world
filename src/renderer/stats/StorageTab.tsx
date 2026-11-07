@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { sizeText } from '../../shared/size'
 import { recommend, type Place, type Storage } from '../../shared/storage'
+import { treemap } from '../../shared/treemap'
+
+/** The map is laid out as if 800 by 260 and placed in percent, so it follows the window; a tile under this share of the whole is too small to read or press and is folded into one. */
+const MAP_W = 800
+const MAP_H = 260
+const FOLD = 0.02
+/** The folded tile is given at least this share, so its label has room. A tile narrower than WIDE (px) shows no label, only its title. */
+const MORE_MIN = 0.06
+const WIDE = 48
+/** A tile shows its size too when it is at least this tall (px). */
+const TALL = 40
 
 type Report = Awaited<ReturnType<Window['aw']['storageReport']>>
 
@@ -28,24 +39,36 @@ export function StorageTab({ now }: { now: number }) {
   if (!r) return <p className="st-note">Loading…</p>
   const blocks = [...r.workspaces, ...(r.data ? [r.data] : [])].sort((a, b) => b.bytes - a.bytes)
   const open = blocks.find((b) => b.path === pick) ?? blocks.find((b) => b.path === r.active) ?? blocks[0]
-  const [big, ...rest] = blocks
-  const total = rest.reduce((n, b) => n + b.bytes, 0)
-  const block = (b: Storage, i: number) => (
-    <button key={b.path} type="button" className={`sg-block${b === open ? ' on' : ''}${i >= 2 ? ' dim' : ''}`} aria-pressed={b === open} style={{ flex: Math.max(b.bytes, 1), ['--t' as string]: `${[100, 80, 62, 48][Math.min(i, 3)]}%` }} onClick={() => setPick(b.path)}>
-      <span>{b.name}</span>
-      <small>{sizeText(b.bytes)}</small>
-    </button>
-  )
+  // Tiles under a small share of the whole are one tile; the open one always keeps its own, with at least that share, so it can be seen and pressed.
+  const sum = Math.max(1, blocks.reduce((n, b) => n + b.bytes, 0))
+  const small = (b: Storage) => b !== open && b.bytes / sum < FOLD
+  const folded = blocks.filter(small)
+  const foldedBytes = folded.reduce((n, b) => n + b.bytes, 0)
+  const tiles: ({ b: Storage } | { more: true })[] = [...blocks.filter((b) => !small(b)).map((b) => ({ b })), ...(folded.length ? [{ more: true as const }] : [])]
+  const value = (t: (typeof tiles)[number]) => ('b' in t ? Math.max(t.b.bytes, sum * FOLD) : Math.max(foldedBytes, sum * MORE_MIN))
+  tiles.sort((x, y) => value(y) - value(x))
+  const rects = treemap(tiles.map(value), MAP_W, MAP_H)
+  const tileAt = (i: number) => ({ left: `${(rects[i]!.x / MAP_W) * 100}%`, top: `${(rects[i]!.y / MAP_H) * 100}%`, width: `${(rects[i]!.w / MAP_W) * 100}%`, height: `${(rects[i]!.h / MAP_H) * 100}%` })
   return (
     <section className="sg">
       <p className="sg-meta">
         {r.measuring ? 'Measuring… the first time takes a minute.' : r.at ? `Measured ${ago(r.at, now)}` : 'Not measured yet'}
         <button type="button" className="sg-again" disabled={r.measuring} onClick={() => void window.aw.measureStorage()}>Measure again</button>
       </p>
-      {big && (
-        <div className="sg-map">
-          {block(big, 0)}
-          {rest.length > 0 && <div className="sg-col" style={{ flex: Math.max(total, 1) }}>{rest.map((b, i) => block(b, i + 1))}</div>}
+      {tiles.length > 0 && (
+        <div className="sg-map" style={{ height: MAP_H }}>
+          {tiles.map((t, i) => {
+            const tall = rects[i]!.h >= TALL && rects[i]!.w >= WIDE
+            const wide = rects[i]!.w >= WIDE
+            if (!('b' in t)) return <div key="more" className={`sg-more${wide ? '' : ' bare'}`} style={tileAt(i)} title={`${folded.map((b) => b.name).join(', ')}`}><span>{folded.length} smaller</span>{tall && <small>{sizeText(foldedBytes)}</small>}</div>
+            const b = t.b
+            return (
+              <button key={b.path} type="button" className={`sg-block${b === open ? ' on' : ''}${i >= 2 ? ' dim' : ''}${wide ? '' : ' bare'}`} aria-pressed={b === open} aria-label={`${b.name}, ${sizeText(b.bytes)}`} title={`${b.name} · ${sizeText(b.bytes)}`} style={{ ...tileAt(i), ['--t' as string]: `${Math.max(44, 100 - i * 11)}%` }} onClick={() => setPick(b.path)}>
+                <span>{b.name}</span>
+                {tall && <small>{sizeText(b.bytes)}</small>}
+              </button>
+            )
+          })}
         </div>
       )}
       {open && <Places s={open} />}
