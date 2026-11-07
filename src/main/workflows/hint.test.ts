@@ -130,6 +130,10 @@ describe('the reminder to announce a task, said at the start of a turn', () => {
     // The step the task is on is said every turn, so it holds after the conversation is summarised.
     expect(workflowRemind({ ...ask, open: true, step: { name: 'Build', id: 'build', item: 2, title: 'Also a CSV export' } })).toContain('You are on the step "Build" of item 2 ("Also a CSV export"): do only its work, and when it is finished report it with step_done("build", item: 2)')
     expect(workflowRemind({ ...ask, open: true, step: { name: 'Review', id: 'review' } })).toBe(`${WORKFLOW_OPEN_REMINDER} You are on the step "Review": do only its work, and when it is finished report it with step_done and wait for what the app says next. Committing, pushing and opening a pull request wait for their own steps, even after the person says something is done or verified.`)
+    // A step's brief and skills are said with it, so an agent that missed the opening text (a follow-up, a summary) still reads what the step asks.
+    const plan = { name: 'Plan', id: 'plan', brief: 'Say what will change.', skills: ['grill-me', 'old'] }
+    expect(workflowRemind({ ...ask, open: true, step: plan, skills: { 'grill-me': 'ready', old: 'gone' } })).toContain('Its brief: Say what will change. (read with library_get: grill-me; there is no skill old in the library, so skip it)')
+    expect(workflowRemind({ ...ask, open: true, step: { name: 'Plan', id: 'plan', skills: ['grill-me'] } })).toContain('(skill: grill-me)')
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/task_begin/)
     expect(WORKFLOW_OPEN_REMINDER).toMatch(/do not .*reopen/i)
   })
