@@ -881,9 +881,14 @@ export class Workflows {
     const run = this.deps.enabled() ? this.openRun(agentId) : undefined
     if (!run) return null
     const lane = openLane(run, { auditOn: this.deps.dial() !== 'economy', approved: run.workflow ? this.deps.approved(run.workflow) : true })
-    if (lane) return { ...lane.step, item: lane.item, title: lane.title }
+    // The step's brief and skills go with it: the opening text that held them is lost to a follow-up, an addition or a summary.
+    const more = (id: string) => {
+      const d = run.workflow?.steps.find((x) => x.id === id)
+      return { ...(d?.brief && { brief: d.brief }), ...(d?.skills?.length && { skills: d.skills }) }
+    }
+    if (lane) return { ...lane.step, item: lane.item, title: lane.title, ...more(lane.step.id) }
     const on = stepOn(this.states(run))
-    return on ? { id: on.id, name: on.name } : null
+    return on ? { id: on.id, name: on.name, ...more(on.id) } : null
   }
 
   /** What stands between the agent's work and landing it, or null when no gate applies (off, or the agent never had a run). */

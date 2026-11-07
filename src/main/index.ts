@@ -764,9 +764,10 @@ const LIBRARY_TOOLS = ['library_index', 'library_get', 'library_search', 'librar
 // The todo board is the project's own list, so an agent may use it without asking each time too.
 const TODO_TOOLS = ['todo_list', 'todo_search', 'todo_get', 'todo_add', 'todo_claim', 'todo_done', 'todo_update'].map((t) => `mcp__agent-world__${t}`)
 // The nudge to call task_begin: the opening text alone was not followed reliably (a real agent recorded about half its tasks), so each turn with no task open repeats it.
+const openFlow = (id: string) => workflows.runs().find((r) => r.agent === id && r.status === 'open')?.workflow
 const workflowReminder = (id: string): string => {
   const a = byId(id)
-  return a ? workflowRemind({ enabled: prefs.workflows.enabled && !noWorkflowFor(id), subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open'), step: workflows.currentStep(id) }) : ''
+  return a ? workflowRemind({ enabled: prefs.workflows.enabled && !noWorkflowFor(id), subagent: !!a.parent, builder: !!a.builder, open: workflows.runs().some((r) => r.agent === id && r.status === 'open'), step: workflows.currentStep(id), skills: openFlow(id) && skillStates(openFlow(id)!, skillSource.items(), skillSource.playbook(a.repoPath ?? null)) }) : ''
 }
 // What is added to each message an agent is sent (Claude only: it has a hook for it) comes from libraryService.remind.
 // What the builder is told with the person's first message of a fresh conversation about a saved workflow: which one, so nothing is typed for them. Said once.

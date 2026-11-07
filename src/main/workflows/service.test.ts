@@ -2171,6 +2171,11 @@ describe('a commit waits for the workflow\'s own Commit step', () => {
     expect(wf.currentStep('a2')).toBeNull()
   })
 
+  it('carries the step\'s brief and skills with it, so the reminder can say what the step asks', () => {
+    const { wf } = open({ ...FLOW, steps: FLOW.steps.map((s) => (s.id === 'build' ? { ...s, brief: 'Build it.', skills: ['tdd'] } : s)) })
+    expect(wf.currentStep('a1')).toEqual({ id: 'build', name: 'Build', brief: 'Build it.', skills: ['tdd'] })
+  })
+
   it('names the added work\'s own step while it is under way, then the shared steps again', () => {
     const { wf } = open()
     wf.stepDone('a1', 'build')
