@@ -9,6 +9,8 @@ const OFFICE_SERVER = 'agent-world'
 const OWN_CARD = new Set(['send_message', 'broadcast_message', 'list_agents', 'spawn_subagent', 'await_subagents', 'stop_subagent'])
 /** The calls that move a run along: the track above the chat shows them, so the chat does not. */
 const RUN_TOOLS = new Set(['task_begin', 'task_done', 'step_done', 'plan_submit'])
+/** Workflow calls the run bar does not show, so they stay in the chat (not hidden like RUN_TOOLS) but belong with the workflow, not under Other. */
+const WORKFLOW_CALLS = new Set(['step_reopen', 'skip_steps'])
 
 /** The agent's broadcast to the whole project: it has a card of its own in the chat. */
 export function broadcastCall(name: string): boolean {
@@ -74,7 +76,7 @@ export interface Whisper {
 }
 
 /** What each call that moves a run says in a line: a run is the workflow's word, a task is a todo's. */
-const RUN_WORDS: Record<string, string> = { task_begin: 'began run', plan_submit: 'plan sent', step_done: 'step reported', task_done: 'run finished' }
+const RUN_WORDS: Record<string, string> = { task_begin: 'began run', plan_submit: 'plan sent', step_done: 'step reported', task_done: 'run finished', step_reopen: 'step reopened', skip_steps: 'skip asked' }
 const str = (v: unknown) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : v === undefined || v === null ? '' : String(v))
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t)
 const lines = (t?: string) => (t && t.split('\n').length > 1 ? `${t.split('\n').length} lines` : '')
@@ -109,6 +111,8 @@ function said(run: ToolRun): Whisper {
     case 'task_begin': return { kind: 'workflow', icon: '⚑', bold: 'Began run', rest: clip(str(i.title), 90), why: '' }
     case 'plan_submit': return { kind: 'workflow', icon: '⚑', bold: 'Sent', rest: 'the plan', why: '' }
     case 'step_done': return { kind: 'workflow', icon: '⚑', bold: 'Reported step', rest: str(i.step), why: '' }
+    case 'step_reopen': return { kind: 'workflow', icon: '⚑', bold: 'Reopened step', rest: str(i.step), why: clip(str(i.why), 120) }
+    case 'skip_steps': return { kind: 'workflow', icon: '⚑', bold: 'Asked to skip', rest: Array.isArray(i.steps) ? i.steps.map(str).join(', ') : '', why: clip(str(i.why), 120) }
     case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished run', rest: '', why: clip(str(i.summary), 120) }
     case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
@@ -163,7 +167,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (isLook(tool)) return { kind: 'look', label: tool === 'app_ui_outline' ? 'layout' : tool === 'app_ui_screenshot' ? 'window' : tool === 'app_ui_readings' ? 'readings' : 'look', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
-  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step' }
+  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step', step_reopen: str(i.step) ? `reopen ${str(i.step)}` : 'reopen', skip_steps: 'skip ask' }
   return { kind: 'flag', label: flagged[tool] ?? clip(humanize(tool), 14), tip, state }
 }
 
@@ -189,7 +193,7 @@ export function summaryOf(calls: Call[]): SummaryPart[] {
     if (tool === 'library_skip') (seen('Library'), skipped.push(str(i.id)))
     else if (tool === 'library_get') (seen('Library'), !read.includes(str(i.id)) && read.push(str(i.id)))
     else if (tool === 'library_index' || tool === 'library_search') (seen('Library'), (looked = true))
-    else if (RUN_TOOLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
+    else if (RUN_TOOLS.has(tool) || WORKFLOW_CALLS.has(tool)) (seen('Workflow'), flows.add(RUN_WORDS[tool]!))
     else if (tool.startsWith('workflow_')) (seen('Workflow'), flows.add(tool === 'workflow_propose' ? 'proposed' : tool === 'workflow_get' || tool === 'workflow_history' ? 'read' : 'looked'))
     else if (isLook(tool)) (seen('Appearance'), looks.add({ chat_mod_guide: 'read the look guide', chat_mod_get: 'checked the look', chat_mod_write: i.reset ? 'asked to restore the system look' : 'changed the look', app_ui_outline: 'looked at the layout', app_ui_readings: 'looked at what readings exist', app_ui_screenshot: 'asked to see the window' }[tool] ?? 'looked'))
     else if (tool === 'remember') (seen('Notes'), notes.add('noted'))
@@ -239,7 +243,7 @@ function areaOfCall(c: Call): FoldArea {
   if (tool.startsWith('library_')) return 'Library'
   if (tool.startsWith('todo_')) return 'Todos'
   if (tool === 'remember' || tool === 'recall') return 'Notes'
-  if (RUN_TOOLS.has(tool) || tool.startsWith('workflow_')) return 'Workflow'
+  if (RUN_TOOLS.has(tool) || WORKFLOW_CALLS.has(tool) || tool.startsWith('workflow_')) return 'Workflow'
   if (isLook(tool)) return 'Appearance'
   return 'Other'
 }

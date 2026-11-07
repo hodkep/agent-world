@@ -193,6 +193,31 @@ describe('the workflow says run where a todo says task', () => {
   })
 })
 
+describe('reopening a step and asking to skip steps are workflow calls that stay in the chat', () => {
+  const steps = ['build', 'walkthrough']
+  it('are grouped under Workflow, not Other, and worded as a run is', () => {
+    const rows = areasOf([call('a', 'step_reopen', { step: 'verify', why: 'new treemap' }, 'ok'), call('b', 'skip_steps', { steps, why: 'nothing to ship' }, 'ok')])
+    expect(rows.map((r) => [r.area, r.text])).toEqual([['Workflow', 'step reopened · skip asked']])
+  })
+
+  it('say their own line, with the reason as the small text', () => {
+    expect(whisperOf(call('a', 'step_reopen', { step: 'verify', why: 'new treemap' }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Reopened step', rest: 'verify', why: 'new treemap' })
+    expect(whisperOf(call('b', 'skip_steps', { steps, why: 'nothing to ship' }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Asked to skip', rest: 'build, walkthrough', why: 'nothing to ship' })
+  })
+
+  it('are not hidden as run calls, since the run bar does not show them, and keep a stamp of their own', () => {
+    expect(runCall('mcp__agent-world__step_reopen')).toBe(false)
+    expect(runCall('mcp__agent-world__skip_steps')).toBe(false)
+    const stamp = (tool: string, input: Record<string, unknown>) => stampOf(call('a', tool, input, 'ok').run, false)
+    expect(stamp('step_reopen', { step: 'verify' })).toMatchObject({ kind: 'flag', label: 'reopen verify' })
+    expect(stamp('skip_steps', { steps })).toMatchObject({ kind: 'flag', label: 'skip ask' })
+  })
+
+  it('are in the folded summary under Workflow', () => {
+    expect(summaryOf([call('a', 'step_reopen', { step: 'verify' }, 'ok')])).toEqual([{ area: 'Workflow', text: 'step reopened' }])
+  })
+})
+
 describe('what a call brought back, shown in its opened row', () => {
   it('is the first few lines of the result, with how many more there are', () => {
     expect(outcomeOf(call('a', 'recall', { query: 'q' }, 'one\ntwo\nthree\nfour\nfive\nsix').run)).toEqual({ text: 'one\ntwo\nthree\nfour', more: 2 })
