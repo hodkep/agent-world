@@ -10,6 +10,7 @@ import { Modal } from '../panel/Modal'
 import { AcctName, acctViews, type AcctView } from './acct'
 import type { TokenMix } from '../../shared/tokenMix'
 import { ShareTab } from './ShareTab'
+import { StorageTab } from './StorageTab'
 import { TokensTab } from './TokensTab'
 
 const money = (n: number) => `$${n.toFixed(2)}`
@@ -29,7 +30,7 @@ const none = (): Spend => ({ usd: 0, tokens: 0 })
 const sumOf = (list: Spend[]): Spend => list.reduce<Spend>((n, s) => ({ usd: n.usd + s.usd, tokens: n.tokens + s.tokens, ...((n.est ?? 0) + (s.est ?? 0) > 0 && { est: (n.est ?? 0) + (s.est ?? 0) }) }), none())
 const winKey = (w: LimitWindow) => acctKey(w.provider, w.account)
 
-type Tab = 'all' | 'accounts' | 'providers' | 'projects' | 'tokens' | 'share'
+type Tab = 'all' | 'accounts' | 'providers' | 'projects' | 'tokens' | 'share' | 'storage'
 type Metric = 'usd' | 'tokens'
 type Scope = 'all' | string
 
@@ -264,9 +265,9 @@ export function UsageModal({
         </span>
       </div>
       <div className="st-tabs" role="tablist" aria-label="Usage view">
-        {(['all', 'accounts', 'providers', 'projects', 'tokens', 'share'] as const).map((t) => (
+        {(['all', 'accounts', 'providers', 'projects', 'tokens', 'share', 'storage'] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => (setTab(t), setOpen(null))}>
-            {{ all: 'Overview', accounts: 'Accounts', providers: 'Providers', projects: 'Projects', tokens: 'Tokens', share: 'Share' }[t]}
+            {{ all: 'Overview', accounts: 'Accounts', providers: 'Providers', projects: 'Projects', tokens: 'Tokens', share: 'Share', storage: 'Storage' }[t]}
           </button>
         ))}
       </div>
@@ -356,6 +357,7 @@ export function UsageModal({
             </>
           )}
 
+          {tab === 'storage' && <StorageTab now={now} />}
           {tab === 'share' && <ShareTab providers={providers} view={view} scope={scope} now={now} />}
 
           {tab === 'tokens' && (mix ? <TokensTab mix={mix} days={days} providers={providers} view={view} /> : <p className="st-note">Loading…</p>)}
