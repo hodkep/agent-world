@@ -8,6 +8,7 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ### Changed
 
+- Workflows: agents see each step's instructions and attached skills on every turn, not only when a task begins.
 - Workflows: skipping several steps in a row tells the agent once, and a finished or ended workflow no longer interrupts it; the chat still shows a card for what you skipped.
 - Updated Electron to 45.2.2, React and React DOM to 19.3.1, Vite to 8.3.5, Mermaid to 12.3.0 and Vitest to 5.1.0.
 
