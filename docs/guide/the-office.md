@@ -94,7 +94,7 @@ The liquid is what is left. It turns amber once 70% is used and red once 90% is 
 
 ## Usage and the Weekly Rewind
 
-**Usage** in the top bar opens **Usage & Estimated Costs**: what was spent and used in 7, 30 or 90 days, for all accounts or one, with tabs for **Overview**, **Accounts**, **Providers**, **Projects** and **Tokens**.
+**Usage** in the top bar opens **Usage & Estimated Costs**: what was spent and used in 7, 30 or 90 days, for all accounts or one, with tabs for **Overview**, **Accounts**, **Providers**, **Projects** and **Tokens**, and **Storage**: what each project takes on disk, as a map you click to see where its agents work (the project's folder, each agent's worktree, a subagent under its parent, and folders no agent owns), with what could be freed. It only measures and says where to clear something; it never deletes. Measuring runs in the background and **Measure again** starts it over.
 
 <img src="../images/usage-overview.png" alt="The Usage window on Overview: spent, tokens, how much the cache served, the tightest limit and the month, then the day by day chart" width="720">
 
