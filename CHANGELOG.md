@@ -4,6 +4,13 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-11-07
+
+### Changed
+
+- Workflows: skipping several steps in a row tells the agent once, and a finished or ended workflow no longer interrupts it; the chat still shows a card for what you skipped.
+- Updated Electron to 45.2.2, React and React DOM to 19.3.1, Vite to 8.3.5, Mermaid to 12.3.0 and Vitest to 5.1.0.
+
 ## [0.11.4] - 2026-11-05
 
 ### Added
