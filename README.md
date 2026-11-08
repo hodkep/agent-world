@@ -15,6 +15,8 @@
 
 <img src="docs/images/hero.gif" alt="Hire an agent, watch it walk in and work, and approve its permission request from the office" width="800">
 
+<p align="center"><a href="docs/video/agent-world.mp4"><img src="docs/images/video-poster.jpg" alt="Play the 52-second film: every agent on its own branch, plans that wait for your word, the whole office at a glance" width="800"></a><br><sub>▶ The 52-second film (with a voiceover): every agent on its own branch, plans that wait for your word.</sub></p>
+
 Each project is an office floor. Each agent is a character with its own git worktree and a real, interactive `claude` (Claude Code) or `agy` (Antigravity) session that the app owns. You see at a glance who is thinking, running, waiting for you or asleep, and you step in without hunting through terminals.
 
 - **Control over spectacle.** Every visual state maps to a real agent state you can act on.
