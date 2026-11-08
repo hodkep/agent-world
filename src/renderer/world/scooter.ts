@@ -22,4 +22,4 @@ export const SCOOTER: string[] = [
 export const BOX: string[] = ['oooooooo', 'otttttto', 'oxxxxxxo', 'oXXXXXXo', 'oooooooo']
 
 export const SCOOTER_KEYS = (body: number, shade: number): Record<string, number> => ({ o: 0x1a1522, b: body, B: shade, w: 0x2a2a32, W: 0xc8ccd8, s: 0x2a2030, l: 0xffe9a0, x: 0xe8e0c8, X: 0xc8bfa0, t: 0xf4f0e0 })
-export const SCOOTER_COLORS = { courier: [0xd8782a, 0xb05a1c], pizza: [0xc8302e, 0x9a2024] } as const
+export const SCOOTER_COLORS = { courier: [0xd8782a, 0xb05a1c], git: [0x2e8c7a, 0x1f6a5c], pizza: [0xc8302e, 0x9a2024] } as const

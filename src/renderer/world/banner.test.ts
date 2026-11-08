@@ -17,6 +17,6 @@ describe('the sign over the office while something is going on', () => {
   })
 
   it('names each figure by its role for the label shown on hover', () => {
-    expect(ROLE).toEqual({ cat: 'Cat', supervisor: 'Supervisor', boy: 'Office boy', guard: 'Guard', courier: 'Courier', pizza: 'Pizza delivery' })
+    expect(ROLE).toEqual({ cat: 'Cat', supervisor: 'Supervisor', boy: 'Office boy', guard: 'Guard', courier: 'Courier', git: 'Git courier', pizza: 'Pizza delivery' })
   })
 })

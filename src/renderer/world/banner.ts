@@ -14,4 +14,4 @@ export function bannerFor(event: string, t: number): Banner | null {
 }
 
 /** What each figure that is not an agent is called, in the label shown over its head while the pointer is on it. */
-export const ROLE = { cat: 'Cat', supervisor: 'Supervisor', boy: 'Office boy', guard: 'Guard', courier: 'Courier', pizza: 'Pizza delivery' } as const
+export const ROLE = { cat: 'Cat', supervisor: 'Supervisor', boy: 'Office boy', guard: 'Guard', courier: 'Courier', git: 'Git courier', pizza: 'Pizza delivery' } as const
