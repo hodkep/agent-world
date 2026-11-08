@@ -1,0 +1,50 @@
+name: e2e-probe
+# Temporary: which macOS setup runs the whole e2e suite stably. Runs only for changes to this file; deleted before the pull request is merged.
+on:
+  pull_request:
+    paths: ['.github/workflows/e2e-probe.yml']
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  probe:
+    name: probe ${{ matrix.os }} ${{ matrix.shard }}/${{ matrix.total }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, total: 4, shard: 1 }
+          - { os: macos-15, total: 4, shard: 2 }
+          - { os: macos-15, total: 4, shard: 3 }
+          - { os: macos-15, total: 4, shard: 4 }
+          - { os: macos-26, total: 4, shard: 1 }
+          - { os: macos-26, total: 4, shard: 2 }
+          - { os: macos-26, total: 4, shard: 3 }
+          - { os: macos-26, total: 4, shard: 4 }
+          - { os: macos-15-intel, total: 8, shard: 1 }
+          - { os: macos-15-intel, total: 8, shard: 2 }
+          - { os: macos-15-intel, total: 8, shard: 3 }
+          - { os: macos-15-intel, total: 8, shard: 4 }
+          - { os: macos-15-intel, total: 8, shard: 5 }
+          - { os: macos-15-intel, total: 8, shard: 6 }
+          - { os: macos-15-intel, total: 8, shard: 7 }
+          - { os: macos-15-intel, total: 8, shard: 8 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - uses: actions/cache@v6
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-${{ runner.arch }}-
+      - run: pnpm install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - run: pnpm run build
+      - run: uname -m && sw_vers -productVersion && sysctl -n hw.ncpu && sysctl -n hw.memsize
+      - run: pnpm exec playwright test --shard=${{ matrix.shard }}/${{ matrix.total }}
