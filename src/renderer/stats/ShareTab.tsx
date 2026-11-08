@@ -14,7 +14,7 @@ const pct = (n: number) => `${Math.round(n)}%`
 /** What the app used of one account that day, in words: "up to" while its rate has not been seen twice. */
 function said(r: ShareRow, name: string, program: string) {
   const others = Math.max(0, r.used - r.mine)
-  return { who: name === program ? program : `${program}, ${name}`, mine: `${r.learning ? 'up to ' : ''}${pct(r.mine)}`, used: pct(r.used), others: r.learning ? `others at least ${pct(others)}` : `others ${pct(others)}` }
+  return { who: name === program ? program : `${program}, ${name}`, mine: `${r.learning ? 'up to ' : ''}${pct(r.mine)}`, used: pct(r.used), others: r.learning && pct(others) !== '0%' ? `others at least ${pct(others)}` : `others ${pct(others)}` }
 }
 
 /**

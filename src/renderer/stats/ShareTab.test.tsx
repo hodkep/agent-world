@@ -41,6 +41,11 @@ describe('this app\'s share of each account, by day', () => {
     expect(c.querySelector('.sh-tip')!.textContent).toContain('still learning')
   })
 
+  it('does not say "at least" of others when none are seen, even while still learning', async () => {
+    const { host } = await setup(days({ 8: [row('work', 22, 22, true), row('team', 10, 9.7, true)] }))
+    expect(cell(host, 8).getAttribute('aria-label')).toBe('Sun, Nov 8: Claude Code, Work this app up to 22% of 22% used, others 0%; Claude Code, Team this app up to 10% of 10% used, others 0%')
+  })
+
   it('draws a stripe for each account in a day, as long as its rise against the month\'s biggest day, with this app\'s part inside', async () => {
     const { host } = await setup(days({ 3: [row('work', 20, 5), row('team', 10, 10, true)], 4: [row('work', 5, 0)] }))
     const stripes = [...cell(host, 3).querySelectorAll<HTMLElement>('.sh-stripe')]
