@@ -128,12 +128,11 @@ jobs:
         run: node scripts/shard-plan.mjs --reports $(ls reports/*/*.json 2>/dev/null)
 
   # The end-to-end specs, split over four Macs. Each shard builds the app and runs a quarter of the specs; the aggregator below reports for all of them.
-  # The runner is macos-15-intel. GitHub retired the macos-14 image on 2026-11-02 ("The configuration 'macos-14-arm64-us-default' is not supported": the jobs are cancelled
-  # at once), and its macOS 15 and 26 pools were so short of machines on 2026-10-20 that jobs waited 15 minutes for one and were then abandoned. Measured that day, one job
-  # per image: macos-15-intel started in 4 seconds, macos-14 in 5 to 58, ubuntu-latest in 2, while macos-15 and macos-26 never started. So the shards run on Intel Macs for
-  # now (the app is the same code; the speed and the arm64 build are the difference). Move to macos-15 once its pool starts jobs reliably. On macos-14, four shards of the
-  # whole suite took 3.6 to 8.6 minutes (334 specs passed, 2 failed, none flaky); the same suite on Linux under xvfb failed about 1 spec in 9 and took 14 to 17 minutes,
-  # so it stays on Macs.
+  # The runner is macos-15. GitHub retired the macos-14 image on 2026-11-02 ("The configuration 'macos-14-arm64-us-default' is not supported": the jobs are cancelled at
+  # once). Measured on 2026-11-08, two full passes of the suite per image: macos-15 started jobs in 1 to 3 seconds when the pool was free, and its failures were three
+  # specs that depended on how fast the Mac was (fixed in the specs); macos-26 failed more, and macos-15-intel, the only image that started in 4 seconds on 2026-10-20, failed
+  # in 11 specs. On macos-14, four shards of the whole suite took 3.6 to 8.6 minutes (334 specs passed, 2 failed, none flaky); the same suite on Linux under xvfb failed about
+  # 1 spec in 9 and took 14 to 17 minutes, so it stays on Macs.
   # An earlier count of this repository's jobs put the most that ran at once at 5. No concurrency group makes pull requests wait for each other: GitHub keeps one
   # pending run per group and cancels an older pending one, so a third pull request would cancel the second.
   e2e:
@@ -143,7 +142,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.shards.outputs.matrix) }}
-    runs-on: macos-15-intel
+    runs-on: macos-15
     env:
       PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-report/report-${{ matrix.shard }}.json
     steps:
