@@ -113,8 +113,8 @@ test('Cmd+↓ goes to the latest message wherever you clicked, except in the mes
     const clicks: Record<string, () => Promise<void>> = {
       'a message': () => log.getByText('old message 60').click(),
       'the header': () => page.locator('header').click({ position: { x: 600, y: 5 } }),
-      'the office': () => page.locator('.stage').click({ position: { x: 200, y: 300 } }),
-      'the Chat tab': () => page.getByRole('tab', { name: 'Chat' }).click()
+      'the office': () => page.locator('.stage').click({ position: { x: 200, y: 300 } })
+      // Not the Chat tab: a click on it puts the caret in the message box a moment later, where the key is the caret's, so which of the two the key finds first depends on the Mac.
     }
     for (const [where, click] of Object.entries(clicks)) {
       await toTop()
