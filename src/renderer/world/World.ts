@@ -18,6 +18,7 @@ import { CarromBoard } from './carromBoard'
 import { Cheers } from './cheers'
 import { CoffeeTank, CoolerJar, SinkFill } from './cooler'
 import { Confetti } from './confetti'
+import { ThrownCan } from './thrownCan'
 import { Life } from './life'
 import { Ambience } from './ambience'
 import { Cat } from './cat'
@@ -34,7 +35,7 @@ import { Director, type Face, type Job, type Place as StaffPlace, type Scene, ty
 import { StaffActor } from './staffActor'
 import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
-import { type Facing, OFFICE, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
+import { type Facing, OFFICE, type Pt, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
 import { nextZoom, wheelSteps } from './zoomSteps'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
@@ -189,6 +190,9 @@ export class OfficeWorld {
   private readonly life = new Life(Math.random, staffSpeed())
   private readonly cheers = new Cheers()
   private readonly confetti = new Confetti()
+  /** The supervisor's can while it flies, and the tile where it comes to rest for the boy to pick up. */
+  private readonly can = new ThrownCan()
+  private canTile: Pt = { x: 26, y: 8 }
   private cheered = 0
   private publishedLife = ''
   private readonly errands = new Map<string, { kind: 'drink' | 'game' | 'eat' | 'huddle' | 'drill'; what?: 'water' | 'coffee'; phase: 'go' | 'do'; left: number; spot: Spot }>()
@@ -806,7 +810,7 @@ export class OfficeWorld {
       this.layer.addChild(this.carromBoard.view)
     }
     this.confetti.view.visible = false
-    this.overlays.addChild(this.confetti.view, this.ambience.flyer)
+    this.overlays.addChild(this.confetti.view, this.can.view, this.ambience.flyer)
     this.ambience.windows.zIndex = 1
     this.layer.addChild(this.ambience.windows)
     this.places = this.buildPlaces()
@@ -889,6 +893,7 @@ export class OfficeWorld {
     this.staff[0]?.cancel()
     this.carromBoard?.setCoins(null)
     this.confetti.update(1e6)
+    this.can.take()
     this.drill = null
     this.cut = null
     for (const c of this.chars.values()) if (c.doing === 'nap' || c.doing === 'stretch' || c.doing === 'eat' || c.doing === 'draw') c.doing = ''
@@ -1034,6 +1039,7 @@ export class OfficeWorld {
     this.drillTick(t)
     this.bossWatch(t)
     this.confetti.update(dt)
+    for (const ev of this.can.update(dt)) if (ev.what === 'hit') this.boyBonked(t)
     const life = JSON.stringify({
       errands: [...this.errands].map(([agent, e]) => ({ agent, kind: e.kind, what: e.what ?? '', phase: e.phase })),
       game: this.game && { players: this.game.keys, started: this.game.started, strikes: this.game.carrom.strikes, scores: this.game.carrom.scores, over: this.game.carrom.over },
@@ -1151,17 +1157,29 @@ export class OfficeWorld {
     boy.give(this.director.cleaning(this.sceneFor(boy), 90_000))
   }
 
-  /** The supervisor's can has landed on the office boy, who had his back to him: "Ouch!", a salute, and back to work, with no carrom for three minutes. */
-  private boyCaught(t: number) {
+  /** The supervisor's can has hit the office boy, who had his back to him: he ends the game, and is dazed, says sorry, salutes, picks the can up and bins it, with no carrom for three minutes. */
+  private boyBonked(t: number) {
     const g = this.game
     this.catching = false
-    if (!g?.keys.includes('boy')) return
-    const boy = this.staff[0]!
-    this.shouts.say('boy-ouch', 'Ouch!', 1600, () => ({ x: boy.view.x + TILE / 2, y: boy.view.y - 28 }))
+    if (!g?.keys.includes('boy')) return this.can.take()
     this.boyStats.caught++
     this.boyBanUntil = t + 180_000 / staffSpeed()
     this.endGame()
-    boy.give([{ kind: 'wait', ms: Math.round(1100 / staffSpeed()), face: 'down', pose: 'salute' }, ...this.director.cleaning(this.sceneFor(boy), 90_000)])
+    const boy = this.staff[0]!
+    boy.give(this.director.afterBonk(this.sceneFor(boy), this.canTile, 90_000))
+  }
+
+  /** The can leaves the supervisor's hand for the boy, goes on past him to the east wall and bounces back across the floor to where the boy will find it. */
+  private throwCan(sup: StaffActor) {
+    const boy = this.staff[0]!
+    const feet = (a: StaffActor): Pt => ({ x: a.view.x + TILE / 2, y: a.view.y + TILE - 2 })
+    const from = feet(sup)
+    const hit = feet(boy)
+    const wallX = (OFFICE.map.w - 1) * TILE - 2
+    const along = (wallX - hit.x) / (hit.x - from.x || 1)
+    const wall = { x: wallX, y: Math.max(3 * TILE, Math.min(12 * TILE, hit.y + (hit.y - from.y) * along)) }
+    this.canTile = [{ x: 26, y: 8 }, { x: 27, y: 8 }, { x: 25, y: 8 }, { x: 26, y: 9 }].find((p) => OFFICE.map.walkable(p)) ?? { x: BOY_SEAT.x, y: BOY_SEAT.y }
+    this.can.start({ from, hit, wall, rest: { x: this.canTile.x * TILE + TILE / 2, y: this.canTile.y * TILE + TILE - 2 } })
   }
 
   /** While the office boy plays, the supervisor's walk towards him is watched: the boy sees him or does not. */
@@ -1172,10 +1190,10 @@ export class OfficeWorld {
     const n = bossSees(boy.at, 'right', sup.at)
     if (n === 'sees') this.boyNotices(t)
     else if (n === 'behind' && !this.noCatch) {
-      // He has not seen him: the supervisor walks up behind him and swings his can.
+      // He has not seen him: the supervisor stays where he is, behind him, and watches a while before he throws his can.
       this.catching = true
       sup.cancel()
-      sup.give([{ kind: 'walk', to: { x: boy.at.x - 1, y: boy.at.y } }, { kind: 'wait', ms: Math.round(1400 / staffSpeed()), face: 'right', pose: 'wipe', prop: 'can', say: 'Get back to work!', then: 'hit' }])
+      sup.give(this.director.watchAndThrow())
     }
   }
 
@@ -1520,8 +1538,15 @@ export class OfficeWorld {
         case 'brew':
           this.director.brew()
           break
-        case 'hit':
-          this.boyCaught(t)
+        case 'throw':
+          this.throwCan(a)
+          break
+        case 'pickCan':
+          a.carrying = 'can'
+          this.can.take()
+          break
+        case 'canIn':
+          a.carrying = ''
           break
         default:
           boy.release()

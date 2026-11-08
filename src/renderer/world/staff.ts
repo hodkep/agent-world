@@ -22,9 +22,9 @@ export type Step =
 
 /**
  * What happens when a wait starts: the cooler's empty jar lifted out, set under the tap (it fills) and taken up full, then put in; a book taken from the shelf or put back; a jar fetched, the old one picked up, a bag, a parcel or a tray taken up,
- * what he carried put down, a sip of water or coffee, a pot of coffee made, or an order given.
+ * what he carried put down, a sip of water or coffee, a pot of coffee made, an order given, the supervisor's can thrown, or the boy picking it up and dropping it in the bin.
  */
-export type Then = 'fetch' | 'swapOut' | 'fill' | 'takeJar' | 'takeBook' | 'putBook' | 'swapIn' | 'pickOld' | 'bag' | 'parcel' | 'tray' | 'drop' | 'sipWater' | 'sipCoffee' | 'brew' | 'order' | 'hit'
+export type Then = 'fetch' | 'swapOut' | 'fill' | 'takeJar' | 'takeBook' | 'putBook' | 'swapIn' | 'pickOld' | 'bag' | 'parcel' | 'tray' | 'drop' | 'sipWater' | 'sipCoffee' | 'brew' | 'order' | 'throw' | 'pickCan' | 'canIn'
 
 export type Job = 'refill' | 'coffee' | 'bin' | 'counter' | 'plants' | 'sweep' | 'printer' | 'tables' | 'parcel' | 'tray'
 /** The jobs the supervisor can give. */
@@ -267,6 +267,29 @@ export class Director {
   boyPlan(scene: Scene, only?: Job): Step[] {
     // Every job is followed by a long rest by the counter, so he is not on the move all the time.
     return [...this.boyJob(scene, only), ...this.rest(scene.spots.counter.to, scene.spots.counter.face, BOY_REST_MS)]
+  }
+
+  /** The supervisor, within sight of the boy at the board but behind him, stays where he is: he watches a couple of seconds, calls out, winds up with the can and throws it. */
+  watchAndThrow(): Step[] {
+    return [
+      this.wait(2000, { face: 'right', pose: 'chin' }),
+      this.wait(550, { face: 'right', pose: 'wipe', prop: 'can', say: 'Oi!' }),
+      this.wait(450, { face: 'right', pose: 'point', then: 'throw' }),
+      this.wait(2500, { face: 'right', pose: 'clasp' })
+    ]
+  }
+
+  /** The office boy once the can has hit him: dazed, he says sorry and salutes, picks the can up where it came to rest, drops it in the bin, and then cleans for about `ms`. */
+  afterBonk(scene: Scene, rest: Pt, ms: number): Step[] {
+    return [
+      this.wait(900, { face: 'down', pose: 'stand' }),
+      this.wait(1500, { face: 'left', pose: 'salute', say: 'Sorry, boss!' }),
+      { kind: 'walk', to: rest },
+      this.wait(500, { face: 'down', pose: 'hold', then: 'pickCan' }),
+      { kind: 'walk', to: scene.spots.bin.to },
+      this.wait(700, { face: scene.spots.bin.face, then: 'canIn' }),
+      ...this.cleaning(scene, ms)
+    ]
   }
 
   /** The office boy cleans for about `ms` of the clock, sweeping from one place to the next: for when he was caught playing, or saw the supervisor coming. */
