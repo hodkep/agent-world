@@ -58,6 +58,18 @@ describe('the project site', () => {
     expect(robots).not.toMatch(/Disallow: \//)
   })
 
+  it('shows the film on the home page: a video the visitor starts, with its poster, both carried by the site', () => {
+    const home = readFileSync(join(out, 'index.html'), 'utf8')
+    const video = /<video\b[^>]*>/.exec(home)?.[0] ?? ''
+    expect(video).toContain('controls')
+    expect(video).toContain('preload="metadata"')
+    expect(video).toContain('playsinline')
+    expect(video).not.toContain('autoplay')
+    expect(video).toContain('poster="assets/docs/images/video-poster.jpg"')
+    expect(home).toMatch(/<source src="assets\/docs\/video\/agent-world\.mp4" type="video\/mp4">/)
+    for (const f of ['docs/images/video-poster.jpg', 'docs/video/agent-world.mp4']) expect(existsSync(join(out, 'assets', f)), f).toBe(true)
+  })
+
   it('shows the version of the app on the home page, from package.json', () => {
     const v = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
     expect(readFileSync(join(out, 'index.html'), 'utf8')).toContain(`v${v}`)

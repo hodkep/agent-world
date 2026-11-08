@@ -135,7 +135,7 @@ export async function build(root, out) {
   write('docs/index.html', `<!doctype html><html lang="en"><meta charset="utf-8"><title>Agent World docs</title><link rel="canonical" href="${SITE}docs/${first.slug}/"><meta http-equiv="refresh" content="0;url=${first.slug}/"><p><a href="${first.slug}/">Open the docs</a></p></html>\n`)
 
   const home = readFileSync(join(root, 'site', 'home.html'), 'utf8').replace(/\{\{version\}\}/g, version).replace(/\{\{root\}\}/g, '')
-  for (const m of home.matchAll(/src="assets\/([^"]+)"/g)) assets.add(m[1])
+  for (const m of home.matchAll(/(?:src|poster)="assets\/([^"]+)"/g)) assets.add(m[1])
   write('index.html', layout({ title: 'Agent World: run your coding agents from a pixel-art office', description: 'A desktop app for running Claude Code and Antigravity agents, each on its own git branch, shown as characters at their desks in a small office.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
   write('404.html', layout({ title: 'Page not found · Agent World', description: 'This page does not exist. Go to the home page, the user guide or the documentation.', path: '404.html', depth: 0, body: '<div class="page solo"><main><h1>Page not found</h1><p><a href="/">Back to the home page</a>, or <a href="/docs/getting-started/">open the docs</a>.</p></main></div>', active: '', root: '/' })) // shown at any missing address, so its links start at the site's top
 
