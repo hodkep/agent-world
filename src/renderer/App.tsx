@@ -96,6 +96,7 @@ import { billboardLine, profileFor, type IdentityState } from '../shared/identit
 import { WorkflowGates } from './workflows/WorkflowGates'
 import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../shared/workflows'
 import { TerminalView } from './panel/TerminalView'
+import { gitKindOfEvent } from './world/gitCourier'
 import { OfficeWorld } from './world/World'
 import type { CardData } from './profile/facts'
 import { cardLayout, cardMaxHeight } from './profile/layout'
@@ -658,6 +659,8 @@ export function App() {
       later.stop,
       window.aw.onAgentEvent((e) => {
         later(() => setWorld((w) => applyEvent(w, e)))
+        const git = gitKindOfEvent(e)
+        if (git) office.current?.deliver(e.agentId, git)
         // A subagent another program was asked to do (through the office) opens in the panel as it starts: nobody else would tell you it is there.
         if (e.type === 'subagent-start') void window.aw.subagents(e.agentId).then((l) => l.some((i) => i.agentId === e.subagentId && i.toolUseId.startsWith('spawn:')) && openSub(e.agentId, e.subagentId), () => {})
         if (e.type === 'subagent-stop') sentAway.current.set(e.subagentId, Date.now())
