@@ -170,8 +170,8 @@ export function armPixels(kind, a) {
 }
 /** Who an engineer is on a section: itself when alone there, the intern of whoever is already working on it (who becomes the boss). */
 export const castFor = (working, section) => (working.some((w) => w.section === section) ? 'intern' : 'senior')
-const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .lobby h2, .hub'
-const kindOf = (el) => (el.tagName === 'CANVAS' ? 'scene' : el.tagName === 'IMG' ? 'pic' : /\b(row|links|hub|legend)\b/.test(el.className) ? 'box' : 'text')
+const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .room video, .lobby h2, .hub'
+export const kindOf = (el) => (el.tagName === 'CANVAS' ? 'scene' : el.tagName === 'IMG' || el.tagName === 'VIDEO' ? 'pic' : /\b(row|links|hub|legend)\b/.test(el.className) ? 'box' : 'text')
 // 12x12 tools, 'b' brass, 'k' ink, 'w' wood, 'p' paper, 'r' red, 'g' grey.
 const TOOLS = {
   laptop: ['............', '..kkkkkkkk..', '..kggggggk..', '..kggggggk..', '..kggggggk..', '..kkkkkkkk..', '.kkkkkkkkkk.', '.kggggggggk.', '.kkkkkkkkkk.', '............', '............', '............'],

@@ -3,7 +3,7 @@ import { GLYPHS } from '../src/renderer/world/pixelfont'
 // @ts-expect-error a plain .mjs script
 import { crewChars } from '../scripts/build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
-import { CREW, actionFor, armPixels, artWidth, castFor, helperFor, nearestPart, nextPart, scene, SCENES, tankLevel, windowRects } from './office.js'
+import { CREW, actionFor, armPixels, artWidth, castFor, helperFor, kindOf, nearestPart, nextPart, scene, SCENES, tankLevel, windowRects } from './office.js'
 
 const chars = crewChars()
 const bits = { GLYPHS, CHARS: chars }
@@ -52,6 +52,12 @@ describe('the crew that builds the page', () => {
   it('gives every kind of part its own work: text is typed, a box hammered, a picture hung, a scene painted', () => {
     expect(['text', 'box', 'pic', 'scene'].map(actionFor)).toEqual(['type', 'hammer', 'hang', 'paint'])
     expect(CREW).toHaveLength(6)
+  })
+
+  it('treats the film like a picture: the crew hangs a video as it hangs a screenshot', () => {
+    expect(kindOf({ tagName: 'VIDEO', className: 'film' })).toBe('pic')
+    expect(kindOf({ tagName: 'IMG', className: 'shot' })).toBe('pic')
+    expect(kindOf({ tagName: 'CANVAS', className: '' })).toBe('scene')
   })
 })
 
