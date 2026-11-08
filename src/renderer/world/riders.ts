@@ -4,7 +4,7 @@ import { pixelTexture } from './sprites'
 import { STAFF_KEYS, staffPixels, staffTexture } from './staffSprites'
 import type { Trip } from './trip'
 
-export type RiderKind = 'courier' | 'pizza'
+export type RiderKind = 'courier' | 'git' | 'pizza'
 const SCOOTER_H = SCOOTER.length
 /** The rider seated on the scooter: the staff figure from the side, cut off at the hips. */
 const seated = (kind: RiderKind) => pixelTexture(staffPixels(kind, 'side', 'stand').slice(0, 18), STAFF_KEYS[kind]!, `rider/${kind}/seated`)
@@ -32,7 +32,7 @@ export class RiderView {
     this.shadow.rect(1, SCOOTER_H - 1, 22, 2).fill({ color: 0x000000, alpha: 0.35 })
   }
 
-  update(trip: Trip, t: number) {
+  update(trip: Pick<Trip, 'mode' | 'onScooter' | 'scooter' | 'rider'>, t: number) {
     const walking = trip.mode === 'walk' || trip.mode === 'return'
     this.bike.visible = trip.mode !== 'gone'
     this.rider.visible = trip.onScooter

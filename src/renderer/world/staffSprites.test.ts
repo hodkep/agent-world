@@ -40,3 +40,32 @@ describe('the office boy and the supervisor', () => {
     expect(sup[12]!.match(/c+/)![0].length).toBeLessThan(sup[16]!.match(/c+/)![0].length)
   })
 })
+
+describe('the git courier', () => {
+  const chest = (kind: StaffKind, view: 'front' | 'side' | 'back', pose: StaffPose = 'stand') => staffPixels(kind, view, pose).slice(12, 17).join('')
+
+  it('wears the git mark on his chest, seen from the front and the side, in every pose he is drawn in', () => {
+    for (const view of ['front', 'side'] as const)
+      for (const pose of ['stand', 'walk1', 'walk2'] as const) {
+        const rows = staffPixels('git', view, pose).slice(12, 17).join('')
+        expect([...rows].filter((c) => c === 'g').length, `${view} ${pose}`).toBeGreaterThanOrEqual(8)
+      }
+  })
+
+  it('does not wear it from behind, and the clock courier has no mark at all', () => {
+    expect(chest('git', 'back')).not.toContain('g')
+    expect(chest('courier', 'front')).not.toContain('g')
+    expect(chest('courier', 'side')).not.toContain('g')
+  })
+
+  it('stays inside the 16x24 figure and its own colours', () => {
+    for (const view of ['front', 'side', 'back'] as const) {
+      const rows = staffPixels('git', view, 'stand')
+      expect(rows).toHaveLength(24)
+      for (const row of rows) {
+        expect(row).toHaveLength(16)
+        for (const ch of row) expect(ch === '.' || ch in STAFF_KEYS.git!, `${view} '${ch}'`).toBe(true)
+      }
+    }
+  })
+})
