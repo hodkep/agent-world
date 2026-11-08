@@ -76,7 +76,7 @@ test('the office boy joins an idle agent at the carrom board; the supervisor com
     for (const name of ['ada', 'dee']) await hireNamed(page, name)
     await page.waitForTimeout(3000)
 
-    // He joins an agent at the board, and the supervisor comes from the west door, behind him: the can, "Get back to work!", "Ouch!".
+    // He joins an agent at the board, and the supervisor comes from the west door, behind him: the supervisor watches from a distance, "Oi!", the can flies and hits him, "Sorry, boss!".
     // On a loaded machine the game can end by itself (its agent is sent for a coffee) before he gets there: then the scene is played again.
     for (let attempt = 0; attempt < 3 && (await life(page))?.boy.caught !== 1; attempt++) {
       await boyPlays(page)
@@ -84,7 +84,7 @@ test('the office boy joins an idle agent at the carrom board; the supervisor com
       await expect.poll(async () => (await life(page))?.boy.caught, { timeout: 20_000 }).toBe(1).catch(() => {})
     }
     expect((await life(page))?.boy.caught).toBe(1)
-    await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Get back to work!', 'Ouch!']))
+    await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Oi!', 'Sorry, boss!']))
     expect((await life(page))!.boy.playing).toBe(false)
   } finally {
     await o.shutdown()

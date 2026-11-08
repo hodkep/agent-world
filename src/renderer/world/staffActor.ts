@@ -36,7 +36,7 @@ export class StaffActor {
   private walkClock = 0
   private held = 0
   /** What is in his hands: a new jar of water, the cooler's old empty one, or a bag of rubbish. */
-  carrying: '' | 'jar' | 'old-jar' | 'bag' | 'parcel' | 'tray' = ''
+  carrying: '' | 'jar' | 'old-jar' | 'bag' | 'parcel' | 'tray' | 'can' = ''
   pose: StaffPose = 'stand'
   /** What he is saying now (his step's line), for specs. */
   said = ''
@@ -212,6 +212,11 @@ export class StaffActor {
         box(hand - 2, 12 + bob, 8, 7, 0x1a1522)
         box(hand - 1, 13 + bob, 6, 5, 0xb08a52)
         box(hand + 1, 13 + bob, 1, 5, 0xe8d8a8)
+        break
+      case 'can':
+        box(hand, 12 + bob, 6, 7, 0x1a1522)
+        box(hand + 1, 13 + bob, 4, 5, 0x6aa0c8)
+        box(hand + 1, 15 + bob, 4, 1, 0xf4f4f8)
         break
       case 'tray':
         box(hand - 3, 15 + bob, 10, 2, 0x1a1522)

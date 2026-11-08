@@ -367,3 +367,45 @@ describe('what the office boy does', () => {
     expect(thens(d.boyPlan(scene(), 'parcel'))).toEqual(['parcel', 'drop'])
   })
 })
+
+describe('the supervisor throws his can at the office boy at the board', () => {
+  const steps = (speed = 1) => new Director(seq(0.5), speed).watchAndThrow()
+  const waits = (xs: ReturnType<Director['watchAndThrow']>) => xs.flatMap((s) => (s.kind === 'wait' ? [s] : []))
+
+  it('stays where he is: he stands and watches the boy for a couple of seconds, calls out, winds up with the can, and only then throws', () => {
+    const w = waits(steps())
+    expect(steps().every((s) => s.kind === 'wait')).toBe(true)
+    expect(w[0]).toMatchObject({ pose: 'chin', face: 'right', ms: 2000 })
+    expect(w[0]!.say).toBeUndefined()
+    expect(w[1]).toMatchObject({ pose: 'wipe', prop: 'can', say: 'Oi!' })
+    const thrown = w.findIndex((s) => s.then === 'throw')
+    expect(thrown).toBe(2)
+    expect(w[thrown]).toMatchObject({ pose: 'point', face: 'right' })
+  })
+
+  it('watches for the same time at any speed once the speed is taken out', () => {
+    const total = (speed: number) => waits(steps(speed)).reduce((n, s) => n + s.ms, 0) * speed
+    expect(Math.abs(total(4) - total(1))).toBeLessThan(8)
+  })
+})
+
+describe('the office boy after the can has hit him', () => {
+  const rest = { x: 26, y: 8 }
+  const after = (d = new Director(seq(0.5))) => d.afterBonk(scene(), rest, 90_000)
+
+  it('is dazed, salutes with "Sorry, boss!", picks the can up where it lies, takes it to the bin, drops it in, and then goes on cleaning', () => {
+    const s = after()
+    const waits = s.flatMap((x) => (x.kind === 'wait' ? [x] : []))
+    expect(waits[0]).toMatchObject({ face: 'down', pose: 'stand' })
+    expect(waits[1]).toMatchObject({ pose: 'salute', say: 'Sorry, boss!', face: 'left' })
+    expect(s[2]).toEqual({ kind: 'walk', to: rest })
+    expect(s[3]).toMatchObject({ kind: 'wait', pose: 'hold', then: 'pickCan' })
+    expect(s[4]).toEqual({ kind: 'walk', to: scene().spots.bin.to })
+    expect(s[5]).toMatchObject({ kind: 'wait', then: 'canIn' })
+    expect(s.slice(6).some((x) => x.kind === 'wait' && x.prop === 'broom')).toBe(true)
+  })
+
+  it('does not say "Ouch!" any more', () => {
+    expect(JSON.stringify(after())).not.toContain('Ouch')
+  })
+})
