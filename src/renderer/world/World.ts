@@ -601,6 +601,8 @@ export class OfficeWorld {
   sync(agents: AgentView[]) {
     // The more agents are working, the busier the street.
     this.street.setBusy(agents.filter((a) => ['thinking', 'researching', 'implementing', 'running', 'delegating', 'compacting'].includes(a.state.activity)).length)
+    // The cabinets in the lounge corner show how many are running a command (a test, a build, a server).
+    this.ambient.busy(agents.filter((a) => a.state.activity === 'running' || Object.values(a.state.interns).some((i) => i.activity === 'running')).length)
     const live = new Set<string>()
     this.files.clear()
     this.inbox.clear()
