@@ -104,7 +104,7 @@ A run is drawn as a flow diagram in the agent's **Workflow** tab, each step a ca
 
 ### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
 
-A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history.
+A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history. What the holds stop, and what they do not, is spelled out in [Enforced and only asked](docs/guide/workflows.md#enforced-and-only-asked).
 
 ### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Library and playbook
 

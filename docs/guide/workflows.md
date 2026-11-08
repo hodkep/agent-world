@@ -38,6 +38,11 @@ In the **Workflows** tab of the window, the switch **Workflows in this workspace
 
 ## Enforced and only asked
 
+**What you can count on.** The holds stop an agent that follows its instructions from getting ahead of you, whatever the program. They are not a lock against an agent set on getting round them.
+
+- Held, until you approve: file edits made with the program's editing tools (Claude Code's `Edit`, `Write`, `MultiEdit`, `NotebookEdit`; agy's own); every commit, even one made with `--no-verify`; a push or a merge while the audit has findings you have not seen.
+- Not held: a shell command that writes a file (`sed -i`, `echo >`), which the commit hold still catches before the work lands; a push made with `--no-verify`, which is recorded as pushed anyway; git run with the app's settings removed or with its own `core.hooksPath` on the command line; any commit or push while the app cannot be reached. A held thing never breaks git: when the app does not answer, git goes ahead.
+
 Announcing a task, handing in a plan, reporting steps and saying done are only asked. While a task is open, every message an agent is sent names the step its task is on and tells it to do only that step's work, so the rule holds after a long conversation is summarised. The app holds:
 
 - Edits until the plan is approved: by a hook for Claude agents, by a plugin for agy agents. A shell command such as `sed -i` is caught at the commit instead.

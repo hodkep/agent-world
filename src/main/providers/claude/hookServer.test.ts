@@ -230,6 +230,16 @@ describe('hook server', () => {
     expect(asked).toEqual([['a1', '/w/src/blocked.ts', '/w'], ['a1', '/w/src/fine.ts', '/w'], ['a1', '/w/blocked.ts', '/w']])
   })
 
+  it('does not hold a shell command that writes the very file an edit would be refused for: only the editing tools are held, and the commit hold catches the rest', async () => {
+    const asked: string[] = []
+    const { server } = await setup(5_000, undefined, (_id, file) => (asked.push(file), 'Not yet: your plan is waiting.'))
+    const tool = (name: string, input: object) => post(server.url, { session_id: 's1', cwd: '/w', hook_event_name: 'PreToolUse', tool_name: name, tool_input: input })
+    expect(await (await tool('Edit', { file_path: '/w/src/a.ts', old_string: 'a', new_string: 'b' })).json()).toMatchObject({ hookSpecificOutput: { permissionDecision: 'deny' } })
+    expect(await (await tool('Bash', { command: "sed -i 's/a/b/' /w/src/a.ts" })).text()).toBe('')
+    expect(await (await tool('Bash', { command: 'echo b > /w/src/a.ts' })).text()).toBe('')
+    expect(asked).toEqual(['/w/src/a.ts'])
+  })
+
   describe('Claude Code OpenTelemetry events', () => {
     const sample = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'otlp-logs.json'), 'utf8'))
     const base = (url: string) => url.replace(/\/hook$/, '')

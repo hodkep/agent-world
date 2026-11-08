@@ -165,6 +165,21 @@ describe('a commit with the office\'s hooks in place', () => {
     expect(existsSync(join(work, 'husky.log'))).toBe(false)
   })
 
+  it('is held for an agent that keeps the office\'s variables, but an agent that names its own core.hooksPath on the command line gets past it (a documented limit of the holds)', async () => {
+    const { work, root } = await repo()
+    const hooks = join(root, 'hooks')
+    writeGitHooks(hooks)
+    const none = join(root, 'no-hooks')
+    mkdirSync(none)
+    const office = await stub({ block: 'Not yet: your plan is waiting for the person to approve it.' })
+    writeFileSync(join(work, 'b.txt'), 'b\n')
+    await run(work, {}, 'add', '-A')
+    const env = agentEnv(hooks, office.url)
+    expect((await run(work, env, 'commit', '-qm', 'b')).ok).toBe(false)
+    expect((await run(work, env, '-c', `core.hooksPath=${none}`, 'commit', '-qm', 'b')).ok).toBe(true)
+    expect((await run(work, {}, 'log', '--format=%s')).out).toContain('b')
+  })
+
   it('has a hook for every kind git has, so none of the repository\'s is lost', () => {
     const hooks = join(tmp(), 'hooks')
     writeGitHooks(hooks)
