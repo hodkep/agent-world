@@ -25,6 +25,9 @@ import { RiderView } from './riders'
 import { Trip } from './trip'
 import { CatBrain } from './catBrain'
 import { bossSees } from './bossSees'
+import type { GitKind } from './gitCourier'
+import { GitRamp, type RampGeo } from './gitRamp'
+import { RampView } from './gitRampView'
 import { courierSteps, guardSteps, pizzaSteps } from './guestPlans'
 import { Guests, type RareEvent, Rare, Rest, type WeatherNow, Weather, ritualAt } from './rituals'
 import { Director, type Face, type Job, type Place as StaffPlace, type Scene, type Step, type SupervisorKind, type Then } from './staff'
@@ -88,6 +91,8 @@ const takeCall = () => {
 }
 /** The road in front of the door, in the world's pixels: where a scooter rides in and parks, and where the rider walks to the door. */
 const TRIP = { left: LOT.left, right: LOT.right, laneY: MAP_H + 8 + 27, doorX: LOT.doorX, doorY: MAP_H + 4 }
+/** The hatch in the south wall, left of the door: parcels for the git courier slide out of it into a crate on the pavement, where his scooter stops. */
+const RAMP: RampGeo = { hatch: { x: 6 * TILE + 8, y: MAP_H - 6 }, crate: { x: 6 * TILE, y: MAP_H + 16 }, wallY: MAP_H, laneY: TRIP.laneY }
 /** The boy's seat at the carrom board (the left side, facing it, his back to the west door) and where the supervisor comes from to find him. */
 const BOY_SEAT = { x: 24, y: 5 }
 const BOARD_WEST = { x: 19, y: 5 }
@@ -198,6 +203,10 @@ export class OfficeWorld {
   // Visitors by scooter: where each is on the street (the trip), how it is drawn, and, once it is at the door, the office's own actor for what it does inside.
   private readonly callers = new Map<Trip, { kind: 'courier' | 'pizza'; view: RiderView; plan: () => Step[]; actor: StaffActor | null; since: number }>()
   private readonly riders = new Container({ sortableChildren: true })
+  /** What leaves for the git courier: parcels from the desks to the crate outside, and his scooter, on a clock of their own (it follows the staff speed). */
+  private readonly ramp = new GitRamp(RAMP)
+  private readonly rampView = new RampView(RAMP, this.riders)
+  private rampMs = 0
   private cut: { start: number } | null = null
   private drill: { start: number; until: number } | null = null
   private event = ''
@@ -289,7 +298,7 @@ export class OfficeWorld {
     this.onHandbook = handlers.handbook
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, this.riders, this.ambience.outside, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
-    this.overlays.addChild(this.ambience.tint, this.ambience.lights, this.mail, this.visitors.bubbles, this.ambience.banner)
+    this.overlays.addChild(this.rampView.inner, this.ambience.tint, this.ambience.lights, this.mail, this.visitors.bubbles, this.ambience.banner)
     this.board.zIndex = TILE * 2
     this.layer.addChild(this.board)
     this.pulledBook.zIndex = TILE * 2
@@ -1282,6 +1291,13 @@ export class OfficeWorld {
     this.callers.set(trip, { kind, view, plan, actor: null, since: performance.now() })
   }
 
+  /** An agent has just run a commit, a push or a pull request: a parcel leaves its desk for the git courier. */
+  deliver(agent: string, kind: GitKind) {
+    const home = this.chars.get(agent)?.home
+    if (!this.lifeOn || !home) return
+    this.ramp.add(kind, { x: home.x * TILE + TILE, y: (home.y - 1) * TILE - 6 }, this.rampMs)
+  }
+
   private dropCaller(trip: Trip) {
     const c = this.callers.get(trip)
     if (!c) return
@@ -1332,6 +1348,8 @@ export class OfficeWorld {
     if (on) {
       this.weather.tick(this.wall)
       const call = takeCall()
+      const forced = /^gitcourier:(commit|push|pr)$/.exec(call ?? '')?.[1] as GitKind | undefined
+      if (forced) this.deliver([...this.chars.keys()].find((k) => this.chars.get(k)?.role !== 'intern') ?? '', forced)
       if (call === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
       const sup = this.staff[1]!
@@ -1424,6 +1442,9 @@ export class OfficeWorld {
     const on = this.officeLife && this.chars.size > 0 && !calmMotion()
     this.lifeOn = on
     this.ambientTick(dt, t, on)
+    if (on) this.rampMs += dt * staffSpeed()
+    else this.ramp.clear()
+    this.rampView.draw(this.ramp.frame(this.rampMs), t)
     const [boy, sup] = this.staff as [StaffActor, StaffActor]
     if (!on) {
       for (const a of this.staff) (a.setShown(false), a.fade(dt))
