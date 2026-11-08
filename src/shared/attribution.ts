@@ -22,7 +22,7 @@ export interface ShareRow {
   account: string
   /** Points the account's allowance rose that day, whoever used it. */
   used: number
-  /** The part of it this app used; with `learning`, at most that much. */
+  /** The part of it this app used; with `learning`, at most that much. Worked out for the day as a whole: the allowance ticks up in whole points, so a reading often falls in a stretch with little of the spend that earned it. */
   mine: number
   /** A rate behind `mine` has been seen only once or not at all: `mine` is an upper bound. */
   learning: boolean
@@ -58,6 +58,8 @@ export function shareReport(events: LedgerEvent[], year: number, month: number, 
   const count = new Date(year, month + 1, 0).getDate()
   const days: ShareDay[] = Array.from({ length: count }, (_, i) => ({ date: dateKey(new Date(year, month, i + 1).getTime()), rows: [] }))
 
+  // What the app's spend explains of a day's rise, summed over the day's stretches; capped by the rise once the day is done.
+  const explained = new Map<ShareRow, number>()
   for (const [key, list] of samples) {
     list.sort((a, b) => a.t - b.t)
     const mine = (spends.get(key) ?? []).sort((a, b) => a.t - b.t)
@@ -105,9 +107,10 @@ export function shareReport(events: LedgerEvent[], year: number, month: number, 
       }
       // A model with no rate yet: all we can say is that the app used at most what the account rose.
       row.used += s.rise
-      row.mine += known ? Math.min(s.rise, est) : s.rise
+      explained.set(row, (explained.get(row) ?? 0) + (known ? est : s.rise))
       row.learning ||= !known
     }
   }
+  for (const [row, est] of explained) row.mine = Math.min(row.used, est)
   return { days }
 }
