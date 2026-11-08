@@ -22,6 +22,17 @@ describe('how much of an account\'s allowance this app used', () => {
     expect(day(r, 4)).toMatchObject({ used: 10, mine: 5 })
   })
 
+  it('counts a day\'s rise as ours when the reading came in a stretch without the spend (the allowance ticks up in lumps)', () => {
+    // $10 of Opus is 5 points, seen twice. On day 4 the account rises 5 with no spend yet; the spend is in the next stretch, with no rise.
+    const ev = [lim(at(3, 8), 10), cost(at(3, 9), 10), lim(at(3, 10), 15), cost(at(3, 11), 10), lim(at(3, 12), 20), lim(at(4, 8), 20), lim(at(4, 9), 25), cost(at(4, 10), 10), lim(at(4, 11), 25)]
+    expect(day(shareReport(ev, 2026, 10, 'weekly', NOW), 4)).toMatchObject({ used: 5, mine: 5 })
+  })
+
+  it('still leaves the rest to others when a day\'s spend, at the rate, explains less than its rise', () => {
+    const ev = [lim(at(3, 8), 10), cost(at(3, 9), 10), lim(at(3, 10), 15), cost(at(3, 11), 10), lim(at(3, 12), 20), lim(at(4, 8), 20), cost(at(4, 9), 10), lim(at(4, 10), 30)]
+    expect(day(shareReport(ev, 2026, 10, 'weekly', NOW), 4)).toMatchObject({ used: 10, mine: 5 })
+  })
+
   it('says "still learning" until the rate has been seen twice, and never claims more than the account rose', () => {
     const ev = [lim(at(3, 8), 10), cost(at(3, 9), 10), lim(at(3, 10), 16)]
     const d = day(shareReport(ev, 2026, 10, 'weekly', NOW), 3)!
