@@ -1,6 +1,7 @@
 import { Container, Graphics } from 'pixi.js'
 import type { Activity } from '../../shared/types'
 import { type Furniture, type OfficeMap, TILE, type WallDecor } from './office'
+import { barsAt, loadFor, settle } from './serverLoad'
 
 // One palette for the whole building so every room reads as the same world.
 const P = {
@@ -526,6 +527,8 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
 
 export interface Ambient {
   update(t: number): void
+  /** How many agents are running a command now: the screens of the two cabinets in the lounge corner show the load. */
+  busy(running: number): void
 }
 
 export function drawFurniture(furniture: Furniture[], decor: WallDecor[], layer: Container, shadows: Graphics, coffee: { x: number; y: number }) {
@@ -543,17 +546,31 @@ export function drawFurniture(furniture: Furniture[], decor: WallDecor[], layer:
   fx.zIndex = TILE * 3
   layer.addChild(fx)
 
+  let target = 0
+  let shown = 0
+  let last = 0
   return {
     screens: built.screens,
     ambient: {
+      busy(running) {
+        target = loadFor(running)
+      },
       update(t) {
         fx.clear()
-        for (const a of built.arcades) {
-          const f = Math.floor(t / 220)
+        shown = settle(shown, target, Math.max(0, t - last))
+        last = t
+        built.arcades.forEach((a, i) => {
           r(fx, a.x, a.y, TILE - 6, 7, 0x10102a)
-          r(fx, a.x + (f % 8), a.y + 2, 2, 2, 0xf6e27a)
-          r(fx, a.x + ((f * 3) % 9), a.y + 5, 1, 1, 0xe05090)
-        }
+          if (shown < 0.02) r(fx, a.x + 1, a.y + 6, 1, 1, 0x3a3060, Math.floor(t / 900) % 2 ? 1 : 0.4)
+          else
+            barsAt(shown, t, i + 1).forEach((h, c) => {
+              for (let y = 0; y < h; y++) r(fx, a.x + 1 + c * 2, a.y + 6 - y, 1, 1, y < 4 ? 0x5fe08a : y < 6 ? 0xf6e27a : 0xe05090)
+            })
+          // The two lamps under the screen blink faster the busier it is, and are dark when it is idle.
+          const beat = Math.floor(t / (900 - 600 * shown)) + i
+          r(fx, a.x + 2, a.y + 11, 2, 1, shown < 0.02 || beat % 2 ? 0x3a3060 : 0xe04040)
+          r(fx, a.x + 6, a.y + 11, 2, 1, shown < 0.02 || (beat + 1) % 2 ? 0x3a3060 : 0x40c0e0)
+        })
         if (tvDecor) drawTv(fx, tvDecor.x * TILE + 3, tvDecor.y * TILE + 4, tvDecor.w * TILE - 6, 22, t)
         // The coffee machine is always on: gentle steam from the spout.
         for (let i = 0; i < 2; i++) {
