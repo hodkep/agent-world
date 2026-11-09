@@ -1331,6 +1331,7 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 .tc.inst-term { background: #0a0912; color: #b6f0b6; }
 .tc.inst-term .tc-name { font: 12.5px Menlo, Consolas, monospace; color: #b6f0b6; }
 .tc.inst-term .term-prompt { color: #7ee07e; }
+.tc.inst-term .term-desc { margin-left: 10px; font: 12px var(--sans, ui-sans-serif, system-ui, sans-serif); color: #8a9a8a; }
 .tc.inst-term .tc-dot { display: none; }
 .tc.inst-term .tc-status { font: 12px Menlo, Consolas, monospace; color: #8fbf8f; }
 .tc.inst-term.is-failed .tc-status, .tc.inst-term.is-failed .term-prompt { color: var(--danger-text); }
