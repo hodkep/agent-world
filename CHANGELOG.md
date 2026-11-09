@@ -4,6 +4,31 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-09
+
+![Agent World 0.12.0: a browser for agents, and a new look for the office](https://raw.githubusercontent.com/hodkep/agent-world/v0.12.0/docs/images/releases/0.12.0/poster.png)
+
+### Added
+
+- Preview: agents can use their own Preview page as a browser (agent-browser or Playwright) on one shared session that keeps its logins between runs, with cookies held 30 days and stored encrypted.
+- Preview: a Site data button next to the address bar lists the sites that hold cookies and clears one site or all.
+- Chat: an agent's browser work shows as a timeline card with an Open Preview button, and the Preview frame says what the agent is doing.
+- Settings: switches for the agent browser (on by default) and for opening the Preview when an agent starts browsing.
+- Safety: a site not yet allowed asks you first in the Preview, and uploads, closing the page and clearing all cookies are refused. Known gap: a page that sends itself to a new site is not yet asked per site.
+- Chat: replies and tool calls look new: commands come as terminal slips you can run, tables and code are framed, notes stand apart, and MCP calls show their result (a table, a list) with the server's own colour.
+- Office: a git courier takes a parcel out through a hatch in the wall on a green scooter when an agent commits, pushes or opens a pull request, and the two lounge cabinets show how many agents are running commands.
+- Office: at carrom the supervisor now watches the office boy from across the room and throws his can, and the boy says sorry, salutes and takes the can to the bin.
+- Website: a Demo page tours the app on real screens.
+
+### Changed
+
+- Usage: the Storage tab's map is now a treemap sized by workspace and no longer overlaps the list when there are many workspaces.
+
+### Fixed
+
+- Usage: the Share tab no longer counts a lump in an account's allowance as other people's use when the app's own spend sat in the stretch next to it.
+- Chat: reopening a workflow step or asking to skip steps now shows under Workflow, not under Other.
+
 ## [0.12.0-beta.1] - 2026-11-07
 
 ![Agent World 0.12.0-beta.1: agents get a browser of their own](https://raw.githubusercontent.com/hodkep/agent-world/v0.12.0-beta.1/docs/images/releases/0.12.0-beta.1/poster.png)
