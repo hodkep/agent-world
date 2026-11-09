@@ -13,7 +13,7 @@ test('todos: fully tracked mode makes a task of each request, keeps the ones an 
   const home = mkdtempSync(join(tmpdir(), 'aw-todos-track-'))
   const args = join(home, 'args.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_USAGE: '{"title": "Fix the Safari login bug", "list": "Library"}' },
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '2000', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_USAGE: '{"title": "Fix the Safari login bug", "list": "Library"}' },
     home
   )
   try {
