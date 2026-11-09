@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
-import { SHOTS_DIR, SHOTS_ON, makeProject, seedTokens, type Scene, agentGit, cleanEnv, exists, hireNamed, officeTools, seedRun, shoot, setWindow, shootElement, shotApp, writeSkill } from './shotsKit'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { SHOTS_DIR, SHOTS_ON, makeProject, seedTokens, type Scene, agentGit, cleanEnv, exists, hireNamed, officeTools, seedRun, shoot, shootDemo, setWindow, shootElement, shotApp, writeSkill } from './shotsKit'
 import { seedWeek } from './workflowsWeek'
 
 test.skip(!SHOTS_ON, 'The pictures are taken on purpose: AW_SHOTS=1 pnpm shots')
@@ -677,6 +679,219 @@ test('first run: the first questions of a new Claude Code, answered in the chat'
     await expect(card).toContainText('Choose the text style', { timeout: 20_000 })
     await o.page.waitForTimeout(700)
     await shoot(o.page, 'first-run')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+// The site's demo tour (site/demo.js): one JPEG per step in docs/images/demo, at the window size the hotspots were placed on.
+test('demo: the office, the agents panel with who needs you, and the office hidden', async () => {
+  const scenes: Record<string, Scene> = { ada: 'idle', bo: 'thinking', cy: 'running', di: 'researching', ed: 'implementing', fay: 'delegating', gus: 'permission', hal: 'asleep' }
+  const o = await shotApp({ scenes })
+  try {
+    for (const name of Object.keys(scenes)) await hireNamed(o.page, name)
+    await expect(o.page.getByTestId('agents-dot')).toBeVisible({ timeout: 20_000 })
+    await o.page.getByRole('button', { name: 'Fit office' }).click()
+    await o.page.locator('.hc-switch').hover()
+    await o.page.getByRole('menu', { name: 'Agents' }).getByRole('menuitem', { name: /cy/ }).click()
+    await o.page.mouse.move(300, 700)
+    await o.page.waitForTimeout(2500)
+    await shootDemo(o.page, 'office')
+    await o.page.locator('.hc-switch').hover()
+    await expect(o.page.getByRole('menu', { name: 'Agents' }).getByRole('menuitem', { name: /gus/ }).locator('.wt-mark.need')).toBeVisible({ timeout: 30_000 })
+    await o.page.waitForTimeout(700)
+    await shootDemo(o.page, 'agents-panel')
+    await o.page.mouse.move(300, 700)
+    await o.page.keyboard.press('Meta+Alt+O')
+    await o.page.waitForTimeout(1500)
+    await shootDemo(o.page, 'office-off')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: the hire form', async () => {
+  const o = await shotApp({ scenes: { bo: 'running', cy: 'thinking' } })
+  try {
+    for (const n of ['bo', 'cy']) await hireNamed(o.page, n)
+    await o.page.locator('header').getByRole('button', { name: '+ Agent' }).click()
+    const form = o.page.getByRole('form', { name: 'Hire an agent' })
+    await form.getByLabel('Name').fill('ada')
+    await o.page.waitForTimeout(900)
+    await shootDemo(o.page, 'hire')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: a permission request', async () => {
+  const o = await shotApp({ scenes: { ada: 'running', bo: 'thinking', gus: 'permission' } })
+  try {
+    for (const name of ['ada', 'bo', 'gus']) await hireNamed(o.page, name)
+    await expect(o.page.getByText('Wants to use Bash')).toBeVisible({ timeout: 20_000 })
+    await o.page.getByRole('button', { name: 'Fit office' }).click()
+    await o.page.waitForTimeout(1500)
+    await shootDemo(o.page, 'permission')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: a plan waiting for approval', async () => {
+  const o = await shotApp({ env: { FAKE_PLAN: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    const allow = o.page.getByRole('button', { name: 'Allow', exact: true }).first()
+    await o.page.getByRole('button', { name: 'Fit office' }).click()
+    // The pills float over the office canvas in a hidden window, where Playwright never counts them as visible: the click is dispatched to them.
+    await o.page.locator('.ask-pill').first().waitFor({ state: 'attached', timeout: 20_000 })
+    if (!(await allow.isVisible().catch(() => false))) await o.page.locator('.ask-pill').first().dispatchEvent('click')
+    await allow.click({ timeout: 15_000 })
+    const appr = o.page.getByRole('button', { name: /^Approve/ }).first()
+    await expect(async () => { if (!(await appr.isVisible())) await o.page.locator('.ask-pill', { hasText: 'plan' }).dispatchEvent('click', {}, { timeout: 2000 }); await expect(appr).toBeVisible({ timeout: 2000 }) }).toPass({ timeout: 40_000 })
+    await o.page.waitForTimeout(1200)
+    await shootDemo(o.page, 'plan')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: the Code tab', async () => {
+  const o = await shotApp({ scenes: { ada: 'idle' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    const [ada] = await o.page.evaluate(() => window.aw.listAgents())
+    writeFileSync(join(ada!.cwd, 'src', 'health.ts'), "export const ok = true\nexport const checkedAt = () => new Date().toISOString()\n")
+    writeFileSync(join(ada!.cwd, 'src', 'cart.ts'), 'export const cartTotal = (items: number[]) => items.reduce((a, b) => a + b, 0)\nexport const withTax = (total: number) => Math.round(total * 1.2)\n')
+    await o.page.getByRole('tab', { name: 'Code' }).click()
+    await o.page.getByText('health.ts').first().click()
+    await expect(o.page.getByText('checkedAt').first()).toBeVisible({ timeout: 15_000 })
+    await o.page.waitForTimeout(800)
+    await shootDemo(o.page, 'code')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: the Preview tab with the dev server an agent started', async () => {
+  const page = `<!doctype html><meta charset=utf-8><title>Storefront</title><body style="margin:0;font:16px system-ui;background:#fff8ee;color:#2a1d12"><header style="display:flex;justify-content:space-between;padding:18px 28px;background:#2a1d12;color:#fff8ee"><b>Storefront</b><span>Cart (2)</span></header><main style="padding:28px"><h1 style="margin:0 0 6px">Autumn sale</h1><p style="margin:0 0 20px;color:#7a6250">Open 9 to 5. Free returns.</p><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">${['Wool scarf · $24', 'Canvas tote · $18', 'Desk lamp · $42'].map((t) => `<div style="background:#fff;border:1px solid #e6d8c6;padding:16px"><div style="height:90px;background:#f0e2cf;margin-bottom:10px"></div>${t}<button style="display:block;margin-top:10px;background:#c0602a;color:#fff;border:0;padding:8px 12px">Add to cart</button></div>`).join('')}</div></main></body>`
+  const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end(page))
+  await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
+  const port = (dev.address() as AddressInfo).port
+  const o = await shotApp({ env: { FAKE_DEV_PORT: String(port) } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await expect(o.page.getByRole('tab', { name: /Preview ●/ })).toBeVisible({ timeout: 20_000 })
+    await o.page.getByRole('tab', { name: /Preview/ }).click()
+    await expect(o.page.locator('.preview-state')).toHaveText('running', { timeout: 15_000 })
+    await o.page.mouse.move(200, 500)
+    await o.page.waitForTimeout(2500)
+    await shootDemo(o.page, 'preview')
+  } finally {
+    await o.shutdown()
+    dev.close()
+  }
+})
+
+test('demo: the Workflow tab and the Runs charts', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    const [ada] = await o.page.evaluate(() => window.aw.listAgents())
+    seedRun(o.home, { agentId: ada!.id, repo: o.repo })
+    seedWeek(o.home, { ada: ada!.id, project: o.repo })
+    await o.page.reload()
+    await o.page.waitForTimeout(1500)
+    await o.page.getByRole('tab', { name: /^Workflow/ }).click()
+    await o.page.mouse.move(200, 500)
+    await o.page.waitForTimeout(1500)
+    await shootDemo(o.page, 'workflow')
+    await o.page.locator('header').getByRole('button', { name: 'Workflows' }).click()
+    const win = o.page.getByRole('dialog', { name: 'Workflows' })
+    await expect(win.getByRole('table', { name: 'Runs' })).toBeVisible()
+    await o.page.waitForTimeout(1000)
+    await shootDemo(o.page, 'runs')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: the playbook and the skills library', async () => {
+  const o = await shotApp({})
+  try {
+    const user = join(o.tmp, 'user')
+    writeSkill(user, 'tdd', 'Test-driven development: red, green, refactor.', 'Write the failing test first.')
+    writeSkill(user, 'code-review', 'Review a change against the repository standards.', 'Read the diff. Check it against CONTRIBUTING.md.')
+    writeSkill(user, 'commit-style', 'Conventional Commits for this repository.', 'type(scope): subject. One line unless the subject cannot say why.')
+    writeSkill(user, 'pdf', 'Work with PDF files.', 'Use the helper script when asked to split a PDF.')
+    await o.page.reload()
+    await o.page.locator('header').getByRole('button', { name: 'Playbook and tools', exact: true }).click()
+    const lib = o.page.getByRole('dialog', { name: 'Playbook and tools' })
+    await lib.getByRole('button', { name: 'Import skills from device…' }).click()
+    await lib.getByLabel('Select all').check()
+    await lib.getByRole('button', { name: /Add \d+ as links?/ }).click()
+    await expect(lib.getByRole('status')).toContainText('Added')
+    await lib.getByRole('button', { name: '← Back to skills' }).click()
+    await lib.getByRole('tab', { name: 'Playbook' }).click()
+    await lib.getByRole('group', { name: 'Playbook scope' }).getByRole('button').nth(1).click()
+    for (const [name, when] of [['tdd', 'before writing any code for a feature or a fix'], ['code-review', 'when asked to review a branch or a diff']] as const) {
+      await lib.getByRole('button', { name: 'Add an item…' }).click()
+      await lib.getByLabel('Search items').fill(name)
+      await lib.getByLabel('Search items').press('Enter')
+      await lib.getByLabel(`When to use ${name}`).fill(when)
+    }
+    await lib.getByRole('button', { name: 'More for tdd' }).click()
+    await o.page.getByRole('menuitem', { name: 'Told every time' }).click()
+    await o.page.waitForTimeout(800)
+    await shootDemo(o.page, 'playbook')
+    await lib.getByRole('tab', { name: 'Skills' }).click()
+    await lib.getByRole('button', { name: 'Open commit-style' }).click()
+    await o.page.waitForTimeout(800)
+    await shootDemo(o.page, 'skills')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: usage and storage', async () => {
+  const o = await shotApp({ prefs: { accounts: [{ id: 'work', name: 'Work', provider: 'claude' }] }, seed: seedTokens, env: { FAKE_CHAT: '1', FAKE_COST: '0.3' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.locator('header').getByRole('button', { name: 'Usage', exact: true }).click()
+    const usage = o.page.getByRole('dialog', { name: 'Usage and estimated costs' })
+    await expect(usage).toBeVisible()
+    await o.page.waitForTimeout(900)
+    await shootDemo(o.page, 'usage')
+    const storage = usage.getByRole('tab', { name: 'Storage' })
+    await storage.click()
+    await o.page.waitForTimeout(1500)
+    await shootDemo(o.page, 'storage')
+  } finally {
+    await o.shutdown()
+  }
+})
+
+test('demo: an agent restyles the app, kept or undone', async () => {
+  const o = await shotApp({ env: { FAKE_CHAT: '1' } })
+  try {
+    await hireNamed(o.page, 'ada')
+    await o.page.getByRole('tab', { name: 'Chat' }).click()
+    const box = o.page.getByRole('textbox', { name: 'Message ada' })
+    await box.fill('give the app a synthwave theme')
+    await box.press('Enter')
+    await expect(o.page.getByRole('log', { name: 'Conversation with ada' }).locator('.tc').first()).toBeVisible({ timeout: 30_000 })
+    await o.page.waitForTimeout(1500)
+    await o.page.keyboard.press('Meta+Alt+O')
+    await o.page.waitForTimeout(1200)
+    await shootDemo(o.page, 'look-before')
+    const css = ':root{--bg:#1a0f33;--panel:#26164a;--panel-2:#34205f;--panel-3:#1a0f33;--panel-hover:#432a78;--line:#5a3c96;--ink:#0b0618;--text:#fbefff;--muted:#cfb2ee;--dim:#5a3c96;--accent:#ff4fd8;--accent-hot:#ff7ae3;--accent-dim:#7a2a6a;--danger:#ff5577;--danger-hot:#ff7790;--danger-text:#ff8aa0;--danger-well:#3a1530;--ok:#3ef0c0;--ok-text:#3ef0c0;--think:#5fe3ff;--violet:#ffb86c;--well:#140b28;--selected:#4a2d82;--wood:#4a2d82}'
+    const t = await officeTools(o.argsLog)
+    await t.call('chat_mod_get')
+    await t.call('chat_mod_write', { css, why: 'A synthwave theme, as asked' })
+    await expect(o.page.getByRole('status', { name: 'A new look for the chat' })).toBeVisible({ timeout: 15_000 })
+    await o.page.waitForTimeout(1500)
+    await shootDemo(o.page, 'look')
+    await t.close()
   } finally {
     await o.shutdown()
   }

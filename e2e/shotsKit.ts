@@ -125,6 +125,15 @@ export async function shoot(page: Page, name: string, clip?: { x: number; y: num
   await capture(page, path, clip)
 }
 
+/** The whole window as a JPEG 1600 pixels wide in docs/images/demo, for the site's demo tour: light enough to load one step after another. */
+export async function shootDemo(page: Page, name: string) {
+  const path = join(SHOTS_DIR, 'demo', `${name}.jpg`)
+  mkdirSync(dirname(path), { recursive: true })
+  const size = page.viewportSize()!
+  const { data } = await (await session(page)).send('Page.captureScreenshot', { format: 'jpeg', quality: 82, clip: { x: 0, y: 0, ...size, scale: 1600 / (size.width * DENSITY) } })
+  writeFileSync(path, Buffer.from(data, 'base64'))
+}
+
 /** A skill as Claude keeps it in `~/.claude/skills`, for the library to import. */
 export function writeSkill(userHome: string, name: string, description: string, body: string) {
   const dir = join(userHome, '.claude', 'skills', name)
