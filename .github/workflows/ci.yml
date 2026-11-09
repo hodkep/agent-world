@@ -97,7 +97,8 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with: { node-version: 22, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      # The install fetches Electron from github.com, which now and then answers 504; a failed download is tried again (it showed as a failed shard of tests that never started).
+      - run: for i in 1 2 3; do pnpm install --frozen-lockfile && break; [ "$i" = 3 ] && exit 1; sleep 20; done
       - run: pnpm run typecheck
       - run: pnpm test
 
@@ -156,8 +157,9 @@ jobs:
           path: ~/Library/Caches/electron
           key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: electron-${{ runner.os }}-
-      - run: pnpm install --frozen-lockfile
-      - run: node node_modules/electron/install.js
+      # The install fetches Electron from github.com, which now and then answers 504; a failed download is tried again (it showed as a failed shard of tests that never started).
+      - run: for i in 1 2 3; do pnpm install --frozen-lockfile && break; [ "$i" = 3 ] && exit 1; sleep 20; done
+      - run: for i in 1 2 3; do node node_modules/electron/install.js && break; [ "$i" = 3 ] && exit 1; sleep 20; done
       - run: pnpm run build
       - name: Run this shard's specs
         env:
