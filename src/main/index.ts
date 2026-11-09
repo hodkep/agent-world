@@ -36,7 +36,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell } from 'electron'
+import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell, webContents } from 'electron'
 import { isWebUrl } from './webUrl'
 import { cachedLoginPath, packagedPath, parseLoginPath } from './appPath'
 import { parseGitVersion, resolveGit, withGitOnPath } from './gitBinary'
@@ -46,6 +46,10 @@ import { gitProcessEnv, gitProgram, useGit } from './gitProgram'
 import { contextItems, revealItem } from './contextMenu'
 import { zoomKey, zoomTo } from '../shared/previewZoom'
 import { appKey, forwarded } from './appKeys'
+import { clearAllSites, clearSite, keepSessionCookies, listSites } from './siteData'
+import { createAccess } from './browserTool/access'
+import { browserEnv, startEndpoint, type Endpoint, type Guest } from './browserTool/endpoint'
+import { BROWSER_TOOLS, syncBrowserSkill } from './library/browserSkill'
 import * as pty from 'node-pty'
 import type { RemoveResult } from '../shared/api'
 import { shareReport } from '../shared/attribution'
@@ -469,6 +473,8 @@ let awakeBlocker: number | null = null
 const eventHandles = new Map<string, EventHandle>()
 const eventsOf = (agentId: string) => { const a = agents.find((x) => x.id === agentId); return a ? eventHandles.get(providerOf(a).id) : undefined }
 let office: { mcpUrl: string } | null = null
+/** The endpoint an agent's browser tools connect to: each agent's own Preview page, nothing else. Started with the app, before any agent. */
+let browserEndpoint: Endpoint | null = null
 // Per-agent MCP tokens, minted at each spawn: the token is the agent's identity on the office server.
 const agentTokens = new Map<string, string>()
 // Claude needs a moment after SessionStart/Stop before its input box accepts a paste.
@@ -685,6 +691,12 @@ try {
 } catch (err) {
   console.error('guide:', err)
 }
+// The Preview as a browser for agents is a skill too, so an agent knows it has one and how to use it.
+try {
+  syncBrowserSkill({ root: LIBRARY_DIR })
+} catch (err) {
+  console.error('browser skill:', err)
+}
 // What agents are told about drawing in the chat (diagrams, forms) is two library items with rules of their own.
 try {
   syncVisuals({ root: LIBRARY_DIR })
@@ -837,7 +849,7 @@ function agentFiles(a: AgentRecord) {
   agentTokens.set(agentToken, a.id)
   const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
   // Every program's agent can reach the office from its own processes (git's hook asks it whether a commit may go ahead), not only the ones that read it from here.
-  return { ...prepared, env: { AW_MCP_URL: office.mcpUrl, AW_AGENT_TOKEN: agentToken, ...prepared.env } }
+  return { ...prepared, env: { AW_MCP_URL: office.mcpUrl, AW_AGENT_TOKEN: agentToken, ...(browserEndpoint ? browserEnv(browserEndpoint.urlFor(a.id), a.id) : {}), ...prepared.env } }
 }
 
 // ---- attention: notifications, dock badge, keep-awake ---------------------------------------
@@ -1075,7 +1087,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(prefs.agentBrowser ? BROWSER_TOOLS : []), ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())
@@ -1840,6 +1852,7 @@ async function main() {
     prefs = cleanPrefs(next, prefs)
     savePrefs(join(HOME, 'preferences.json'), prefs)
     refreshAttention()
+    if (!prefs.agentBrowser) browserEndpoint?.disconnect()
     return prefs
   })
   const identityState = async (): Promise<IdentityState> => ({ identity, logins: parseGhLogins(await ghRun('gh', ['auth', 'status', '--json', 'hosts']).catch(() => '')) })
@@ -3451,8 +3464,78 @@ async function main() {
   })
 
   // The preview panes are <webview>s: each shows a web page (a dev server on this computer, or a site on the internet the person allowed) with no access to the app,
-  // in a session of its own that keeps nothing between runs, and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
-  const preview = session.fromPartition('preview')
+  // in a session of its own, shared by every agent and every project and kept between runs (logins stay), and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
+  const preview = session.fromPartition('persist:preview')
+  keepSessionCookies(preview.cookies)
+  // ---- the browser tool: an agent's own Preview page, offered to its tools (agent-browser, Playwright) through a filtered endpoint. The Preview says which web page is whose.
+  const previewPages = new Map<string, Electron.WebContents>()
+  const waiting = new Map<string, ((g: Electron.WebContents) => void)[]>()
+  const sendAll = (channel: string, payload: unknown) => liveWindows().forEach((w) => w.webContents.send(channel, payload))
+  const access = createAccess({ ask: (a) => sendAll('preview-ask', a) })
+  browserEndpoint = await startEndpoint({
+    guestOf: (id) => {
+      const g = previewPages.get(id)
+      return g && !g.isDestroyed() ? (g as unknown as Guest) : undefined
+    },
+    mayOpen: access.mayOpen,
+    openPage: (agentId, url) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(undefined), 15_000)
+        waiting.set(agentId, [...(waiting.get(agentId) ?? []), (g) => (clearTimeout(timer), resolve(g as unknown as Guest))])
+        sendAll('preview-open', { agentId, url: url === 'about:blank' ? blankPage() : url })
+      }),
+    enabled: () => prefs.agentBrowser,
+    activity: (agentId, a) => sendAll('browser-activity', { agentId, ...a, at: Date.now() })
+  })
+  // A blank tab is a page of its own, in a folder of its own: only that one file is reachable from it.
+  let blank = ''
+  const blankPage = () => {
+    if (!blank) {
+      const dir = join(HOME, 'blank')
+      mkdirSync(dir, { recursive: true })
+      blank = join(dir, 'blank.html')
+      writeFileSync(blank, '<!doctype html><meta charset="utf-8"><title>New tab</title><body style="margin:0;background:#fff">')
+    }
+    return pages.urlFor(blank)
+  }
+  // An error thrown in a handler reaches the main process as an uncaught exception: a modal dialog that stops the app until it is dismissed. These stay in the log.
+  const guarded =
+    <A extends unknown[]>(f: (...a: A) => unknown) =>
+    (...a: A) => {
+      try {
+        f(...a)
+      } catch (e) {
+        console.error('browser tool:', e)
+      }
+    }
+  const dropPage = (agentId: string, g: Electron.WebContents) => {
+    if (previewPages.get(agentId) !== g) return
+    previewPages.delete(agentId)
+    try {
+      browserEndpoint?.pageGone(agentId)
+    } catch (e) {
+      console.error('browser tool:', e) // never out as an uncaught error: that is a dialog that stops the app
+    }
+  }
+  ipcMain.on('preview:page', guarded((e: Electron.IpcMainEvent, agentId: unknown, id: unknown) => {
+    if (typeof agentId !== 'string' || !byId(agentId)) return
+    if (id === null) return void (previewPages.has(agentId) && dropPage(agentId, previewPages.get(agentId)!))
+    // Only a Preview page of the window that asks, in the Preview's own session: never the app's own window, nor a page of another kind.
+    const g = typeof id === 'number' ? webContents.fromId(id) : undefined
+    if (!g || g.isDestroyed() || g.getType() !== 'webview' || g.hostWebContents !== e.sender || g.session !== preview) return
+    const old = previewPages.get(agentId)
+    if (old && old !== g) dropPage(agentId, old)
+    previewPages.set(agentId, g)
+    g.once('destroyed', () => dropPage(agentId, g))
+    waiting.get(agentId)?.splice(0).forEach((w) => w(g))
+    browserEndpoint?.pageReady(agentId)
+  }))
+  ipcMain.on('preview:sites-allowed', guarded((_: unknown, list: unknown) => access.setAllowed(Array.isArray(list) ? list.filter((h): h is string => typeof h === 'string') : [])))
+  ipcMain.on('preview:ask-answer', guarded((_: unknown, agentId: unknown, url: unknown, ok: unknown) => typeof agentId === 'string' && typeof url === 'string' && access.answer(agentId, url, ok === true)))
+  ipcMain.on('browser:disconnect', guarded((_: unknown, agentId: unknown) => typeof agentId === 'string' && browserEndpoint?.disconnect(agentId)))
+  ipcMain.handle('preview:sites', (_, current?: string) => listSites(preview, typeof current === 'string' ? current : undefined))
+  ipcMain.handle('preview:clear-site', (_, site: string) => clearSite(preview, String(site)))
+  ipcMain.handle('preview:clear-all', () => clearAllSites(preview))
   preview.setPermissionRequestHandler((_wc, _permission, done) => done(false))
   preview.setPermissionCheckHandler(() => false)
   preview.on('will-download', (e) => e.preventDefault())

@@ -7,7 +7,8 @@ import { PixelWord } from './PixelWord'
 import { EFFORTS, HireForm, MODELS } from './panel/HireForm'
 import { Modal } from './panel/Modal'
 import { PREVIEW_EVENT } from './links'
-import { gitTag, type DevServer, type Workspaces } from '../shared/api'
+import { opensPreview } from './panel/browserOpen'
+import { gitTag, type BrowserActivity, type DevServer, type Workspaces } from '../shared/api'
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { ModBar, ModStyle, ShotAsk, WidgetSlot } from './chat/layoutUi'
 import { type MeterName, metersFor, todosUpdatedBy } from '../shared/widgets'
@@ -358,8 +359,15 @@ export function App() {
   const agentsRef = useRef<AgentRecord[]>([])
   agentsRef.current = allAgents
   const [fileTab, setFileTab] = useState<Record<string, string>>({})
-  const [previewTarget, setPreviewTarget] = useState<Record<string, { url: string; n: number }>>({})
+  const [previewTarget, setPreviewTarget] = useState<Record<string, { url: string; n: number; by?: string }>>({})
   const [previewed, setPreviewed] = useState<string[]>([])
+  // The agents whose browser tool is at work on their Preview page. Their page is kept, and framed, while it is.
+  const [browserBusy, setBrowserBusy] = useState<Record<string, BrowserActivity>>({})
+  const pinnedRef = useRef<string[]>([])
+  const browserBusyRef = useRef(browserBusy)
+  browserBusyRef.current = browserBusy
+  const viewRef = useRef<string>('chat')
+  pinnedRef.current = Object.values(browserBusy).filter((b) => b.connections > 0).map((b) => b.agentId)
   // The terminals in the grid cells. One that leaves its cell (closed, replaced, the layout dropped) is closed for good, unless another workspace has it.
   const shellsOpen = useRef(new Set<string>())
   useEffect(() => {
@@ -728,8 +736,9 @@ export function App() {
   })
 
   const current = agents.find((a) => a.id === selected) ?? null
+  viewRef.current = view
   useEffect(() => {
-    if (view === 'preview' && current) setPreviewed((p) => keepPreviews(p, current.id))
+    if (view === 'preview' && current) setPreviewed((p) => keepPreviews(p, current.id, pinnedRef.current))
   }, [view, current?.id])
   // The Library tab appears once the library has done something for the agent, so an agent that never uses it keeps the usual six tabs.
   const hasLibrary = useLibraryUses(current?.id ?? '').uses.some((u) => u.how !== 'started' || !!u.words)
@@ -1114,6 +1123,42 @@ export function App() {
     window.addEventListener(PREVIEW_EVENT, on)
     return () => window.removeEventListener(PREVIEW_EVENT, on)
   })
+
+  // The button on a browser card in the chat: this agent's Preview tab.
+  useEffect(() => {
+    const on = (e: Event) => {
+      select((e as CustomEvent<{ agentId: string }>).detail.agentId)
+      setPeek(true)
+      setView('preview')
+    }
+    window.addEventListener('aw-open-preview', on)
+    return () => window.removeEventListener('aw-open-preview', on)
+  })
+
+  // An agent's browser tool: its page is framed while the tool is connected; a page it needs is made without taking you from what you are doing, and a site not yet allowed is asked about, here, where you are brought to.
+  useEffect(() => {
+    const offs = [
+      window.aw.onBrowserActivity((a) => {
+        // The Preview opens by itself at the start of a run, if the person said it may, for the agent they are looking at.
+        if (opensPreview({ setting: !!prefsNow.current?.openPreviewOnBrowse, selected: selectedRef.current, view: viewRef.current, prev: browserBusyRef.current[a.agentId], next: a })) (setPeek(true), setView('preview'))
+        // What the agent did last, and the size it set, are kept while later commands (which say nothing new) come; a size of null is it put back.
+        setBrowserBusy((b) => ({ ...b, [a.agentId]: { ...a, action: a.action ?? b[a.agentId]?.action, size: a.size === undefined ? (a.connections ? b[a.agentId]?.size : null) : a.size, at: a.action ? a.at : (b[a.agentId]?.at ?? a.at) } }))
+      }),
+      window.aw.onPreviewOpen(({ agentId, url }) => {
+        setPreviewTarget((t) => ({ ...t, [agentId]: { url, n: (t[agentId]?.n ?? 0) + 1 } }))
+        setPreviewed((p) => keepPreviews(p, agentId, pinnedRef.current))
+      }),
+      window.aw.onPreviewAsk(({ agentId, url }) => {
+        const by = agentsRef.current.find((a) => a.id === agentId)?.name ?? 'An agent'
+        setPreviewTarget((t) => ({ ...t, [agentId]: { url, n: (t[agentId]?.n ?? 0) + 1, by } }))
+        setPreviewed((p) => keepPreviews(p, agentId, pinnedRef.current))
+        setPeek(true)
+        select(agentId)
+        setView('preview')
+      })
+    ]
+    return () => offs.forEach((off) => off())
+  }, [])
 
   // A page an agent opened in a browser is shown in its Preview tab too; the one you are looking at switches to it, any other keeps what you are doing.
   useEffect(
@@ -2047,7 +2092,7 @@ export function App() {
           {/* A Preview that has been opened stays mounted, hidden, so its page is not loaded again each time you come back to the tab, or to the project (so every project's agents, not only the open one's). */}
           {allAgents.filter((a) => previewed.includes(a.id) || (view === 'preview' && a.id === current?.id)).map((a) => (
             <div key={a.id} className="preview-keep" hidden={!(a.id === current?.id && view === 'preview')}>
-              <PreviewView folder={a.repoPath} servers={servers[a.id] ?? []} agentName={a.name} agentId={a.id} target={previewTarget[a.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />
+              <PreviewView folder={a.repoPath} servers={servers[a.id] ?? []} agentName={a.name} agentId={a.id} target={previewTarget[a.id]} browser={browserBusy[a.id]} onAttached={() => (chooseTalk('chat'), setFocusTick((n) => n + 1))} />
             </div>
           ))}
           {current && view === 'workflow' && <WorkflowTab agentName={current.name} agentId={current.id} folder={folder} runs={wf.runs} spend={wf.spend} ctxFor={ctxFor} onOpenRun={(id) => (setRunFocus(id ?? null), setReport('workflows'))} />}

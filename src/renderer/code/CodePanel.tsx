@@ -763,7 +763,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
               {pageAt[active] &&
                 (shows === 'pdf' ? (
                   // The browser's PDF viewer crashes the page when it opens in a frame of the app's own window; in a webview, as the Preview tab uses, it is fine.
-                  <webview key={`${active}:${pageAt[active]!.n}`} title={baseName(active)} src={pageAt[active]!.url} partition="preview" />
+                  <webview key={`${active}:${pageAt[active]!.n}`} title={baseName(active)} src={pageAt[active]!.url} partition="persist:preview" />
                 ) : (
                   // A page runs in a sandbox of its own: scripts yes, the app and its storage no.
                   <iframe key={`${active}:${pageAt[active]!.n}`} title={`Preview of ${active}`} src={pageAt[active]!.url} sandbox="allow-scripts allow-forms allow-popups" />

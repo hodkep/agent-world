@@ -300,6 +300,10 @@ export interface Prefs {
   keepAwake: boolean
   /** When an agent opens an HTML page in a browser (open page.html, xdg-open, start, a browser tool), also show it in the app's Preview tab. */
   openPagesInApp: boolean
+  /** Agents may use their own Preview page as a browser, through tools such as agent-browser or Playwright. */
+  agentBrowser: boolean
+  /** Open an agent's Preview tab by itself when it starts browsing (only for the agent being looked at). */
+  openPreviewOnBrowse: boolean
   /** How far agents keep the project's todo board: only what is put off, or every request (which adds tokens). */
   todoTracking: 'deferred' | 'full'
   /** The most todo lists an agent may create on a board before it must use one it has; 0 is no limit. Lists the person adds by hand are never limited. */

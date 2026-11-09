@@ -17,6 +17,13 @@ describe('what the Mac build produces', () => {
   })
 })
 
+describe('what the app does with the logins it keeps', () => {
+  // The Preview keeps logins for thirty days; with the fuse on, Electron stores their values encrypted (the key is in the Keychain), not as plain text a process of the person's could read.
+  it('has the cookie encryption fuse switched on in every build', () => {
+    expect(builder).toMatch(/^electronFuses:\n(?:[ ]+.*\n)*?[ ]+enableCookieEncryption: true$/m)
+  })
+})
+
 describe('what the installers are called', () => {
   it('has no space in the name, so the file on GitHub, the one a build makes and the one the docs name are the same, and so is each blockmap', () => {
     const name = /^artifactName:\s*"?([^"\n]+)"?\s*$/m.exec(builder)?.[1]

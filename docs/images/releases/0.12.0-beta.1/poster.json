@@ -1,0 +1,13 @@
+{
+  "version": "0.12.0-beta.1",
+  "tagline": "Agents get a browser of their own.",
+  "subtitle": "Beta: the Preview becomes a shared, persistent browser that agents can drive.",
+  "cards": [
+    { "kicker": "Agents", "title": "Each agent browses in its Preview", "text": "Agent-browser or Playwright, in parallel, each on its own filtered endpoint. On by default, with a switch in Settings.", "chips": ["agent-browser", "Playwright"] },
+    { "kicker": "Preview", "title": "Logins that stay", "text": "One session for every agent, kept between runs: cookies held 30 days, stored encrypted. A Site data button lists and clears them.", "chips": ["30 days", "Encrypted", "Site data"] },
+    { "kicker": "Chat", "title": "Browser work as a timeline", "text": "The chat shows what an agent did in the browser as a card, and the Preview frame says what it is doing now.", "chips": ["Timeline card", "Open Preview"] },
+    { "kicker": "Safety", "title": "Asks before a new site", "text": "A site not yet allowed asks you first, in the Preview. Uploads, closing the page and clearing all cookies are refused.", "chips": ["Per site", "No uploads"] }
+  ],
+  "also": ["Open the Preview when an agent starts browsing", "A size the agent sets is the page's real size"],
+  "footer": "Beta. Try it and tell us what breaks."
+}

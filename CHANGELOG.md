@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.12.0-beta.1] - 2026-11-07
+
+![Agent World 0.12.0-beta.1: agents get a browser of their own](https://raw.githubusercontent.com/hodkep/agent-world/v0.12.0-beta.1/docs/images/releases/0.12.0-beta.1/poster.png)
+
+### Added
+
+- Preview: agents can use their own Preview page as a browser (agent-browser or Playwright) on one shared session that keeps its logins between runs, with cookies held 30 days and stored encrypted.
+- Preview: a Site data button next to the address bar lists the sites that hold cookies and clears one site or all.
+- Chat: an agent's browser work shows as a timeline card with an Open Preview button, and the Preview frame says what the agent is doing.
+- Settings: switches for the agent browser (on by default) and for opening the Preview when an agent starts browsing.
+- Safety: a site not yet allowed asks you first in the Preview, and uploads, closing the page and clearing all cookies are refused. Known gap: a page that sends itself to a new site is not yet asked per site.
+
 ## [0.11.5] - 2026-11-07
 
 ### Added

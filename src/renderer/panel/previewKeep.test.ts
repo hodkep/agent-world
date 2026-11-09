@@ -14,4 +14,10 @@ describe('which Previews stay loaded behind the one on screen', () => {
   it("keeps the page of an agent that is asleep as well: its page is the person's, whether or not its program runs", () => {
     expect(keepPreviews(['a', 'b'], 'c')).toEqual(['a', 'b', 'c'])
   })
+
+  it('does not let go of the Preview an agent’s browser tool is using, whoever is oldest', () => {
+    const kept = ['a', 'b', 'c']
+    expect(keepPreviews(kept, 'd', ['a'])).toEqual(['a', 'c', 'd'])
+    expect(keepPreviews(kept, 'd', ['a', 'b', 'c'])).toEqual(['a', 'b', 'c', 'd'])
+  })
 })
