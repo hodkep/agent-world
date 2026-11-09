@@ -40,7 +40,12 @@ test('with agents in the office the supervisor goes to one that is working and s
 
     // The supervisor gives the office boy an order, and he salutes.
     await call(page, 'sup:order')
-    await expect.poll(async () => (await seen()).said.some((x) => /^supervisor: (Refill the cooler|Empty the bin|Wipe the counter|Water the plants|Sweep the floor)!$/.test(x)), { timeout: 180_000 }).toBe(true)
+    // When this one times out the error says where the staff were and what they had said and done, which is what a Mac too slow to reproduce it on needs.
+    try {
+      await expect.poll(async () => (await seen()).said.some((x) => /^supervisor: (Refill the cooler|Empty the bin|Wipe the counter|Water the plants|Sweep the floor)!$/.test(x)), { timeout: 180_000 }).toBe(true)
+    } catch (e) {
+      throw new Error(`the supervisor gave no order; the staff: ${(await stage(page).getAttribute('data-staff'))?.slice(0, 1500)}`, { cause: e })
+    }
     await expect.poll(async () => (await seen()).poses.includes('boy: salute'), { timeout: 60_000 }).toBe(true)
     await expect.poll(async () => (await seen()).poses.includes('supervisor: point'), { timeout: 60_000 }).toBe(true)
     // His chores: the bin is emptied (a bag taken out) and the counter wiped.

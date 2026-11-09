@@ -137,7 +137,8 @@ test('every todo chip opens its task on the board, and a subtask chip opens the 
     if (await board.isVisible()) await close()
     // A chip's click opens a modal over it, so the clicks here are dispatched (the handlers see the same event).
     // In a reply: the part's chip opens the part (its umbrella's card shown with the part's line marked); its first number opens the umbrella.
-    const partChip = reply.locator('.todo-ref', { hasText: 'Task 9' })
+    // The first reply: the message sent further down is answered by the same words, and how soon that answer is in the log depends on the Mac.
+    const partChip = reply.first().locator('.todo-ref', { hasText: 'Task 9' })
     await partChip.locator('b').dispatchEvent('click')
     await openedOn('Task 9')
     await close()

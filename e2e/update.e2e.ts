@@ -68,7 +68,8 @@ async function world(o: { badChecksum?: boolean; fakeApp?: boolean; body?: strin
     if (o.mirror === '500') return void res.writeHead(500).end('broken')
     if (o.mirror === '404') return void res.writeHead(404).end('no')
     if (o.mirror === 'wrong') return void res.writeHead(200, { 'content-length': bytes.length }).end(Buffer.alloc(bytes.length, 1))
-    if (o.mirror === 'stall') return void (res.writeHead(200, { 'content-length': bytes.length }), res.write(bytes.subarray(0, 1000)))
+    // Half of the file, then nothing: the zip is a few hundred bytes to a few thousand, depending on the Mac that made it (extended attributes), so a fixed 1000 can be all of it.
+    if (o.mirror === 'stall') return void (res.writeHead(200, { 'content-length': bytes.length }), res.write(bytes.subarray(0, bytes.length >> 1)))
     res.writeHead(200, { 'content-length': bytes.length }).end(bytes)
   })
   if (o.mirror) await new Promise<void>((r) => mirror.listen(0, '127.0.0.1', r))

@@ -109,7 +109,8 @@ test('an office boy who faces the supervisor sees him, says "Boss!", leaves the 
     await setItem(page, 'aw.officeCall', 'bosseast')
     await expect.poll(async () => (await life(page))?.boy.noticed, { timeout: 30_000 }).toBe(1)
     await expect.poll(async () => (await calm(page)).shouts, { timeout: 10_000 }).toEqual(expect.arrayContaining(['Boss!', 'Hey!']))
-    expect((await life(page))!.boy.playing).toBe(false)
+    // He shouts and then leaves the game: the leaving is a walk, which takes as long as the Mac lets a frame take.
+    await expect.poll(async () => (await life(page))!.boy.playing, { timeout: 10_000 }).toBe(false)
   } finally {
     await o.shutdown()
   }
