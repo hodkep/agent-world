@@ -1327,6 +1327,44 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 .tc-toggle:hover .tc-chevron, .tc-toggle:focus-visible .tc-chevron { color: var(--accent); }
 .tc-toggle .tc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tc-chevron { margin-left: auto; color: var(--muted); font-size: 11px; flex: none; }
+/* Tool calls as instruments, in the replies' ink and paper: a shell run is a green terminal slip, an edit a paper sheet with a file tab,
+   a search an index card, a web call a little browser, an MCP call a device with its server's name plate and the result inside */
+.tc.inst-term { background: #0a0912; color: #b6f0b6; }
+.tc.inst-term .tc-name { font: 12.5px Menlo, Consolas, monospace; color: #b6f0b6; }
+.tc.inst-term .term-prompt { color: #7ee07e; }
+.tc.inst-term .tc-dot { display: none; }
+.tc.inst-term .tc-status { font: 12px Menlo, Consolas, monospace; color: #8fbf8f; }
+.tc.inst-term.is-failed .tc-status, .tc.inst-term.is-failed .term-prompt { color: var(--danger-text); }
+.tc.inst-term .tc-cmd, .tc.inst-term .tc-out pre { background: #06050b; color: #8fbf8f; }
+.tc.inst-sheet { position: relative; margin-top: 14px; }
+.tc.inst-sheet .sheet-tab { position: absolute; top: -16px; left: 10px; height: 16px; line-height: 13px; padding: 0 8px; background: var(--panel-3); border: 2px solid var(--ink); border-bottom: 0; font: 700 11px Menlo, Consolas, monospace; color: var(--accent); }
+.tc.inst-sheet .tc-dot { display: none; }
+.tc.inst-sheet .sheet-add { color: var(--ok-text); font-weight: 700; }
+.tc.inst-sheet .sheet-del { color: var(--danger-text); font-weight: 700; }
+.tc.inst-sheet .tc-diff .del { text-decoration: line-through; text-decoration-color: rgb(255 138 138 / 0.5); }
+.tc.inst-index { background: var(--panel); padding: 0; gap: 0; }
+.tc.inst-index .tc-head { padding: 6px 10px; background: var(--panel-2); border-bottom: 2px solid var(--ink); }
+.tc.inst-index .tc-out pre { background: transparent; padding: 6px 10px; }
+.tc.inst-index .tc-out .tc-more { margin: 0 10px 6px; }
+.tc.inst-web { background: transparent; border-color: transparent; }
+.tc.inst-web .tc-name code { background: var(--well); padding: 1px 8px; color: var(--muted); }
+.tc.inst-device { padding: 0; gap: 0; background: var(--panel); }
+.tc.inst-device .dev-plate { padding: 5px 10px; background: color-mix(in srgb, var(--srv) 20%, var(--panel-2)); border-bottom: 2px solid var(--ink); }
+.tc.inst-device .dev-dot { width: 10px; height: 10px; background: var(--srv) !important; box-shadow: 0 0 0 2px var(--ink); animation: none; }
+.tc.inst-device.is-running .dev-dot { animation: blink 0.8s steps(2) infinite; }
+.tc.inst-device.is-failed .dev-dot { background: var(--danger) !important; }
+.tc.inst-device .srv-badge { background: none; color: var(--srv); padding: 0; letter-spacing: 0.08em; }
+.tc.inst-device > .tc-meta, .tc.inst-device > .kv, .tc.inst-device > .tc-result, .tc.inst-device > .tc-out, .tc.inst-device > .tc-images, .tc.inst-device > .dev-list { margin: 6px 10px; }
+.tc.inst-device > .tc-meta { margin-top: 6px; margin-bottom: 7px; }
+.dev-table { border-bottom: 1px solid var(--line-soft); overflow-x: auto; }
+.dev-table table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.dev-table th { background: var(--panel-2); color: var(--accent); font-weight: 700; text-align: left; padding: 4px 10px; border-bottom: 2px solid var(--ink); white-space: nowrap; }
+.dev-table td { padding: 4px 10px; border-top: 1px solid var(--line-soft); font: 12px Menlo, Consolas, monospace; max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dev-more { padding: 4px 10px; font-size: 11.5px; color: var(--muted); }
+.dev-list { list-style: none; padding: 0; font: 12px Menlo, Consolas, monospace; display: flex; flex-direction: column; gap: 2px; }
+.dev-list li::before { content: '▪ '; color: var(--srv); }
+.dev-kv { margin: 6px 10px; }
 .tc.foldable:not(:has([aria-expanded='true'])) { padding-bottom: 6px; }
 
 /* A delegation: the subagents one reply started, as one card. Same night-ink world as the tool cards. */

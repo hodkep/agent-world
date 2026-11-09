@@ -5,6 +5,8 @@ import { Picture } from './Images'
 import { Code, Markdown } from './markdown'
 import { argRows, mcpHeadline, parseMcpName, resultNote, resultSections, toolLookup } from './mcp'
 import { bashTitle } from './titles'
+import { type Preview, lineDelta, resultPreview, serverColor } from './instruments'
+import { testResult } from './stepGroups'
 import { MonitorCard, ScheduleCard, UnscheduleLine } from './WatchCards'
 import './cards/todo'
 import { toolCardFor } from './cards/registry'
@@ -100,11 +102,14 @@ function McpCard({ run, status, onImage }: { run: ToolRun; status: string; onIma
   const note = failed ? 'failed' : resultNote(tool, out)
   const sections = out ? resultSections(out) : []
   const structured = sections.some((x) => x.title)
+  // The result by its shape, shown in the device without opening it: a table of records, a list, or names and values.
+  const preview = failed ? null : resultPreview(out)
+  const shortServer = server.replace(/^claude_ai_/, '').replace(/^plugin_[^_]+_/, '')
   return (
-    <div className={`tc is-${status}`}>
-      <div className="tc-head">
-        <span className="tc-dot" aria-hidden="true" />
-        <span className="srv-badge" title={`MCP server: ${server}`}>{server}</span>
+    <div className={`tc is-${status} inst-device`} style={{ '--srv': serverColor(server) } as React.CSSProperties}>
+      <div className="tc-head dev-plate">
+        <span className="tc-dot dev-dot" aria-hidden="true" />
+        <span className="srv-badge" title={`MCP server: ${server}`}>{shortServer}</span>
         <span className="tc-name">
           <b>{h.verb}</b>{' '}
           {h.link ? (
@@ -117,13 +122,15 @@ function McpCard({ run, status, onImage }: { run: ToolRun; status: string; onIma
         </span>
         <span className="tc-status">{status === 'running' ? 'running…' : run.sec ? spanLabel(run.sec) : ''}</span>
       </div>
+      {preview && <PreviewView preview={preview} />}
+      {!preview && !open && failed && out && <Output text={out} error />}
       <div className="tc-meta">
         <button className="tc-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
           {open ? 'Hide details' : 'Details'}
         </button>
         <span className="tc-muted">
           {tool}
-          {note ? ` · ${note}` : ''}
+          {preview ? ` · ${previewNote(preview)}` : note ? ` · ${note}` : ''}
         </span>
       </div>
       {open && (
@@ -159,6 +166,47 @@ function McpCard({ run, status, onImage }: { run: ToolRun; status: string; onIma
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+const previewNote = (p: Preview) => (p.kind === 'table' ? `${p.total} ${p.total === 1 ? 'row' : 'rows'}` : p.kind === 'list' ? `${p.total} ${p.total === 1 ? 'item' : 'items'}` : `${p.pairs.length} fields`)
+
+/** An MCP result drawn by its shape inside the device: the first rows of a table, a list, or names and values; the rest is behind Details. */
+function PreviewView({ preview: p }: { preview: Preview }) {
+  if (p.kind === 'kv')
+    return (
+      <dl className="kv dev-kv">
+        {p.pairs.map(([k, v]) => (
+          <div key={k} className="kv-row">
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    )
+  if (p.kind === 'list')
+    return (
+      <ul className="dev-list">
+        {p.items.map((x, i) => <li key={i}>{x}</li>)}
+        {p.total > p.items.length && <li className="tc-muted">and {p.total - p.items.length} more</li>}
+      </ul>
+    )
+  const num = (v: string) => /^[-+]?\d[\d,.]*$/.test(v)
+  const numCol = p.cols.map((_, c) => p.rows.every((r) => !r[c] || num(r[c]!)))
+  return (
+    <div className="dev-table">
+      <table>
+        <thead>
+          <tr>{p.cols.map((c, i) => <th key={c} className={numCol[i] ? 'num' : ''}>{c}</th>)}</tr>
+        </thead>
+        <tbody>
+          {p.rows.map((r, i) => (
+            <tr key={i}>{r.map((v, j) => <td key={j} className={numCol[j] ? 'num' : ''}>{v}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      {p.total > p.rows.length && <div className="dev-more">and {p.total - p.rows.length} more</div>}
     </div>
   )
 }
@@ -215,13 +263,9 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
       const title = bashTitle(input)
       head = (
         <span title={cmd}>
-          {title.ran ? (
-            <>
-              Ran <span className="tc-muted">{title.text}</span>
-            </>
-          ) : (
-            title.text
-          )}
+          <span className="term-prompt" aria-hidden="true">$ </span>
+          {/* The command itself, as typed, without the plumbing an agent adds to keep its output short. */}
+          {cmd.split('\n')[0]!.replace(/\s*2>&1/g, '').replace(/\s*\|\s*(?:tail|head)\b.*$/, '') || title.text}
         </span>
       )
       body = (
@@ -312,9 +356,25 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
   }
 
   const foldable = name === 'Bash'
-  const state = status === 'running' ? 'running…' : [status === 'failed' ? 'failed' : '', run.sec ? spanLabel(run.sec) : ''].filter(Boolean).join(' · ')
+  // Each family is its own instrument: a terminal slip, a paper sheet with a file tab, an index card, a little browser.
+  const look = name === 'Bash' ? 'term' : name === 'Edit' || name === 'Write' || name === 'MultiEdit' ? 'sheet' : name === 'Grep' || name === 'Glob' ? 'index' : name === 'WebFetch' || name === 'WebSearch' ? 'web' : ''
+  const tests = name === 'Bash' && result ? testResult(s(input.command), out) : null
+  const delta =
+    look === 'sheet' && !failed
+      ? (name === 'MultiEdit' ? ((input.edits as { old_string?: string; new_string?: string }[] | undefined) ?? []).map((e) => [s(e?.old_string), s(e?.new_string)]) : [[name === 'Write' ? '' : s(input.old_string), name === 'Write' ? s(input.content) : s(input.new_string)]]).reduce(
+          (n, [a, b]) => {
+            const d = lineDelta(a!, b!)
+            return { added: n.added + d.added, removed: n.removed + d.removed }
+          },
+          { added: 0, removed: 0 }
+        )
+      : null
+  const time = run.sec ? spanLabel(run.sec) : ''
+  const state =
+    status === 'running' ? 'running…' : tests ? `${tests.bad ? '✗' : '✓'} ${tests.text.replace(/^tests /, '')}${time ? ` · ${time}` : ''}` : [status === 'failed' ? '✗ failed' : '', time].filter(Boolean).join(' · ')
   return (
-    <div className={`tc is-${status}${foldable ? ' foldable' : ''}`}>
+    <div className={`tc is-${status}${foldable ? ' foldable' : ''}${look ? ` inst-${look}` : ''}${tests?.bad ? ' is-failed' : ''}`}>
+      {look === 'sheet' && <span className="sheet-tab">{base(s(input.file_path))}</span>}
       {foldable ? (
         <button className="tc-head tc-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)} title={open ? 'Fold' : 'Show the command and its output'}>
           <span className="tc-dot" aria-hidden="true" />
@@ -326,7 +386,16 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
         <div className="tc-head">
           <span className="tc-dot" aria-hidden="true" />
           <span className="tc-name">{head}</span>
-          <span className="tc-status">{state}</span>
+          <span className="tc-status">
+            {delta ? (
+              <>
+                <span className="sheet-add">+{delta.added}</span> <span className="sheet-del">−{delta.removed}</span>
+                {time ? ` · ${time}` : ''}
+              </>
+            ) : (
+              state
+            )}
+          </span>
         </div>
       )}
       {(!foldable || open) && body}
