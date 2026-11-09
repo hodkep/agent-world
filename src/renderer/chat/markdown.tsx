@@ -20,6 +20,7 @@ import { handleFileClick, linkifyFiles } from '../files/linkify'
 import { linkifyTodos } from '../todos/linkifyTodos'
 import { openTodo, useTodoVersion } from '../todos/todoStore'
 import { EMOJI } from './emoji'
+import { shapeReply } from './shape'
 
 // breaks: a single newline in a reply is a line break, as in the Claude Code terminal (a blank line still starts a paragraph).
 marked.setOptions({ gfm: true, breaks: true })
@@ -114,7 +115,7 @@ export function Markdown({ text, agentId }: { text: string; agentId?: string }) 
   // Tables sit in a box of their own that scrolls sideways, so a wide one keeps its column names readable.
   const html = useMemo(
     () =>
-      DOMPurify.sanitize(marked.parse(text, { async: false }) as string, { USE_PROFILES: { html: true, mathMl: true } })
+      shapeReply(DOMPurify.sanitize(marked.parse(text, { async: false }) as string, { USE_PROFILES: { html: true, mathMl: true } }))
         .replace(/<table(\s|>)/g, '<div class="table-wrap"><table$1')
         .replace(/<\/table>/g, '</table></div>'),
     [text]
