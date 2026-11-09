@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { spanLabel } from './format'
 import type { PictureSet } from './gallery'
-import { groupSummary, type StepGroup } from './stepGroups'
+import { groupLabel, groupSummary, type StepGroup } from './stepGroups'
 import { ToolCard } from './ToolCard'
 
 /** While a group works, this many of its newest steps show; the rest are a click away. */
@@ -20,7 +20,9 @@ export function StepGroupView({ group, active, onImage }: { group: StepGroup; ac
   const thought = group.steps.reduce((n, s) => n + (s.kind === 'thinking' ? (s.took ?? 0) : 0), 0)
   const steps = active && !all ? group.steps.slice(-WINDOW) : group.steps
   const hidden = group.steps.length - steps.length
-  const label = active ? `Working · ${group.steps.length} steps` : `Ran ${commands} ${commands === 1 ? 'command' : 'commands'}${thought ? ` · thought ${spanLabel(thought)}` : ''}`
+  // Folded, it says what was done, result first: the files read, the searches, the commands, and how the tests in it went.
+  const did = groupLabel(group.steps.filter((x) => x.kind === 'tool'))
+  const label = active ? `Working · ${group.steps.length} steps` : `${did.text || `Ran ${commands} ${commands === 1 ? 'command' : 'commands'}`}${thought ? ` · thought ${spanLabel(thought)}` : ''}`
   // Between steps Claude writes nothing until its next thought or call is complete, which can be minutes: the card says it is thinking rather than going quiet.
   const last = group.steps.at(-1)
   const between = active && !!last && (last.kind === 'thinking' || last.run.result !== undefined)
@@ -29,7 +31,10 @@ export function StepGroupView({ group, active, onImage }: { group: StepGroup; ac
     <div className={`sg ${active ? 'is-active' : ''} ${showing ? 'is-open' : ''}`}>
       <button className="sg-head" aria-expanded={showing} onClick={() => setOpen(!showing)}>
         <span className="sg-caret" aria-hidden="true">{showing ? '▾' : '▸'}</span>
-        <span className="sg-sum">{label}</span>
+        <span className="sg-sum">
+          {label}
+          {!active && did.tests && <span className={`sg-tests ${did.tests.bad ? 'is-bad' : 'is-ok'}`}> · {did.tests.text}</span>}
+        </span>
         <span className={`sg-meta ${failed ? 'is-bad' : ''}`}>{meta}</span>
       </button>
       {showing && (
