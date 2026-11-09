@@ -130,10 +130,11 @@ jobs:
 
   # The end-to-end specs, split over four Macs. Each shard builds the app and runs a quarter of the specs; the aggregator below reports for all of them.
   # The runner is macos-15. GitHub retired the macos-14 image on 2026-11-02 ("The configuration 'macos-14-arm64-us-default' is not supported": the jobs are cancelled at
-  # once). Measured on 2026-11-08, two full passes of the suite per image: macos-15 started jobs in 1 to 3 seconds when the pool was free, and its failures were three
-  # specs that depended on how fast the Mac was (fixed in the specs); macos-26 failed more, and macos-15-intel, the only image that started in 4 seconds on 2026-10-20, failed
-  # in 11 specs. On macos-14, four shards of the whole suite took 3.6 to 8.6 minutes (334 specs passed, 2 failed, none flaky); the same suite on Linux under xvfb failed about
-  # 1 spec in 9 and took 14 to 17 minutes, so it stays on Macs.
+  # once). Measured on 2026-11-08 and 09, whole-suite runs per image: macos-26 and macos-15-intel each failed in several specs in two passes (Intel in 11), macos-15 in
+  # eight, which were specs that depended on how fast the Mac was (fixed in the specs, none in the app). After that macos-15 passed the whole suite in two runs in a row:
+  # a job waited 2 to 3 seconds for a machine and a shard took 9 to 14 minutes (the first run needed one shard run again after a 504 from github.com while installing
+  # Electron, which the installs now retry). On macos-14, four shards took 3.6 to 8.6 minutes (334 specs passed, 2 failed, none flaky); the same suite on Linux under xvfb
+  # failed about 1 spec in 9 and took 14 to 17 minutes, so it stays on Macs.
   # An earlier count of this repository's jobs put the most that ran at once at 5. No concurrency group makes pull requests wait for each other: GitHub keeps one
   # pending run per group and cancels an older pending one, so a third pull request would cancel the second.
   e2e:
