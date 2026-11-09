@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { GLYPHS } from '../src/renderer/world/pixelfont.ts'
 import { characterPixels, paletteFor } from '../src/renderer/world/sprites.ts'
 import { CREW } from '../site/office.js'
+import { STEPS } from '../site/demo.js'
 import { Marked } from 'marked'
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id'
 
@@ -61,7 +62,7 @@ const BITS = JSON.stringify({ GLYPHS, CHARS: crewChars() })
 const BUILDING = "<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&innerWidth>860){document.documentElement.classList.add('building');setTimeout(function(){if(!window.awCrew)document.documentElement.classList.remove('building')},6000)}</script>"
 
 function layout({ title, description, path, depth, body, active, side = '', toc = '', head = '', root = up(depth) }) {
-  const nav = [['', 'Home'], ['docs/getting-started/', 'Docs']].map(([p, t]) => `<a href="${root}${p}"${active === p ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')
+  const nav = [['', 'Home'], ['demo/', 'Demo'], ['docs/getting-started/', 'Docs']].map(([p, t]) => `<a href="${root}${p}"${active === p ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')
   const image = `${SITE}assets/docs/images/office-activities.png`
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -137,18 +138,22 @@ export async function build(root, out) {
   const home = readFileSync(join(root, 'site', 'home.html'), 'utf8').replace(/\{\{version\}\}/g, version).replace(/\{\{root\}\}/g, '')
   for (const m of home.matchAll(/(?:src|poster)="assets\/([^"]+)"/g)) assets.add(m[1])
   write('index.html', layout({ title: 'Agent World: run your coding agents from a pixel-art office', description: 'A desktop app for running Claude Code and Antigravity agents, each on its own git branch, shown as characters at their desks in a small office.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
+  // The demo tour: real screens of the app with the spot to click on each (site/demo.js).
+  const demo = readFileSync(join(root, 'site', 'demo.html'), 'utf8').replace(/\{\{root\}\}/g, '../')
+  for (const s of STEPS) for (const img of [s.img, s.before].filter(Boolean)) assets.add(`docs/images/demo/${img}.jpg`)
+  write('demo/index.html', layout({ title: 'Try Agent World: a tour of the app in two minutes', description: 'A click-through tour of Agent World on real screens: agents on their own branches, plans and permissions you approve, workflows, the library, usage, and a look you choose.', path: 'demo/', depth: 1, body: `<!--bare-->${demo}`, active: 'demo/' }))
   write('404.html', layout({ title: 'Page not found · Agent World', description: 'This page does not exist. Go to the home page, the user guide or the documentation.', path: '404.html', depth: 0, body: '<div class="page solo"><main><h1>Page not found</h1><p><a href="/">Back to the home page</a>, or <a href="/docs/getting-started/">open the docs</a>.</p></main></div>', active: '', root: '/' })) // shown at any missing address, so its links start at the site's top
 
   for (const a of assets) {
     mkdirSync(dirname(join(out, 'assets', a)), { recursive: true })
     copyFileSync(join(root, a), join(out, 'assets', a))
   }
-  for (const f of ['site.css', 'site.js', 'office.js', 'fonts/pixelify-sans.woff2']) {
+  for (const f of ['site.css', 'site.js', 'office.js', 'demo.js', 'fonts/pixelify-sans.woff2']) {
     mkdirSync(dirname(join(out, f)), { recursive: true })
     copyFileSync(join(root, 'site', f), join(out, f))
   }
   write('search.json', JSON.stringify(index))
-  const urls = ['', ...pages.map((p) => `docs/${p.slug}/`)]
+  const urls = ['', 'demo/', ...pages.map((p) => `docs/${p.slug}/`)]
   write('sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${SITE}${u}</loc></url>`).join('\n')}\n</urlset>\n`)
   write('robots.txt', `User-agent: *\nAllow: /\n\nSitemap: ${SITE}sitemap.xml\n`)
   write('.nojekyll', '')

@@ -4,6 +4,8 @@ import { dirname, join, resolve } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 // @ts-expect-error a plain .mjs script, run by the Pages workflow
 import { SITE, build, pagesOf, resolveHref } from './build-site.mjs'
+// @ts-expect-error a plain browser script, copied to the site as it is
+import { STEPS, tipSide } from '../site/demo.js'
 
 const root = resolve(__dirname, '..')
 const out = mkdtempSync(join(tmpdir(), 'aw-site-'))
@@ -130,6 +132,43 @@ describe('the project site', () => {
     // The home page starts hidden only while the crew builds it, from a line in its head that also lets go after a while if the script never runs.
     expect(home).toContain("classList.add('building')")
     expect(doc).not.toContain("classList.add('building')")
+  })
+})
+
+describe('the demo tour', () => {
+  type Step = { img: string; part: string; title: string; text: string; x?: number; y?: number; w?: number; h?: number; end?: boolean; before?: string }
+  const steps = STEPS as Step[]
+
+  it('has its own page, linked from the top of every page and from the home page, and listed in the sitemap', () => {
+    const demo = readFileSync(join(out, 'demo', 'index.html'), 'utf8')
+    expect(demo).toContain(`<link rel="canonical" href="${SITE}demo/">`)
+    expect(demo).toMatch(/<a href="\.\.\/demo\/" class="on" aria-current="page">Demo<\/a>/)
+    expect(readFileSync(join(out, 'docs', 'install', 'index.html'), 'utf8')).toContain('href="../../demo/">Demo</a>')
+    expect(readFileSync(join(out, 'index.html'), 'utf8')).toMatch(/<a class="btn alt" href="demo\/">Try the demo<\/a>/)
+    expect(readFileSync(join(out, 'sitemap.xml'), 'utf8')).toContain(`<loc>${SITE}demo/</loc>`)
+    expect(existsSync(join(out, 'demo.js'))).toBe(true)
+  })
+
+  it('shows a real screen of the app at every step, carried by the site, with the spot to click inside the picture', () => {
+    expect(steps.length).toBeGreaterThan(10)
+    for (const s of steps) {
+      for (const img of [s.img, s.before].filter(Boolean)) expect(existsSync(join(out, 'assets', 'docs', 'images', 'demo', `${img}.jpg`)), img).toBe(true)
+      expect(s.title.length, s.img).toBeGreaterThan(5)
+      if (s.end) continue
+      expect(s.text.length, s.title).toBeGreaterThan(30)
+      for (const [a, b] of [[s.x! - s.w! / 2, s.x! + s.w! / 2], [s.y! - s.h! / 2, s.y! + s.h! / 2]]) {
+        expect(a, s.title).toBeGreaterThanOrEqual(0)
+        expect(b, s.title).toBeLessThanOrEqual(100)
+      }
+    }
+    expect(steps.at(-1)!.end).toBe(true)
+    expect(steps.filter((s) => s.end)).toHaveLength(1)
+  })
+
+  it('puts a step\'s card on the side of its spot with more room, so the card never covers the spot', () => {
+    expect(tipSide({ x: 20, y: 10, w: 4, h: 4 })).toEqual({ left: 25, right: null, top: 16, bottom: null })
+    expect(tipSide({ x: 80, y: 90, w: 10, h: 4 })).toEqual({ left: null, right: 28, top: null, bottom: 16 })
+    expect(tipSide({ x: 5, y: 2, w: 100, h: 100 })).toEqual({ left: 54, right: null, top: 50, bottom: null })
   })
 })
 
