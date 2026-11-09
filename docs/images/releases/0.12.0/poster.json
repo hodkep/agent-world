@@ -1,0 +1,52 @@
+{
+  "version": "0.12.0",
+  "tagline": "A browser for agents, and a new look for the office.",
+  "subtitle": "The Preview becomes a shared browser, replies read like paper, and a courier rides the office.",
+  "cards": [
+    {
+      "kicker": "Preview",
+      "title": "A browser agents can drive",
+      "text": "Agent-browser or Playwright on one shared session that keeps its logins: cookies held 30 days, stored encrypted.",
+      "chips": [
+        "agent-browser",
+        "Playwright",
+        "30 days",
+        "Encrypted"
+      ]
+    },
+    {
+      "kicker": "Chat",
+      "title": "Replies on the office's paper",
+      "text": "Commands come as terminal slips you can run, tables and code are framed, and MCP calls show their result.",
+      "chips": [
+        "Terminal slips",
+        "Edit cards",
+        "MCP results"
+      ]
+    },
+    {
+      "kicker": "Office",
+      "title": "A git courier, and a carrom can",
+      "text": "A commit, push or pull request leaves through a hatch in the wall on a green scooter; the lounge cabinets count commands.",
+      "chips": [
+        "Hatch",
+        "Scooter",
+        "Cabinets"
+      ]
+    },
+    {
+      "kicker": "Usage",
+      "title": "Storage as a treemap",
+      "text": "The Storage tab sizes each workspace as a tile, and the Share tab no longer counts a lump in an allowance as others' use.",
+      "chips": [
+        "Treemap",
+        "Share"
+      ]
+    }
+  ],
+  "also": [
+    "A Demo page on the website",
+    "Workflow steps show under Workflow in chat"
+  ],
+  "footer": "Download at agent-world.in"
+}
