@@ -23,7 +23,7 @@ test('todos: a long message a task came from is folded on whole blocks with a co
   const home = mkdtempSync(join(tmpdir(), 'aw-todo-excerpt-'))
   const args = join(home, 'args.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '100', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '2000', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
     home
   )
   try {
