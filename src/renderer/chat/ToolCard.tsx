@@ -266,6 +266,8 @@ export function ToolCard({ run, working, onImage }: { run: ToolRun; working: boo
           <span className="term-prompt" aria-hidden="true">$ </span>
           {/* The command itself, as typed, without the plumbing an agent adds to keep its output short. */}
           {cmd.split('\n')[0]!.replace(/\s*2>&1/g, '').replace(/\s*\|\s*(?:tail|head)\b.*$/, '') || title.text}
+          {/* What the agent said the command is for, when it said so. */}
+          {s(input.description).trim() && <span className="term-desc">{s(input.description).trim()}</span>}
         </span>
       )
       body = (
