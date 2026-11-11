@@ -46,6 +46,7 @@ test('the check before acting is part of the playbook, and what agents said when
 
     // Reached for: the numbers say how many said no; opening the row lists what they said, grouped, with advice.
     await dialog.getByRole('tab', { name: 'Usage' }).click()
+    await dialog.getByRole('tab', { name: 'Playbook', exact: true }).last().click()
     const row = dialog.getByRole('button', { name: /resolving-merge-conflicts/ })
     // Logged before related prompts were noted: what the agents decided still says it.
     await expect(row).toContainText('said no6')
@@ -83,6 +84,7 @@ test('Reached for judges a rule on the prompts that looked related: a rule ignor
     await page.getByRole('button', { name: 'Playbook and tools' }).first().click()
     const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
     await dialog.getByRole('tab', { name: 'Usage' }).click()
+    await dialog.getByRole('tab', { name: 'Playbook', exact: true }).last().click()
     await expect(dialog.locator('.reach-sum')).toContainText('Reminded 30 times. On 10 prompts that looked related')
     const row = dialog.getByRole('button', { name: /tdd/ })
     await expect(row).toContainText('reminded 30×')

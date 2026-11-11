@@ -69,11 +69,12 @@ test('chat: margin notes under a message say what the library did for it, and op
     await page.locator('header').getByRole('button', { name: 'Playbook and tools', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Playbook and tools' })
     await dialog.getByRole('tab', { name: 'Usage' }).click()
+    await dialog.getByRole('tab', { name: 'Playbook', exact: true }).last().click()
     const rows = dialog.getByLabel('Items agents were reminded of')
     await expect(rows).toContainText('pdf')
     await expect(rows).toContainText('Too few to judge yet')
 
-    await dialog.getByRole('tab', { name: 'Playbook' }).click()
+    await dialog.getByRole('tab', { name: 'Playbook', exact: true }).first().click()
     // Changing the playbook now leaves ada on the older text, which the pane says, and one click restarts her on the new one.
     await expect(dialog.getByLabel('Who has this text')).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('up to date')
