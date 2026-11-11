@@ -371,12 +371,14 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
               use={usage30[current.id]}
               places={places}
               busy={busy}
+              folder={folder || undefined}
+              footer={<SkillFooter item={current} busy={busy} onRemove={(at) => remove(current.id, at)} onDeleted={() => (setOpen(null), void load(), refreshScan())} />}
+              onChanged={() => void loadPlaces()}
               original={shelf.find((g) => g.kind === 'library')?.rows.find((r) => r.key === current.id)?.original}
               onUseOriginal={(dir, at) => void place(() => useOriginal(current.id, dir, at))}
               where={<SkillWhere id={current.id} colour={spineLook(current).colour} dir={current.place?.real ?? current.dir} places={places} busy={busy} onClaude={(on) => void place(() => window.aw.library.setClaude(current.id, on))} onLink={(t, on) => void place(() => window.aw.library.link(current.id, t, on, folder || undefined))} />}
             />
           ) : undefined}
-          footer={current.kind === 'skill' ? <SkillFooter item={current} busy={busy} onRemove={(at) => remove(current.id, at)} onDeleted={() => (setOpen(null), void load(), refreshScan())} /> : undefined}
           onEdit={() => edit(current)}
           onRemove={() => remove(current.id)}
         />

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { groupServers, mcpKey, needsConfirm, type Described, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
+import { groupServers, mcpKey, needsConfirm, type Described, type RemovalMode, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
 import { Bars, clean, ConfirmRun, StatusChip, Switch } from './McpBits'
 import { McpEntry } from './McpEntry'
+import { RemoveFrom, type RemovePlan } from './RemoveFrom'
 import { McpToolsTable } from './McpToolsTable'
 import { alsoIn, rowState } from './mcpView'
 
@@ -178,7 +179,7 @@ function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReade
         </div></div>
       )}
       {reader === 'tools' && <div className="lip-tp"><McpToolsTable server={s.name} tools={tools} usage={usage} connected={probe?.status === 'connected'} /></div>}
-      {reader === 'places' && <Places s={s} />}
+      {reader === 'places' && <Places s={s} onChanged={onRemoved} />}
       {reader === 'entry' && <EntryOf s={s} folder={folder} onSaved={onSaved} onRemoved={onRemoved} />}
     </div>
   )
@@ -187,18 +188,37 @@ function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReade
 const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
 
 /** Each file that lists this server, by project with Claude Code's own list first: what a row that stands for several says about where it comes from. */
-function Places({ s }: { s: McpServer }) {
+function Places({ s, onChanged }: { s: McpServer; onChanged: () => void }) {
   const all = s.places ?? [s]
   const by = new Map<string, McpServer[]>()
   for (const p of all) by.set(p.project ?? '', [...(by.get(p.project ?? '') ?? []), p])
+  // The main process makes the plan from a fresh scan; what is shown is what it does, and it does nothing if the files changed meanwhile.
+  const planFor = async (mode: RemovalMode, placeId?: string): Promise<RemovePlan> => {
+    const shown = await window.aw.library.mcpRemovalPlan(s.id, mode, placeId)
+    return {
+      lines: shown.steps.map((st) => ({ text: st.path, note: `${st.action === 'add-global' ? 'adds it here first, so one global stays' : 'removes it here'}${st.project ? ` · ${base(st.project)}` : ''}${st.repo ? ' · comes with the repo: git shows the change' : ''}` })),
+      commit: () => window.aw.library.mcpRemoval(s.id, mode, placeId, shown)
+    }
+  }
   return (
     <div className="lip-tp"><div className="sk2-over">
+      {all.length > 1 && (
+        <section>
+          <h5>Take it out of</h5>
+          <RemoveFrom name={s.name} plan={(k) => planFor(k as RemovalMode)} onDone={onChanged} options={[
+            { key: 'projects', label: 'Every project', icon: 'layers', hint: 'Keeps the entry in Claude Code’s own file' },
+            { key: 'all', label: 'Every place', icon: 'trash', tone: 'danger', hint: 'Removes it from Claude Code’s own file as well' },
+            { key: 'keep-global', label: 'Keep one global, remove the project ones', icon: 'pin', tone: 'keep', hint: 'Adds it to Claude Code’s own file first when it is not there' }
+          ]} />
+        </section>
+      )}
       {[...by].map(([project, ps]) => (
         <section key={project}>
           <h5 className="mt-pg"><b>{project ? base(project) : 'Everywhere'}</b><span className="mono" title={project}>{project || 'Claude Code’s own file'}</span></h5>
           {ps.map((p) => (
             <div key={p.id} className="mt-place">
               <span className="mono" title={p.path}>{p.path || 'the office itself'}</span>
+              {p.editable && <RemoveFrom name={s.name} inline options={[{ key: 'one', label: 'Remove from here', icon: 'trash' }]} plan={(k) => planFor(k as RemovalMode, p.id)} onDone={onChanged} />}
               <small>{needsConfirm(p) ? 'comes with the repo · asks before it runs' : p.where === 'global' ? 'Claude Code’s own list' : p.where === 'project' ? 'a project’s list in Claude Code’s own file' : 'its own list'}{p.disabled ? ' · switched off in this file' : ''}</small>
             </div>
           ))}

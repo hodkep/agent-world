@@ -21,6 +21,8 @@ import { importCandidates, scanSources } from './library/sources'
 import { installSkills, listSkills, npxRunner } from './library/installer'
 import { isRule } from './library/playbook'
 import { ownName } from '../shared/ownAccount'
+import { planRemoval } from './library/mcpRemove'
+import { applySkillRemoval, planSkillRemoval, type SkillRemovalPlan, type SkillScope } from './library/skillRemove'
 import { link as linkSkill, linkState, targets as skillTargets, unlink as unlinkSkill } from './library/links'
 import { sessionNotes } from './notes'
 import { resolveCommand } from './command'
@@ -2712,6 +2714,44 @@ async function main() {
     writeConfig(s.path, editFile(readJsonText(s.path), placeIn(s), s.name, null, null), { followLink: !needsConfirm(s) })
     probes.delete(s.id)
   })
+  const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+  // Taking one server out of several of its places: the plan is made here from a fresh scan, shown, and done only if the same plan comes out again.
+  const removalPlan = (id: unknown, mode: unknown, placeId: unknown) => {
+    const row = serverById(id)
+    if (!row) throw new Error('That server is not listed any more.')
+    if (mode !== 'one' && mode !== 'projects' && mode !== 'all' && mode !== 'keep-global') throw new Error('Choose what to remove.')
+    return planRemoval(scanServers(), row, mode, typeof placeId === 'string' ? placeId : undefined, join(userHome(), '.claude.json'))
+  }
+  ipcMain.handle('library:mcp-removal-plan', (_, id: unknown, mode: unknown, placeId: unknown) => removalPlan(id, mode, placeId))
+  ipcMain.handle('library:mcp-removal', (_, id: unknown, mode: unknown, placeId: unknown, shown: unknown) => {
+    const plan = removalPlan(id, mode, placeId)
+    const key = (st: { action: string; id: string }) => `${st.action}:${st.id}`
+    const was = isRecord(shown) && Array.isArray(shown.steps) ? (shown.steps as { action: string; id: string }[]).map(key) : []
+    if (was.join('\n') !== plan.steps.map(key).join('\n')) throw new Error('The files changed since you were shown them. Look again.')
+    for (const st of plan.steps) {
+      const s = serverById(st.id)
+      if (!s?.editable) throw new Error('That entry cannot be changed from here.')
+      if (st.action === 'add-global') {
+        if (scanServers().some((x) => x.where === 'global' && x.name === s.name)) throw new Error('Claude’s own file already has a different server of that name.')
+        const def = findRaw(readJsonText, s)
+        if (!def) throw new Error('Its entry could not be read.')
+        writeConfig(st.path, editFile(readJsonText(st.path), { kind: 'global' }, undefined, s.name, def))
+      } else {
+        writeConfig(s.path, editFile(readJsonText(s.path), placeIn(s), s.name, null, null), { followLink: !needsConfirm(s) })
+        probes.delete(s.id)
+      }
+    }
+  })
+  // The same for a skill's links: which folders, shown first, done only if the folders still hold what was shown.
+  const skillScope = (o: unknown): SkillScope => {
+    const sc = isRecord(o) ? o.scope : undefined
+    if (sc === 'project' && isRecord(o) && typeof o.folder === 'string') return { scope: 'project', folder: o.folder }
+    if (sc === 'projects' || sc === 'global' || sc === 'all' || sc === 'keep-global') return { scope: sc }
+    throw new Error('Choose what to remove.')
+  }
+  const skillCtx = () => ({ root: libraryService.library.root, home: userHome(), projects: allProjects() })
+  ipcMain.handle('library:skill-removal-plan', (_, id: unknown, o: unknown) => planSkillRemoval(skillCtx(), String(id), skillScope(o)))
+  ipcMain.handle('library:skill-removal', (_, id: unknown, o: unknown, shown: unknown) => applySkillRemoval(skillCtx(), String(id), skillScope(o), shown as SkillRemovalPlan))
   // On means on everywhere the app can see: out of the app's off list, and out of the entry's own `disabled` flag, which is the person's own file switching it off.
   ipcMain.handle('library:mcp-set', (_, name: unknown, on: unknown) => {
     const n = String(name)
