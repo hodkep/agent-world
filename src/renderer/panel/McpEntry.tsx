@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { McpServer, ProbeResult } from '../../shared/mcp'
-import { clean, ProbeLine } from './McpBits'
+import { needsConfirm, type Described, type McpServer, type ProbeResult } from '../../shared/mcp'
+import { clean, ConfirmRun, ProbeLine } from './McpBits'
 
 const TEMPLATE = '{\n  "type": "stdio",\n  "command": "",\n  "args": [],\n  "env": {}\n}'
 type Target = 'claude' | 'project' | 'agy'
@@ -20,14 +20,18 @@ export function McpEntry({ server, folder, onSaved, onRemoved }: { server?: McpS
   const [test, setTest] = useState<ProbeResult | null>(null)
   const [busy, setBusy] = useState<'' | 'test' | 'save' | 'remove'>('')
   const [sure, setSure] = useState(false)
+  const [masked, setMasked] = useState(true)
+  // An entry that comes with a project is run only after the person has been shown what the office worked out it would run.
+  const [ask, setAsk] = useState<Described | null>(null)
   useEffect(() => {
     setFail('')
     setTest(null)
     setSure(false)
+    setAsk(null)
     if (!server) return
     let live = true
     void window.aw.library.mcpEntry(server.id).then(
-      (e) => live && (setJson(e.json), setSaved(e.json), setFile(e.file), setName(e.name), setEditable(e.editable)),
+      (e) => live && (setJson(e.json), setSaved(e.json), setFile(e.file), setName(e.name), setEditable(e.editable), setMasked(e.masked)),
       (e: unknown) => live && setFail(clean(e))
     )
     return () => void (live = false)
@@ -72,13 +76,20 @@ export function McpEntry({ server, folder, onSaved, onRemoved }: { server?: McpS
         <div className="mt-fld">
           <label htmlFor="mt-json">{server ? 'Entry (JSON)' : 'Entry (JSON)'}</label>
           <textarea id="mt-json" className="mt-json" spellCheck={false} value={json} readOnly={!editable} onChange={(e) => (setJson(e.target.value), setTest(null))} rows={12} />
-          <p className={`mt-valid ${valid ? 'ok' : 'bad'}`}>{valid ? '✓ valid JSON · a value shown as •••••••• is kept as it is unless you type over it' : 'Not valid JSON yet'}</p>
+          <p className={`mt-valid ${valid ? 'ok' : 'bad'}`}>{valid ? (masked ? '✓ valid JSON · a value shown as •••••••• is kept as it is unless you type over it' : '✓ valid JSON · this entry comes with the project, so its values are shown whole') : 'Not valid JSON yet'}</p>
         </div>
         {fail && <p className="error" role="alert">{fail}</p>}
+        {ask && server && (
+          <ConfirmRun name={server.name} file={file || server.path} d={ask} onCancel={() => setAsk(null)}
+            onRun={() => (setAsk(null), run('test', async () => setTest(await window.aw.library.testMcp({ id: server.id, json, digest: ask.digest }))))} />
+        )}
         {test && <ProbeLine probe={test} />}
         {test?.status === 'connected' && <p className="hint">Connected: {test.tools.length} {test.tools.length === 1 ? 'tool' : 'tools'}. Save, then open Tools to read them.</p>}
         <div className="su-row mt-actions">
-          <button disabled={!valid || !!busy} onClick={() => run('test', async () => setTest(await window.aw.library.testMcp({ ...(server && { id: server.id }), json })))}>{busy === 'test' ? 'Connecting…' : 'Test connection'}</button>
+          <button disabled={!valid || !!busy} onClick={() => run('test', async () => {
+            if (server && needsConfirm(server)) return setAsk(await window.aw.library.mcpDescribe({ id: server.id, json }))
+            setTest(await window.aw.library.testMcp({ ...(server && { id: server.id }), json }))
+          })}>{busy === 'test' ? 'Connecting…' : 'Test connection'}</button>
           {editable && <button className="primary" disabled={!valid || !!busy || !name.trim() || (!!server && !dirty)} onClick={() => run('save', async () => onSaved((await window.aw.library.saveMcp({ ...(server ? { id: server.id } : { target, ...(folder && { folder }) }), name: name.trim(), json })).id))}>{busy === 'save' ? 'Saving…' : 'Save'}</button>}
           {server && editable && dirty && <button onClick={() => (setJson(saved), setName(server.name), setFail(''), setTest(null))}>Revert</button>}
           <span className="lib-sp" />

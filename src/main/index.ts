@@ -5,6 +5,7 @@ import { createLibraryService, runsWhenOpened } from './library/service'
 import { scanMcp } from './library/mcpScan'
 import { editFile, enableEntry, findRaw, maskEntry, prepareEntry, unmaskEntry, type Place } from './library/mcpEdit'
 import { probe } from './library/mcpProbe'
+import { describeForScreen, digestOf } from './library/mcpDescribe'
 import { writeConfig } from './library/mcpFile'
 import { ToolLog, ToolPolicy } from './library/toolPolicy'
 import { agyDenies, claudeRules, needsConfirm, toolUsage, type McpServer, type ProbeResult } from '../shared/mcp'
@@ -2637,31 +2638,45 @@ async function main() {
   // MCP servers and tools: what the programs' own files list (read only), what is off, what each tool is told, and what was used.
   ipcMain.handle('library:mcp', () => ({ servers: scanServers(), ...toolPolicy.get(), probes: Object.fromEntries(probes) }))
   // Starting a server runs the command in its entry, so it happens only when the person asks, for a server the last scan found (the screen never sends a command).
-  ipcMain.handle('library:mcp-connect', async (_, id: unknown, confirmed?: unknown) => {
+  ipcMain.handle('library:mcp-connect', async (_, id: unknown, digest?: unknown) => {
     const s = serverById(id)
     if (!s || s.where === 'office') throw new Error('That server is not listed any more.')
-    // A project's .mcp.json comes with the project: its command runs only after the person has been shown it and said yes.
-    if (needsConfirm(s) && confirmed !== true) throw new Error('This entry comes with a project (.mcp.json). Its command runs only after you confirm it.')
     const def = findRaw(readJsonText, s)
     if (!def) throw new Error('Its entry is not in the file any more.')
-    const r = await limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(s.project && isDir(s.project) && { cwd: s.project }) }))
+    const cwd = s.project && isDir(s.project) ? s.project : undefined
+    // A project's .mcp.json comes with the project: what runs is only what the person was shown, which the digest of it says; if the entry is not that now, nothing starts.
+    if (needsConfirm(s) && (typeof digest !== 'string' || digest !== digestOf(def, cwd))) throw new Error('This entry comes with a project (.mcp.json). It runs only what you were shown, and it is not that now: look at it again.')
+    const r = await limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(cwd && { cwd }) }))
     probes.set(s.id, r)
     return r
+  })
+  // What starting an entry would run (an entry in the file, or as typed), worked out here by the rule that starts it, with the digest to ask a start for.
+  ipcMain.handle('library:mcp-describe', (_, o: { id?: unknown; json?: unknown }) => {
+    const s = o?.id === undefined ? undefined : serverById(o.id)
+    if (o?.id !== undefined && !s) throw new Error('That server is not listed any more.')
+    const raw = s ? findRaw(readJsonText, s) : null
+    const def = o?.json === undefined ? raw : unmaskEntry(prepareEntry(String(o.json)), s && !needsConfirm(s) ? (raw ?? undefined) : undefined)
+    if (!def) throw new Error('Its entry is not in the file any more.')
+    return describeForScreen(def, s?.project && isDir(s.project) ? s.project : undefined, !!s && needsConfirm(s))
   })
   // The entry as the screen shows and edits it: the names of what is secret, never the values.
   ipcMain.handle('library:mcp-entry', (_, id: unknown) => {
     const s = serverById(id)
     const def = s && findRaw(readJsonText, s)
     if (!s || !def) throw new Error('That server is not listed any more.')
-    return { json: JSON.stringify(maskEntry(def), null, 2), file: s.path || 'the office', name: s.name, editable: !!s.editable }
+    // What comes with a project is shown whole: its values are the project's, not the person's secrets, and a value hidden here would run unseen.
+    return { json: JSON.stringify(needsConfirm(s) ? def : maskEntry(def), null, 2), file: s.path || 'the office', name: s.name, editable: !!s.editable, masked: !needsConfirm(s) }
   })
   // Test connection while setting up: starts the entry as it is typed, before anything is saved.
-  ipcMain.handle('library:mcp-test', async (_, o: { id?: unknown; json?: unknown }) => {
+  ipcMain.handle('library:mcp-test', async (_, o: { id?: unknown; json?: unknown; digest?: unknown }) => {
     const s = o?.id === undefined ? undefined : serverById(o.id)
     if (o?.id !== undefined && !s) throw new Error('That server is not listed any more.')
-    const old = s ? (findRaw(readJsonText, s) ?? undefined) : undefined
+    const old = s && !needsConfirm(s) ? (findRaw(readJsonText, s) ?? undefined) : undefined
     const def = unmaskEntry(prepareEntry(String(o?.json ?? '')), old)
-    return limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(s?.project && isDir(s.project) && { cwd: s.project }) }))
+    const cwd = s?.project && isDir(s.project) ? s.project : undefined
+    // An entry that comes with a project runs only as it was shown: the digest is of the entry as typed.
+    if (s && needsConfirm(s) && (typeof o.digest !== 'string' || o.digest !== digestOf(def, cwd))) throw new Error('This entry comes with a project (.mcp.json). It runs only what you were shown, and it is not that now: look at it again.')
+    return limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(cwd && { cwd }) }))
   })
   ipcMain.handle('library:mcp-save', (_, o: { id?: unknown; name?: unknown; target?: unknown; folder?: unknown; json?: unknown }) => {
     const name = String(o?.name ?? '').trim()

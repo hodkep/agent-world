@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { groupServers, needsConfirm, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
-import { Bars, clean, StatusChip, Switch } from './McpBits'
+import { groupServers, mcpKey, needsConfirm, type Described, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
+import { Bars, clean, ConfirmRun, StatusChip, Switch } from './McpBits'
 import { McpEntry } from './McpEntry'
 import { McpToolsTable } from './McpToolsTable'
 import { alsoIn, rowState } from './mcpView'
@@ -20,7 +20,7 @@ export function McpTab({ folder }: { folder?: string }) {
   const [probes, setProbes] = useState<Record<string, ProbeResult>>({})
   const [busy, setBusy] = useState<Set<string>>(new Set())
   // A server that comes with a project is not started until its command has been shown and the person has said yes.
-  const [ask, setAsk] = useState<{ s: McpServer; command: string } | null>(null)
+  const [ask, setAsk] = useState<{ s: McpServer; d: Described } | null>(null)
   const load = useCallback(async () => {
     try {
       const [r, u] = await Promise.all([window.aw.library.mcp(), window.aw.library.toolUsage()])
@@ -39,9 +39,9 @@ export function McpTab({ folder }: { folder?: string }) {
       () => (setFail(''), on ? void load() : setRep((r) => r && { ...r, off: [...new Set([...r.off, name])] })),
       (e: unknown) => setFail(clean(e))
     )
-  const connect = (s: McpServer, confirmed = false) => {
+  const connect = (s: McpServer, digest?: string) => {
     setBusy((b) => new Set(b).add(s.id))
-    return (confirmed ? window.aw.library.connectMcp(s.id, true) : window.aw.library.connectMcp(s.id)).then(
+    return (digest ? window.aw.library.connectMcp(s.id, digest) : window.aw.library.connectMcp(s.id)).then(
       (r) => setProbes((p) => ({ ...p, [s.id]: r })),
       (e: unknown) => setFail(clean(e))
     ).finally(() => setBusy((b) => (b.delete(s.id), new Set(b))))
@@ -50,19 +50,7 @@ export function McpTab({ folder }: { folder?: string }) {
   const connectAll = () => void Promise.all((rep?.servers ?? []).filter((s) => s.where !== 'office' && !needsConfirm(s) && !busy.has(s.id)).map((s) => connect(s)))
   const start = (s: McpServer) => {
     if (!needsConfirm(s)) return void connect(s)
-    void window.aw.library.mcpEntry(s.id).then(
-      (e) => {
-        const d = (() => {
-          try {
-            return JSON.parse(e.json) as { command?: string; args?: string[]; url?: string }
-          } catch {
-            return {}
-          }
-        })()
-        setAsk({ s, command: d.url ?? [d.command, ...(d.args ?? [])].filter(Boolean).join(' ') })
-      },
-      (err: unknown) => setFail(clean(err))
-    )
+    void window.aw.library.mcpDescribe({ id: s.id }).then((d) => setAsk({ s, d }), (err: unknown) => setFail(clean(err)))
   }
   const servers = useMemo(() => (rep?.servers ?? []).filter((s) => !find.trim() || `${s.name} ${s.fact}`.toLowerCase().includes(find.trim().toLowerCase())), [rep, find])
   const groups = useMemo(() => groupServers(servers), [servers])
@@ -84,13 +72,7 @@ export function McpTab({ folder }: { folder?: string }) {
         </div>
         {rep && <p className="lib-sum"><span className="hint">{rep.servers.length} {rep.servers.length === 1 ? 'server' : 'servers'} · {on} on for Claude agents of {switchable} you can switch{connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number is calls in 30 days</span></p>}
         {fail && <p className="error" role="alert">{fail}</p>}
-        {ask && (
-          <div className="sk2-note" role="alertdialog" aria-label={`Connect ${ask.s.name}?`}>
-            <span><b>Run {ask.s.name}’s command?</b> It comes with the project, in <span className="mono">{ask.s.path}</span>, not from you. Connecting starts it on this computer:<br /><code className="mt-cmd">{ask.command || '(no command)'}</code></span>
-            <button className="primary" onClick={() => (setAsk(null), void connect(ask.s, true))}>Run it</button>
-            <button onClick={() => setAsk(null)}>Cancel</button>
-          </div>
-        )}
+        {ask && <ConfirmRun name={ask.s.name} file={ask.s.path} d={ask.d} onRun={() => (setAsk(null), void connect(ask.s, ask.d.digest))} onCancel={() => setAsk(null)} />}
         <section className="drawer sk2" aria-label="MCP servers">
           <div className="sk2-list lib-scrollbar">
             {groups.map((g) => (
@@ -99,7 +81,7 @@ export function McpTab({ folder }: { folder?: string }) {
                 {g.rows.map((s) => {
                   const st = rowState(s, off)
                   // Calls are counted by Claude agents' server names: they say nothing about agy's own lists.
-                  const n = s.where === 'agy-cli' || s.where === 'agy-ide' ? 0 : (usage.servers[s.name]?.n ?? 0)
+                  const n = s.where === 'agy-cli' || s.where === 'agy-ide' ? 0 : (usage.servers[mcpKey(s.name)]?.n ?? 0)
                   const p = probes[s.id]
                   return (
                     <div key={s.id} className={`sk2-row mt-row${open === s.id ? ' sel' : ''}${st === 'off' || st === 'ownoff' ? ' off' : ''}${s.readOnly && s.where !== 'office' && s.where !== 'agy-cli' ? ' ro' : ''}`}>
@@ -140,7 +122,7 @@ export function McpTab({ folder }: { folder?: string }) {
 function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReader, onSet, onConnect, onSaved, onRemoved }: { s: McpServer; all: McpServer[]; off: string[]; usage: ToolUsage; probe?: ProbeResult; busy: boolean; folder?: string; reader: Reader; onReader: (r: Reader) => void; onSet: (name: string, on: boolean) => void; onConnect: () => void; onSaved: (id: string) => void; onRemoved: () => void }) {
   const st = rowState(s, off)
   const also = alsoIn(s, all)
-  const used = usage.servers[s.name]
+  const used = usage.servers[mcpKey(s.name)]
   const claude = s.where === 'global' || s.where === 'project'
   const tools = probe?.status === 'connected' ? probe.tools : []
   const TABS: [Reader, string][] = [['overview', 'Overview'], ['tools', `Tools${tools.length ? ` (${tools.length})` : ''}`], ['entry', 'Entry (JSON)']]
