@@ -1,0 +1,30 @@
+{
+  "version": "0.13.1",
+  "tagline": "One row per server. Fewer background probes.",
+  "subtitle": "The Library lists each MCP server once with its places, lets you take one out, and the app asks plan limits far less often.",
+  "cards": [
+    {
+      "kicker": "Library",
+      "title": "One row per MCP server",
+      "text": "A server set up the same in several places is one row, with its places in a Places tab.",
+      "chips": ["One row", "Places tab"]
+    },
+    {
+      "kicker": "Library",
+      "title": "Take it out of places",
+      "text": "Remove an MCP server or a skill from one place, all projects or everywhere.",
+      "chips": ["One place", "All projects", "Everywhere"]
+    },
+    {
+      "kicker": "Agents",
+      "title": "Lighter on the battery",
+      "text": "Plan limits are asked of the programs at most every 15 minutes: 4 launches in 6 minutes instead of 10.",
+      "chips": ["15 min", "4 vs 10 launches"]
+    }
+  ],
+  "also": [
+    "A hidden window asks for no plan limits",
+    "The limits probe starts no MCP servers"
+  ],
+  "footer": "Download at agent-world.in"
+}
