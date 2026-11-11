@@ -20,3 +20,11 @@ export async function restartWhenIdle(ids: string[], restart: (id: string) => Pr
   }
   return failed
 }
+
+/** What to tell the person about agents that could not be restarted: the busy ones as one sentence, any other refusal in its own words with the agent's name. */
+export function restartRefusal(failed: { name: string; why: string }[]): string {
+  const busy = failed.filter((f) => /Wait until it finishes/.test(f.why)).map((f) => f.name)
+  const parts = failed.filter((f) => !busy.includes(f.name)).map((f) => `• ${f.name}: ${f.why}`)
+  if (busy.length) parts.push(`${busy.join(', ')} ${busy.length === 1 ? 'is' : 'are'} in the middle of a turn. Try again when ${busy.length === 1 ? 'it finishes' : 'they finish'}.`)
+  return parts.join('\n')
+}

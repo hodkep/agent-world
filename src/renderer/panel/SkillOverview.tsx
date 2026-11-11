@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import type { DeletePlan, LibraryCandidate, LibraryItem, SkillPlaces, SkillUse } from '../../shared/library'
 import { sizeText } from '../../shared/size'
 import { shortPath } from './skillGroups'
+import { toast } from '../toasts'
 
 /** The skill's reader, as one calm column: where it lives, where it works, and where it is used. */
 export function SkillOverview({ item, use, places, where, original, busy, onUseOriginal }: { item: LibraryItem; use?: SkillUse; places: SkillPlaces; where: ReactNode; original?: string; busy: boolean; onUseOriginal: (dir: string, at: DOMRect) => void }) {
@@ -10,8 +11,7 @@ export function SkillOverview({ item, use, places, where, original, busy, onUseO
   const projects = Object.entries(use?.projects ?? {}).sort((a, b) => b[1] - a[1])
   const top = projects[0]?.[1] ?? 1
   const nameOf = (key: string) => places.projects.find((x) => x.key === key)?.name ?? key
-  const [fail, setFail] = useState('')
-  const act = (v: Promise<unknown>) => void v.then(() => setFail(''), (e: unknown) => setFail(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e)))
+  const act = (v: Promise<unknown>) => void v.catch(toast)
   return (
     <div className="sk2-over">
       <section>
@@ -35,7 +35,6 @@ export function SkillOverview({ item, use, places, where, original, busy, onUseO
             <button disabled={busy} onClick={(e) => onUseOriginal(original, e.currentTarget.getBoundingClientRect())}>Use the original, delete the copy</button>
           </div>
         )}
-        {fail && <p className="error" role="alert">{fail}</p>}
       </section>
       {!item.missing && <section><h5>Where it works</h5>{where}</section>}
       <section>
@@ -58,14 +57,12 @@ export function SkillFooter({ item, busy, onRemove, onDeleted }: { item: Library
   // The button the question is asked from: the callout points at it.
   const [at, setAt] = useState<DOMRect | null>(null)
   const [again, setAgain] = useState(false)
-  const [error, setError] = useState('')
-  const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
   const ask = (e: React.MouseEvent<HTMLButtonElement>) => {
-    setError('')
     setAt(e.currentTarget.getBoundingClientRect())
-    window.aw.library.deletePlan(item.id).then(setPlan, (err) => setError(clean(err)))
+    // A refused plan is told in a toast: the question never opens for it.
+    window.aw.library.deletePlan(item.id).then((p) => (p.refused ? toast(p.refused) : setPlan(p)), toast)
   }
-  const go = (anyway: boolean) => window.aw.library.delete(item.id, anyway).then(onDeleted, (e) => setError(clean(e)))
+  const go = (anyway: boolean) => window.aw.library.delete(item.id, anyway).then(onDeleted, (e) => (toast(e), close()))
   const copy = !item.place
   const total = plan?.files.reduce((n, f) => n + (f.bytes ?? 0), 0) ?? 0
   const asking = plan && !plan.refused && (plan.files.length || plan.links.length) && at
@@ -76,7 +73,6 @@ export function SkillFooter({ item, busy, onRemove, onDeleted }: { item: Library
       {!copy && !item.missing && item.place?.kind !== 'plugin' && <button className="ghost bad-text" disabled={busy} onClick={ask}>Delete…</button>}
       <span className="lib-sp" />
       <span className="hint">{copy ? 'The files are kept in the library, so this deletes them.' : item.missing ? 'Its folder is gone, so there is nothing left to delete.' : item.place?.kind === 'plugin' ? 'Claude manages this skill: it can only be removed.' : 'Remove keeps the files. Delete removes them.'}</span>
-      {(plan?.refused || error) && <p className="error" role="alert">{plan?.refused ?? error}</p>}
       {asking && plan && (
         <Callout at={at} tone="ask" label={`Delete ${item.name}`} onClose={close}>
           <b>Delete {item.name}?</b>
@@ -88,7 +84,6 @@ export function SkillFooter({ item, busy, onRemove, onDeleted }: { item: Library
           </ul>
           <p className="hint">It will disappear from Claude Code, Antigravity{plan.rules ? ` and ${plan.rules} playbook ${plan.rules === 1 ? 'rule' : 'rules'} that name it` : ''}.</p>
           {plan.tracked && !again && <p className="warn"><b>Git tracks this skill</b> in its project: deleting it shows as a deletion there.</p>}
-          {error && <p className="bad" role="alert">{error}</p>}
           <div className="su-row">
             {plan.tracked && !again ? <button className="danger sm" disabled={busy} onClick={() => setAgain(true)}>Delete anyway…</button> : <button className="danger sm" disabled={busy} onClick={() => void go(plan.tracked)}>{total ? `Delete ${sizeText(total)}` : 'Delete'}</button>}
             <button className="sm" onClick={close}>Keep it</button>

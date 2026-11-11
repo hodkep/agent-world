@@ -2563,7 +2563,8 @@ async function main() {
   ipcMain.handle('library:list', async () => ({ items: await libraryService.items(), usage: await libraryService.usage() }))
   ipcMain.handle('library:uses', (_, agentId: string) => libraryService.usesOf(String(agentId)))
   ipcMain.handle('library:silent', (_, folder: string) => (folder ? libraryService.silent(folder, (id) => busyAt.get(id) ?? 0) : []))
-  ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder) : []))
+  // An asleep agent starts afresh with the current playbook when it is woken, so only a running one can be out of date.
+  ipcMain.handle('library:holders', (_, folder: string) => (folder ? libraryService.holders(folder).map((h) => ({ ...h, stale: h.stale && sessions.has(h.id) })) : []))
   ipcMain.handle('library:stats', () => libraryService.stats())
   // Opens one of a skill's own files in the program the Mac uses for it, or shows it (or the skill's folder, with no file) in Finder. Only paths inside that skill.
   ipcMain.handle('library:file', async (_, id: string, file: string | null, action: 'open' | 'show') => {
