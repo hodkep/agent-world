@@ -5363,3 +5363,4 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-par { display: inline-flex; gap: 4px; align-items: baseline; font: 11px Menlo, Consolas, monospace; padding: 0 6px; margin: 0 4px 4px 0; border: 2px solid var(--ink); background: var(--well); color: var(--muted); }
 .mt-par i { font-style: normal; color: var(--hint); }
 .mt-par em { color: var(--accent); font-style: normal; }
+.mt-cmd { display: block; margin-top: 6px; padding: 6px 8px; background: var(--well); border: 2px solid var(--ink); font: 12px Menlo, Consolas, monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
