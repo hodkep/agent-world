@@ -5364,3 +5364,11 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-par i { font-style: normal; color: var(--hint); }
 .mt-par em { color: var(--accent); font-style: normal; }
 .mt-cmd { display: block; margin-top: 6px; padding: 6px 8px; background: var(--well); border: 2px solid var(--ink); font: 12px Menlo, Consolas, monospace; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mt-ask { align-items: flex-start; }
+.mt-ask-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.mt-arg { display: inline-block; margin: 0 6px 4px 0; padding: 0 6px; background: var(--panel-2); border: 1px solid var(--line); white-space: pre-wrap; }
+.mt-env { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.mt-env > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; font-size: 12px; }
+.mt-env dt { font: 700 11.5px Menlo, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
+.mt-env dd { margin: 0; overflow-wrap: anywhere; }
+.mt-risky { margin: 0; padding: 6px 8px; border: 2px solid var(--ink); background: var(--danger-well); color: var(--danger-text); font-size: 12px; }

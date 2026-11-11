@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type { Policy, ProbeResult } from '../../shared/mcp'
+import type { Described, Policy, ProbeResult } from '../../shared/mcp'
 import { statusOf } from './mcpView'
 
 export const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
@@ -53,5 +53,36 @@ export function ProbeLine({ probe }: { probe: ProbeResult }) {
       <StatusChip probe={probe} />
       <span>{probe.status === 'connected' ? `${probe.server ? `${probe.server.name} ${probe.server.version} · ` : ''}${(probe.ms / 1000).toFixed(1)} s` : probe.message}</span>
     </p>
+  )
+}
+
+/**
+ * What starting an entry that comes with a project would run, exactly as the office worked it out: the command and each argument on its own, or the address and its headers, every
+ * variable with its value, and the folder it runs in. A variable that changes how a program loads is called out. Nothing starts until Run it.
+ */
+export function ConfirmRun({ name, file, d, onRun, onCancel }: { name: string; file: string; d: Described; onRun: () => void; onCancel: () => void }) {
+  return (
+    <div className="sk2-note mt-ask" role="alertdialog" aria-label={`Run ${name}?`}>
+      <div className="mt-ask-body">
+        <b>Run {name} from this project?</b>
+        <span>It comes with the project, in <span className="mono">{file}</span>, not from you. Starting it runs this on this computer:</span>
+        {d.url ? (
+          <code className="mt-cmd">{d.url}</code>
+        ) : (
+          <code className="mt-cmd">{[d.command ?? '(no command)', ...d.args].map((a, i) => <span key={i} className="mt-arg">{a}</span>)}</code>
+        )}
+        {d.cwd && <span className="hint">in the folder <span className="mono">{d.cwd}</span></span>}
+        {(d.env.length > 0 || d.headers.length > 0) && (
+          <dl className="mt-env">
+            {[...d.env.map((e) => ({ ...e, kind: 'variable' })), ...d.headers.map((e) => ({ ...e, kind: 'header' }))].map((e) => (
+              <div key={`${e.kind}:${e.name}`}><dt>{e.name}</dt><dd className="mono">{e.value}</dd></div>
+            ))}
+          </dl>
+        )}
+        {d.risky.length > 0 && <p className="mt-risky" role="note">It sets {d.risky.join(', ')}, which can change how programs start or what they load: read them before you run it.</p>}
+      </div>
+      <button className="primary" onClick={onRun}>Run it</button>
+      <button onClick={onCancel}>Cancel</button>
+    </div>
   )
 }

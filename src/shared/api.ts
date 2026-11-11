@@ -613,11 +613,13 @@ export interface AwApi {
     setToolPolicy(tool: string, policy: import('./mcp').Policy | null): Promise<void>
     toolUsage(): Promise<import('./mcp').ToolUsage>
     /** Starts a server from its entry and says what it answers: its status and its tools. Only when asked. */
-    connectMcp(id: string, confirmed?: boolean): Promise<import('./mcp').ProbeResult>
+    connectMcp(id: string, digest?: string): Promise<import('./mcp').ProbeResult>
+    /** What starting an entry would run, by the rule that starts it, with the digest a start of a project's entry must carry. */
+    mcpDescribe(o: { id?: string; json?: string }): Promise<import('./mcp').Described>
     /** An entry as its file has it, with each secret masked. */
-    mcpEntry(id: string): Promise<{ json: string; file: string; name: string; editable: boolean }>
+    mcpEntry(id: string): Promise<{ json: string; file: string; name: string; editable: boolean; masked: boolean }>
     /** Starts an entry as it is typed, before it is saved. */
-    testMcp(o: { id?: string; json: string }): Promise<import('./mcp').ProbeResult>
+    testMcp(o: { id?: string; json: string; digest?: string }): Promise<import('./mcp').ProbeResult>
     /** Writes an entry into its file: changes the one `id` names, or adds one at `target`. */
     saveMcp(o: { id?: string; name: string; target?: 'claude' | 'project' | 'agy'; folder?: string; json: string }): Promise<{ id: string }>
     removeMcp(id: string): Promise<void>
