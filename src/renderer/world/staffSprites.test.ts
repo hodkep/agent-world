@@ -69,3 +69,21 @@ describe('the git courier', () => {
     }
   })
 })
+
+describe('the librarian', () => {
+  it('is drawn in her own colours, grey hair and a cardigan, and wears glasses seen from the front and the side', () => {
+    expect(STAFF_KEYS.librarian!.h).not.toBe(STAFF_KEYS.boy!.h)
+    expect(STAFF_KEYS.librarian!.c).not.toBe(STAFF_KEYS.boy!.c)
+    for (const view of ['front', 'side'] as const) expect(staffPixels('librarian', view, 'stand')[7], view).toContain('w')
+    expect(staffPixels('librarian', 'back', 'stand')[7]).not.toContain('w')
+  })
+
+  it('has every pose the beats use, 16x24, in her own colours', () => {
+    for (const view of ['front', 'side', 'back'] as const)
+      for (const pose of ['stand', 'walk1', 'walk2', 'hold', 'reach', 'wipe', 'point', 'chin'] as const) {
+        const rows = staffPixels('librarian', view, pose)
+        expect(rows).toHaveLength(24)
+        for (const row of rows) for (const ch of row) expect(ch === '.' || ch in STAFF_KEYS.librarian!, `${view} ${pose} '${ch}'`).toBe(true)
+      }
+  })
+})
