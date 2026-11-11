@@ -2,6 +2,12 @@ import { readText, resolveEntry, resolveFile, startFileServer } from './files'
 import { listFolderFiles } from './folderFiles'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService, runsWhenOpened } from './library/service'
+import { scanMcp } from './library/mcpScan'
+import { editFile, enableEntry, findRaw, maskEntry, prepareEntry, unmaskEntry, type Place } from './library/mcpEdit'
+import { probe } from './library/mcpProbe'
+import { writeConfig } from './library/mcpFile'
+import { ToolLog, ToolPolicy } from './library/toolPolicy'
+import { agyDenies, claudeRules, toolUsage, type McpServer, type ProbeResult } from '../shared/mcp'
 import { syncGuide } from './library/guide'
 import { syncVisuals } from './library/visuals'
 import { createTodoService } from './todos/service'
@@ -35,7 +41,7 @@ import { promisify } from 'node:util'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { basename, delimiter, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { BrowserWindow, Menu, Notification, app, clipboard, dialog, globalShortcut, ipcMain, powerSaveBlocker, protocol, session, shell, webContents } from 'electron'
 import { isWebUrl } from './webUrl'
 import { cachedLoginPath, packagedPath, parseLoginPath } from './appPath'
@@ -684,6 +690,56 @@ const claudeAccounts = (): { name: string; dir: string }[] => [
     return dir ? [{ name: a.name, dir }] : []
   })
 ]
+// Which MCP servers are off for the agents the app runs and what each tool is told (Playbook and tools), and a note of each tool call for Usage. Both are the app's own files: the programs' are only read.
+const toolPolicy = new ToolPolicy(join(HOME, 'tool-policy.json'))
+const toolLog = new ToolLog(join(HOME, 'tool-calls.jsonl'))
+try {
+  toolLog.prune(Date.now())
+} catch {
+  /* an unreadable note file is counted from empty */
+}
+const readJsonText = (f: string) => {
+  try {
+    return readFileSync(f, 'utf8')
+  } catch {
+    return null
+  }
+}
+const scanServers = () =>
+  scanMcp({
+    read: readJsonText,
+    claudeFiles: [...new Set([join(userHome(), '.claude.json'), ...claudeAccounts().map((a) => join(a.dir, '.claude.json'))])],
+    projects: allProjects(),
+    agyCli: process.env.AW_AGY_CONFIG ?? join(userHome(), '.gemini', 'config', 'mcp_config.json'),
+    agyIde: join(userHome(), '.gemini', 'antigravity', 'mcp_config.json')
+  })
+const noteTool = (id: string, tool: string) => {
+  const a = byId(id)
+  if (!a) return
+  try {
+    toolLog.add({ agent: id, project: projectOf(a), provider: a.provider ?? 'claude', tool })
+  } catch {
+    /* counting is a convenience */
+  }
+}
+/** What the last connection to each server found, by the server's id; kept for as long as the app runs. */
+const probes = new Map<string, ProbeResult>()
+const agyCliFile = () => process.env.AW_AGY_CONFIG ?? join(userHome(), '.gemini', 'config', 'mcp_config.json')
+const serverById = (id: unknown) => scanServers().find((s) => s.id === id)
+const placeIn = (s: McpServer): Place => (s.where === 'global' ? { kind: 'global' } : s.where === 'project' && !s.path.endsWith('.mcp.json') ? { kind: 'project', project: s.project ?? '' } : { kind: 'file' })
+let probing = 0
+const waiting: (() => void)[] = []
+/** No more than three servers are started at once: Connect all must not start every server on the computer together. */
+async function limited<T>(fn: () => Promise<T>): Promise<T> {
+  while (probing >= 3) await new Promise<void>((r) => waiting.push(r))
+  probing++
+  try {
+    return await fn()
+  } finally {
+    probing--
+    waiting.shift()?.()
+  }
+}
 // The app's own guide is a skill in the library, made from the pages that ship with the app (the ones on GitHub), so agents can read how to do things in it.
 try {
   const guideDir = [join(process.resourcesPath, 'guide'), join(app.getAppPath(), 'docs', 'guide')].find((d) => existsSync(d))
@@ -847,7 +903,7 @@ function agentFiles(a: AgentRecord) {
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform })
+  const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform, rules: claudeRules(toolPolicy.policies(), toolPolicy.get().off) })
   // Every program's agent can reach the office from its own processes (git's hook asks it whether a commit may go ahead), not only the ones that read it from here.
   return { ...prepared, env: { AW_MCP_URL: office.mcpUrl, AW_AGENT_TOKEN: agentToken, ...(browserEndpoint ? browserEnv(browserEndpoint.urlFor(a.id), a.id) : {}), ...prepared.env } }
 }
@@ -1347,7 +1403,7 @@ async function main() {
     reminderFor: async (id, prompt, origin) => promptContext(id, prompt, remote.touches(id, prompt) ? await origin.fromProgram() : false) || null,
     callerIsProgram: async (id, port) => fromAgentProgram((await peerPids(port)) ?? [], sessions.get(id)?.pid, process.pid),
     blockEdit: (id, file, cwd) => workflows.editBlock(id, file, cwd || byId(id)?.cwd || ''),
-    onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input)),
+    onToolUse: (id, tool, input) => (noteEdit(id, tool, input), noteLibraryUse(id, tool, input), noteTool(id, tool)),
     // A git, test, build or lint command that failed while the agent's run is open is part of the run's story.
     onToolFailed: (id, tool, input, error) => {
       const command = tool === 'Bash' && typeof input.command === 'string' ? input.command : ''
@@ -1584,7 +1640,7 @@ async function main() {
         return {}
       }
       libraryService.hookCalled(id)
-      return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), transcriptPath: providerOf(a).hookTranscript?.(a), remind: (prompt) => promptContext(id, prompt, remote.touches(id, prompt) && savedAs(a, prompt)), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd) }) ?? {}
+      return providerOf(a).libraryHook?.(event, payload, { officeTools: ['yes', 'connected'].includes(mailState(providerOf(a)) as string), transcriptPath: providerOf(a).hookTranscript?.(a), remind: (prompt) => promptContext(id, prompt, remote.touches(id, prompt) && savedAs(a, prompt)), used: (path) => noteLibraryUse(id, 'Read', { file_path: path }), editBlock: (file) => workflows.editBlock(id, file, a.cwd), toolCall: (tool) => noteTool(id, tool), toolDenied: (tool) => agyDenies(toolPolicy.policies(), tool) }) ?? {}
     },
     todos: todoService,
     chatMod: {
@@ -2578,6 +2634,73 @@ async function main() {
     } else shell.showItemInFolder(path)
   })
   ipcMain.handle('library:usage30', () => libraryService.usage30())
+  // MCP servers and tools: what the programs' own files list (read only), what is off, what each tool is told, and what was used.
+  ipcMain.handle('library:mcp', () => ({ servers: scanServers(), ...toolPolicy.get(), probes: Object.fromEntries(probes) }))
+  // Starting a server runs the command in its entry, so it happens only when the person asks, for a server the last scan found (the screen never sends a command).
+  ipcMain.handle('library:mcp-connect', async (_, id: unknown) => {
+    const s = serverById(id)
+    if (!s || s.where === 'office') throw new Error('That server is not listed any more.')
+    const def = findRaw(readJsonText, s)
+    if (!def) throw new Error('Its entry is not in the file any more.')
+    const r = await limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(s.project && isDir(s.project) && { cwd: s.project }) }))
+    probes.set(s.id, r)
+    return r
+  })
+  // The entry as the screen shows and edits it: the names of what is secret, never the values.
+  ipcMain.handle('library:mcp-entry', (_, id: unknown) => {
+    const s = serverById(id)
+    const def = s && findRaw(readJsonText, s)
+    if (!s || !def) throw new Error('That server is not listed any more.')
+    return { json: JSON.stringify(maskEntry(def), null, 2), file: s.path || 'the office', name: s.name, editable: !!s.editable }
+  })
+  // Test connection while setting up: starts the entry as it is typed, before anything is saved.
+  ipcMain.handle('library:mcp-test', async (_, o: { id?: unknown; json?: unknown }) => {
+    const s = o?.id === undefined ? undefined : serverById(o.id)
+    if (o?.id !== undefined && !s) throw new Error('That server is not listed any more.')
+    const old = s ? (findRaw(readJsonText, s) ?? undefined) : undefined
+    const def = unmaskEntry(prepareEntry(String(o?.json ?? '')), old)
+    return limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(s?.project && isDir(s.project) && { cwd: s.project }) }))
+  })
+  ipcMain.handle('library:mcp-save', (_, o: { id?: unknown; name?: unknown; target?: unknown; folder?: unknown; json?: unknown }) => {
+    const name = String(o?.name ?? '').trim()
+    const s = o?.id === undefined ? undefined : serverById(o.id)
+    let file: string
+    let place: Place
+    if (s) {
+      if (!s.editable) throw new Error('That entry cannot be changed from here.')
+      file = s.path
+      place = placeIn(s)
+    } else if (o?.id !== undefined) throw new Error('That server is not listed any more.')
+    else if (o?.target === 'claude') (file = join(userHome(), '.claude.json'), (place = { kind: 'global' }))
+    else if (o?.target === 'agy') (file = agyCliFile(), (place = { kind: 'file' }))
+    else if (o?.target === 'project' && typeof o.folder === 'string' && allProjects().includes(o.folder)) (file = join(o.folder, '.mcp.json'), (place = { kind: 'file' }))
+    else throw new Error('Choose where to keep it.')
+    const old = s ? (findRaw(readJsonText, s) ?? undefined) : undefined
+    const def = unmaskEntry(prepareEntry(String(o?.json ?? '')), old)
+    writeConfig(file, editFile(readJsonText(file), place, s?.name, name, def))
+    if (s) probes.delete(s.id)
+    const now = scanServers().find((x) => x.name === name && x.path === file && (x.where === 'agy-cli' || x.where === 'global' || x.where === 'project'))
+    return { id: now?.id ?? '' }
+  })
+  ipcMain.handle('library:mcp-remove', (_, id: unknown) => {
+    const s = serverById(id)
+    if (!s?.editable) throw new Error('That entry cannot be changed from here.')
+    writeConfig(s.path, editFile(readJsonText(s.path), placeIn(s), s.name, null, null))
+    probes.delete(s.id)
+  })
+  // On means on everywhere the app can see: out of the app's off list, and out of the entry's own `disabled` flag, which is the person's own file switching it off.
+  ipcMain.handle('library:mcp-set', (_, name: unknown, on: unknown) => {
+    const n = String(name)
+    toolPolicy.setServer(n, on === true)
+    if (on !== true) return
+    for (const s of scanServers()) {
+      if (s.name !== n || !s.disabled || !s.editable) continue
+      const next = enableEntry(readJsonText(s.path), placeIn(s), s.name)
+      if (next) writeConfig(s.path, next)
+    }
+  })
+  ipcMain.handle('library:tool-policy', (_, tool: unknown, policy: unknown) => toolPolicy.setTool(String(tool), policy === null ? null : (String(policy) as 'allow')))
+  ipcMain.handle('library:tool-usage', () => toolUsage(toolLog.all(), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   // Only a folder a fresh scan finds can stand in for a copy, so the window can never name any other folder.
   const foundOriginal = async (dir: string) => {
     const found = (await scanSources({ home: userHome(), folders: allProjects(), accounts: claudeAccounts() })).find((c) => c.dir === dir)

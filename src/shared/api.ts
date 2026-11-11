@@ -605,6 +605,22 @@ export interface AwApi {
     /** Deletes a skill's real folder, the links to it and its library entry; `anyway` confirms a project skill that git tracks. */
     delete(id: string, anyway?: boolean): Promise<import('./library').DeletePlan>
     usage30(): Promise<Record<string, SkillUse>>
+    /** The MCP servers the programs' own files list (read only), which are off for the agents the app runs, and what each tool is told. */
+    mcp(): Promise<import('./mcp').McpReport>
+    /** Turns a server on or off for the agents the app runs; they pick it up when they next start. */
+    setMcp(name: string, on: boolean): Promise<void>
+    /** Tells a tool Allow, Ask or Deny for the agents the app runs, or null to leave it to the agent's permission mode. */
+    setToolPolicy(tool: string, policy: import('./mcp').Policy | null): Promise<void>
+    toolUsage(): Promise<import('./mcp').ToolUsage>
+    /** Starts a server from its entry and says what it answers: its status and its tools. Only when asked. */
+    connectMcp(id: string): Promise<import('./mcp').ProbeResult>
+    /** An entry as its file has it, with each secret masked. */
+    mcpEntry(id: string): Promise<{ json: string; file: string; name: string; editable: boolean }>
+    /** Starts an entry as it is typed, before it is saved. */
+    testMcp(o: { id?: string; json: string }): Promise<import('./mcp').ProbeResult>
+    /** Writes an entry into its file: changes the one `id` names, or adds one at `target`. */
+    saveMcp(o: { id?: string; name: string; target?: 'claude' | 'project' | 'agy'; folder?: string; json: string }): Promise<{ id: string }>
+    removeMcp(id: string): Promise<void>
     /** Where each skill works: on for Claude, and linked into each other program's folder. */
     places(folder?: string): Promise<SkillPlaces>
     /** Switches a skill on or off for every Claude account in the app. */
