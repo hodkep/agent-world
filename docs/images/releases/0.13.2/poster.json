@@ -1,5 +1,5 @@
 {
-  "version": "0.13.1",
+  "version": "0.13.2",
   "tagline": "One row per server. Fewer background probes.",
   "subtitle": "The Library lists each MCP server once with its places, lets you take one out, and the app asks plan limits far less often.",
   "cards": [
@@ -23,6 +23,7 @@
     }
   ],
   "also": [
+    "Errors show as toasts, not a strip",
     "A hidden window asks for no plan limits",
     "The limits probe starts no MCP servers"
   ],
