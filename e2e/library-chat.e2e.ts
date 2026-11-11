@@ -78,10 +78,12 @@ test('chat: margin notes under a message say what the library did for it, and op
     await expect(dialog.getByLabel('Who has this text')).toContainText('ada')
     await expect(dialog.getByLabel('Who has this text')).toContainText('up to date')
     await dialog.getByRole('radiogroup', { name: 'Firmness of pdf' }).getByRole('radio', { name: 'medium' }).click()
-    const stale = dialog.getByRole('note').filter({ hasText: 'before you changed this playbook' })
-    await expect(stale).toContainText('ada')
+    // The notice is a chip in the tab bar: how many agents, the names in its tooltip, and a Restart button for them.
+    const stale = dialog.getByRole('status').filter({ hasText: 'needs a restart' })
+    await expect(stale).toContainText('1 agent needs a restart')
+    await expect(stale).toHaveAttribute('title', /ada/)
     await expect(dialog.getByLabel('Who has this text')).toContainText('started on an older text')
-    await stale.getByRole('button', { name: 'Restart 1 agent' }).click()
+    await stale.getByRole('button', { name: 'Restart ada' }).click()
     await expect(stale).toHaveCount(0, { timeout: 15_000 })
   } finally {
     await shutdown()
