@@ -9,6 +9,9 @@ export interface WorkflowMessage {
   told: string
   /** What the person wrote with their answer, when they wrote something. */
   note?: string
+  /** A step marked done by hand: the step that comes next, and whether it waits for the person's Run. */
+  next?: string
+  nextWaits?: boolean
 }
 
 const OFFICE = '[Agent World] '
@@ -43,6 +46,10 @@ function parse(text: string): WorkflowMessage | null {
   if (body.startsWith('The person asked for changes to your plan.')) return { tone: 'back', icon: 'back', title: 'Plan sent back', ...sub(note(body.split('\nRevise .agent-world/plan.md')[0]!, /^The person asked for changes to your plan\.\s*/)), told: text }
   if (body.startsWith('The person lifted the hold on your edits')) return { tone: 'skip', icon: 'skip', title: 'Hold lifted', told: text }
   if ((m = new RegExp(`^The person pressed Run: start your step ${q} now\\.`).exec(body))) return { tone: 'go', icon: 'run', title: 'Run', sub: m[1]!, told: text }
+  if ((m = new RegExp(`^The person marked your step ${q} done themselves: do not report it\\.`).exec(body))) {
+    const n = new RegExp(`^ Next step: ${q}([\\s\\S]*)$`).exec(body.slice(m[0].length))
+    return { tone: 'ok', icon: 'tick', title: m[1]!, sub: 'marked done by you', told: text, ...(n && { next: n[1]!, ...(/it starts when the person presses Run/.test(n[2]!) && { nextWaits: true }) }) }
+  }
   if ((m = new RegExp(`^Your step ${q} was skipped by the person`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }
   if ((m = /^Your steps ((?:"[^"\n]+"(?:, | and )?)+) were skipped by the person/.exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${[...m[1]!.matchAll(/"([^"\n]+)"/g)].map((x) => x[1]!).reduce((a, n, i, all) => (i === 0 ? n : `${a}${i === all.length - 1 ? ' and ' : ', '}${n}`), '')}`, told: text }
   if ((m = new RegExp(`^The person skipped your step ${q} and wants the task to go on`).exec(body))) return { tone: 'skip', icon: 'skip', title: `Skipped ${m[1]}`, told: text }

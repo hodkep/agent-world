@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { planReply } from './plan'
-import { said, runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepsSkippedTogether, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
+import { said, stepClosed, runDropped, runEnded, stepAskedAgain, stepDeclined, stepRefusedLater, stepReply, stepSkipped, stepsSkippedTogether, stepSkippedOnward, stepStarted, stepsKept, stepsSkipped } from './steps'
 import { parseWorkflowMessage } from './workflowMessage'
 
 const office = (t: string) => `[Agent World] ${t}`
@@ -38,6 +38,17 @@ describe('what the app typed into the chat for the person, read back as a receip
     expect(parseWorkflowMessage(office(stepSkippedOnward('Commit')))).toMatchObject({ title: 'Skipped Commit' })
     expect(parseWorkflowMessage(office(stepRefusedLater('Verify the changes')))).toMatchObject({ tone: 'skip', icon: 'skip', title: 'Ask again later', sub: 'Verify the changes' })
     expect(parseWorkflowMessage(office(runDropped('Check the README')))).toMatchObject({ tone: 'no', icon: 'cross', title: 'Dropped this run', sub: 'Check the README' })
+  })
+  it('knows a step the person marked done themselves, with what comes next', () => {
+    const next = { id: 'build', name: 'Build', optional: false, start: false, brief: 'Build the approved plan. Run only the tests relevant to your change.' }
+    expect(parseWorkflowMessage(office(stepClosed('UI design options', next)))).toMatchObject({ tone: 'ok', icon: 'tick', title: 'UI design options', sub: 'marked done by you', next: 'Build' })
+    expect(parseWorkflowMessage(office(stepClosed('UI design options', next)))!.nextWaits).toBeUndefined()
+    // A step that waits for Run, and an optional one with its instructions in brackets.
+    expect(parseWorkflowMessage(office(stepClosed('Verify', { id: 'review', name: 'Review', optional: true, start: true })))).toMatchObject({ next: 'Review', nextWaits: true })
+    // The last step: only the one row.
+    const last = parseWorkflowMessage(office(stepClosed('Pull request')))!
+    expect(last).toMatchObject({ title: 'Pull request', sub: 'marked done by you' })
+    expect(last.next).toBeUndefined()
   })
   it('knows the push that was approved, which is typed without the prefix', () => {
     const text = 'The person approved the push of aw/tester (0a898d3). Push a branch whose head is exactly this commit, your own branch or another name for the same commit (git push origin aw/tester:<name>), and open the pull request. Do not add commits first: a branch with other commits is held.'
