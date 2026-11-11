@@ -4,9 +4,9 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
-## [0.13.1] - 2026-11-11
+## [0.13.2] - 2026-11-11
 
-![Agent World 0.13.1: one row per server, fewer background probes](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.1/docs/images/releases/0.13.1/poster.png)
+![Agent World 0.13.2: one row per server, fewer background probes](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.2/docs/images/releases/0.13.2/poster.png)
 
 ### Added
 
@@ -16,6 +16,10 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 ### Changed
 
 - Performance: plan limits are asked of the programs at most every 15 minutes, never for a login whose agents reported lately, without starting MCP servers, and not while the window is hidden, so the app wakes far fewer background programs and uses less energy.
+
+### Fixed
+
+- Errors show as pop-up messages instead of a strip beside the toolbar.
 
 ## [0.13.0] - 2026-11-11
 
