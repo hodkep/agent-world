@@ -54,7 +54,7 @@ export const watched =
     sink ? timeSync(() => fn(...a), (ms) => sink?.(name, ms)) : fn(...a)
 
 /**
- * The watchdog, on unless AW_PERF=0: it names what holds this process, in perf.log in the data folder. A call from the page, or a sweep on a
+ * The watchdog, off unless AW_PERF is set (its timers cost energy): it names what holds this process, in perf.log in the data folder. A call from the page, or a sweep on a
  * timer, that holds the process for 100 ms or more is written as `blocked` with its name and how long; a late tick of the loop is written as
  * `main-stall` with the calls that ran in it; each minute a `summary` line says how late the loop ran. Only names, times and counts are written, never
  * what a call was given. Nothing leaves the machine. With `verbose` (AW_PERF=1) a stall also says how much CPU was used and the page's long tasks are kept.

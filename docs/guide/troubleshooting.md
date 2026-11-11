@@ -79,13 +79,13 @@ If the **Git** row says **Not found**, you are running a build made without the 
 
 ## The app feels slow
 
-If typing, pasting or switching agents lags, the app has probably been held up for a moment by work in its main process. It keeps a short log of that, so the cause can be named: `~/.agent-world/perf.log`. It is written by the app itself, only on your computer, and holds names, times and counts, never what you typed, a path or a message.
+If typing, pasting or switching agents lags, the app has probably been held up for a moment by work in its main process. It can keep a short log of that, so the cause can be named: `~/.agent-world/perf.log`. The log is off by default, because watching for stalls wakes the app many times a second; start the app with `AW_PERF=on` (or `AW_PERF=1` for more detail) to switch it on. It is written by the app itself, only on your computer, and holds names, times and counts, never what you typed, a path or a message.
 
 - Watch it while it lags: `tail -f ~/.agent-world/perf.log`.
 - A line with `"kind":"blocked"` names a call (`"what"`, such as a channel the window asked for, or a sweep the app runs on a timer) that held the app for `"ms"` milliseconds, 100 or more.
 - A `"kind":"main-stall"` line says the app's loop ran `"lateMs"` late, and lists the calls that ran in it.
 - A `"kind":"summary"` line each minute gives the loop's median, 99th percentile and worst delay in milliseconds, and how many stalls and blocking calls that minute had. A p99 over about 50 ms is a lagging app.
-- Send the last few lines to whoever is fixing it. The file never grows past about 2 MB (it moves to `perf.log.1` at 1 MB, and the one before that is dropped). Start the app with `AW_PERF=0` to switch the log off, or `AW_PERF=1` to add CPU detail to a stall.
+- Send the last few lines to whoever is fixing it. The file never grows past about 2 MB (it moves to `perf.log.1` at 1 MB, and the one before that is dropped). `AW_PERF=1` adds CPU detail to a stall.
 
 ## An agent is asleep
 

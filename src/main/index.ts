@@ -146,7 +146,7 @@ const HOME = process.env.AW_HOME ?? join(homedir(), homeDirName(readFileSync(joi
 // A run with its own home (tests, demos) also gets its own browser storage, so remembered layout never leaks between runs.
 if (process.env.AW_HOME) app.setPath('userData', join(HOME, 'electron'))
 process.env.AW_APP_HOME = HOME
-// The watchdog (perf.ts): names what holds this process for 100 ms or more in perf.log, on unless AW_PERF=0. AW_PERF=1 adds detail to a stall and the page's long tasks.
+// The watchdog (perf.ts): names what holds this process for 100 ms or more in perf.log, off unless AW_PERF is set. AW_PERF=1 adds detail to a stall and the page's long tasks.
 const PERF_MODE = perfMode(process.env)
 const PERF = PERF_MODE === 'verbose'
 if (PERF_MODE !== 'off') startPerf(HOME, PERF_MODE)
