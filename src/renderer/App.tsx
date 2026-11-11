@@ -107,6 +107,7 @@ import { type CardEdit, ProfileCard } from './profile/ProfileCard'
 import { accountColor, accountName } from './accounts'
 import { LimitBoard } from './panel/LimitBoard'
 import { type World, applyEvent, emptyWorld, roleOf } from './world/worldState'
+import { toast } from './toasts'
 
 const store = (key: string) => {
   try {
@@ -159,7 +160,6 @@ export function App() {
   // Each agent belongs to the folder it was hired in: switching folders shows that folder's crew, and the rest keep working in the background.
   const agents = useMemo(() => (folder ? allAgents.filter((a) => a.repoPath === folder) : allAgents), [allAgents, folder])
   const [dirty, setDirty] = useState<{ id: string; status: string } | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [panelOpen, setPanelOpen] = useState(true)
   // The person hid the office to give the chat the window (and spare the battery); remembered, per window.
   const [officeOff, setOfficeOff] = useState(() => store('aw.officeHidden') === '1')
@@ -1259,11 +1259,10 @@ export function App() {
       } else setWorkspaces(await window.aw.forgetWorkspace(path))
     })
   const run = async (f: () => Promise<void>) => {
-    setError(null)
     try {
       await f()
     } catch (err) {
-      setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': /, '') : String(err))
+      toast(err)
     }
   }
 
@@ -1277,7 +1276,6 @@ export function App() {
   // A refusal is not caught here: the hire form shows it, where the person is looking.
   const hire = async (options: AgentOptions, name: string, base?: string, leftover?: 'replace' | 'reuse') => {
     if (!folder) return
-    setError(null)
     const a = await window.aw.addAgent(folder, options, name, base, leftover)
     setHiring(false)
     void refreshWorkspaces()
@@ -1324,7 +1322,7 @@ export function App() {
     const box = e.currentTarget.getBoundingClientRect()
     const id = office.current?.agentAt(e.clientX - box.left, e.clientY - box.top)
     const text = mentionText([...e.dataTransfer.files].map((f) => window.aw.pathOf(f)))
-    if (!id || !text) return setError('Drop files right onto an agent to hand them over.')
+    if (!id || !text) return toast('Drop files right onto an agent to hand them over.')
     window.aw.ptyWrite(id, text)
     select(id)
   }
@@ -1396,7 +1394,7 @@ export function App() {
           setAgents((xs) => [...xs, a])
           setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
         } catch (err) {
-          setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+          toast(err)
         }
       }
       void refreshWorkspaces()
@@ -1538,7 +1536,7 @@ export function App() {
       await window.aw.wakeAgent(a.id)
       setWorld((w) => applyEvent(w, { type: 'activity', agentId: a.id, sessionId: a.sessionId, activity: 'idle' }))
     })
-  // Mod+Alt+S puts the agent in the chat to sleep, or wakes it, from anywhere. A refusal (working, waiting, has helpers, in a workflow run) shows in the error bar, as from its menu.
+  // Mod+Alt+S puts the agent in the chat to sleep, or wakes it, from anywhere. A refusal (working, waiting, has helpers, in a workflow run) shows as a toast, as from its menu.
   const currentActivity = current ? world[current.id]?.activity : undefined
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -1742,7 +1740,6 @@ export function App() {
         <IconButton icon="library" label={prefs?.libraryEnabled === false ? 'Playbook and tools (off)' : 'Playbook and tools'} dim={prefs?.libraryEnabled === false} onClick={() => setLibraryOpen(true)} haspopup tip={prefs?.libraryEnabled === false ? 'The library and playbook are turned off. Open to turn them on in Settings.' : 'Skills, instructions and the playbook that says what agents are told'} />
         <IconButton icon="money" label={`Usage${lowLimits > 0 ? ` ${lowLimits}` : ''}`} onClick={() => setReport('usage')} haspopup tip={lowLimits > 0 ? `${lowLimits} usage limit${lowLimits > 1 ? 's' : ''} nearly used up` : 'Limits and what the agents have cost'} badge={lowLimits > 0 ? lowLimits : undefined} />
         <IconButton icon="week" label="Weekly Rewind" onClick={() => setReport('rewind')} haspopup tip="Your week of agent work" />
-        {error && <span className="error">{error}</span>}
         <UpdateChip agents={updateAgents} />
         <IconButton className="push" icon="keyboard" label="Shortcuts" onClick={() => setShortcuts(true)} haspopup tip={hint('shortcuts')} />
         <IconButton icon="gear" label="Settings" alert={signIns > 0} onClick={() => setSettings(true)} tip={signIns > 0 ? `${signIns === 1 ? 'An account needs' : `${signIns} accounts need`} signing in: see Settings, Accounts` : 'Notifications, defaults for new agents, where each program is'} />
@@ -2017,7 +2014,7 @@ export function App() {
                         setAgents((xs) => xs.map((a) => (a.id === id ? { ...a, name } : a)))
                         setRenaming(null)
                       },
-                      (err: Error) => setError(err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+                      toast
                     )
                   }}
                 />
