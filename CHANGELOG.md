@@ -4,6 +4,19 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-11
+
+![Agent World 0.13.1: one row per server, fewer background probes](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.1/docs/images/releases/0.13.1/poster.png)
+
+### Added
+
+- Library: an MCP server set up the same in several places is one row, with its places in a Places tab.
+- Library: "Take it out of" removes an MCP server or a skill from one place, all projects or everywhere.
+
+### Changed
+
+- Performance: plan limits are asked of the programs at most every 15 minutes, never for a login whose agents reported lately, without starting MCP servers, and not while the window is hidden, so the app wakes far fewer background programs and uses less energy.
+
 ## [0.13.0] - 2026-11-11
 
 ![Agent World 0.13.0: MCP servers and tools, in one place](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.0/docs/images/releases/0.13.0/poster.png)
