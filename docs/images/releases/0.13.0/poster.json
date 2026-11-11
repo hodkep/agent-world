@@ -1,0 +1,36 @@
+{
+  "version": "0.13.0",
+  "tagline": "MCP servers and tools, in one place.",
+  "subtitle": "Playbook and tools lists every MCP server and tool, a librarian joins the office, and the app idles lighter.",
+  "cards": [
+    {
+      "kicker": "Library",
+      "title": "MCP servers and Tools tabs",
+      "text": "See every MCP server and tool, test whether it connects, turn one off, and set each tool to Allow, Ask or Deny.",
+      "chips": ["Connect", "Allow / Ask / Deny", "Usage"]
+    },
+    {
+      "kicker": "Office",
+      "title": "A librarian joins the office",
+      "text": "Click her to open Playbook and tools; she shelves new skills and points out a failing MCP tool.",
+      "chips": ["Lectern", "Shelves", "Failing tools"]
+    },
+    {
+      "kicker": "Chat",
+      "title": "Marked-done steps become cards",
+      "text": "A step you mark done by hand shows as a two-row card, and cards that ask you something keep their top edge in view.",
+      "chips": ["Two-row card", "Questions"]
+    },
+    {
+      "kicker": "Agents",
+      "title": "Lighter on the battery",
+      "text": "The stall log is off unless AW_PERF is set, so the app no longer wakes itself about 120 times a second.",
+      "chips": ["Fewer wakeups", "AW_PERF"]
+    }
+  ],
+  "also": [
+    "Delete a skill linked from another folder",
+    "Library errors show as pop-up messages"
+  ],
+  "footer": "Download at agent-world.in"
+}
