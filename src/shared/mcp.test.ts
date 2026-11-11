@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agyDenies, claudeRules, groupServers, serverFact, toolUsage, type McpServer } from './mcp'
+import { agyDenies, claudeRules, groupServers, needsConfirm, serverFact, toolUsage, type McpServer } from './mcp'
 
 const srv = (name: string, where: McpServer['where'], project?: string): McpServer => ({ id: `${where}:${project ?? ''}:${name}`, name, transport: 'stdio', fact: '', env: [], where, path: '/p', ...(project && { project }), readOnly: where === 'agy-ide' || where === 'plugin' })
 
@@ -77,5 +77,13 @@ describe('what was used in the last 30 days', () => {
   })
   it('names an agent it was not told about as a removed agent', () => {
     expect(toolUsage(ev, now).tools.Bash!.agents.a!.name).toBe('removed agent')
+  })
+})
+
+describe('which servers are started only after the person has read the command', () => {
+  it('is the ones in a project\'s .mcp.json, which comes with the project, and not the ones in the person\'s own files', () => {
+    expect(needsConfirm({ path: '/w/p/.mcp.json' })).toBe(true)
+    expect(needsConfirm({ path: '/home/me/.claude.json' })).toBe(false)
+    expect(needsConfirm({ path: '/home/me/.gemini/config/mcp_config.json' })).toBe(false)
   })
 })

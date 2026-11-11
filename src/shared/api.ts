@@ -613,7 +613,7 @@ export interface AwApi {
     setToolPolicy(tool: string, policy: import('./mcp').Policy | null): Promise<void>
     toolUsage(): Promise<import('./mcp').ToolUsage>
     /** Starts a server from its entry and says what it answers: its status and its tools. Only when asked. */
-    connectMcp(id: string): Promise<import('./mcp').ProbeResult>
+    connectMcp(id: string, confirmed?: boolean): Promise<import('./mcp').ProbeResult>
     /** An entry as its file has it, with each secret masked. */
     mcpEntry(id: string): Promise<{ json: string; file: string; name: string; editable: boolean }>
     /** Starts an entry as it is typed, before it is saved. */

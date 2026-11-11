@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { groupServers, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
+import { groupServers, needsConfirm, type McpReport, type McpServer, type ProbeResult, type ToolUsage } from '../../shared/mcp'
 import { Bars, clean, StatusChip, Switch } from './McpBits'
 import { McpEntry } from './McpEntry'
 import { McpToolsTable } from './McpToolsTable'
@@ -19,6 +19,8 @@ export function McpTab({ folder }: { folder?: string }) {
   const [reader, setReader] = useState<Reader>('overview')
   const [probes, setProbes] = useState<Record<string, ProbeResult>>({})
   const [busy, setBusy] = useState<Set<string>>(new Set())
+  // A server that comes with a project is not started until its command has been shown and the person has said yes.
+  const [ask, setAsk] = useState<{ s: McpServer; command: string } | null>(null)
   const load = useCallback(async () => {
     try {
       const [r, u] = await Promise.all([window.aw.library.mcp(), window.aw.library.toolUsage()])
@@ -37,14 +39,31 @@ export function McpTab({ folder }: { folder?: string }) {
       () => (setFail(''), on ? void load() : setRep((r) => r && { ...r, off: [...new Set([...r.off, name])] })),
       (e: unknown) => setFail(clean(e))
     )
-  const connect = (s: McpServer) => {
+  const connect = (s: McpServer, confirmed = false) => {
     setBusy((b) => new Set(b).add(s.id))
-    return window.aw.library.connectMcp(s.id).then(
+    return (confirmed ? window.aw.library.connectMcp(s.id, true) : window.aw.library.connectMcp(s.id)).then(
       (r) => setProbes((p) => ({ ...p, [s.id]: r })),
       (e: unknown) => setFail(clean(e))
     ).finally(() => setBusy((b) => (b.delete(s.id), new Set(b))))
   }
-  const connectAll = () => void Promise.all((rep?.servers ?? []).filter((s) => s.where !== 'office' && !busy.has(s.id)).map(connect))
+  // Connect all starts what is in the person's own files; a project's .mcp.json is asked about one at a time.
+  const connectAll = () => void Promise.all((rep?.servers ?? []).filter((s) => s.where !== 'office' && !needsConfirm(s) && !busy.has(s.id)).map((s) => connect(s)))
+  const start = (s: McpServer) => {
+    if (!needsConfirm(s)) return void connect(s)
+    void window.aw.library.mcpEntry(s.id).then(
+      (e) => {
+        const d = (() => {
+          try {
+            return JSON.parse(e.json) as { command?: string; args?: string[]; url?: string }
+          } catch {
+            return {}
+          }
+        })()
+        setAsk({ s, command: d.url ?? [d.command, ...(d.args ?? [])].filter(Boolean).join(' ') })
+      },
+      (err: unknown) => setFail(clean(err))
+    )
+  }
   const servers = useMemo(() => (rep?.servers ?? []).filter((s) => !find.trim() || `${s.name} ${s.fact}`.toLowerCase().includes(find.trim().toLowerCase())), [rep, find])
   const groups = useMemo(() => groupServers(servers), [servers])
   const off = rep?.off ?? []
@@ -60,11 +79,18 @@ export function McpTab({ folder }: { folder?: string }) {
           <input aria-label="Find a server" placeholder="Find a server…" value={find} onChange={(e) => setFind(e.target.value)} />
           <span className="lib-sp" />
           <button onClick={() => void load()}>Refresh</button>
-          <button disabled={busy.size > 0 || !rep} title="Start each server and read what it answers" onClick={connectAll}>Connect all</button>
+          <button disabled={busy.size > 0 || !rep} title="Start each server in your own files and read what it answers; a project's .mcp.json is asked about one at a time" onClick={connectAll}>Connect all</button>
           <button className="primary" onClick={() => (setOpen('new'), setReader('entry'))}>Add server…</button>
         </div>
         {rep && <p className="lib-sum"><span className="hint">{rep.servers.length} {rep.servers.length === 1 ? 'server' : 'servers'} · {on} on for Claude agents of {switchable} you can switch{connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number is calls in 30 days</span></p>}
         {fail && <p className="error" role="alert">{fail}</p>}
+        {ask && (
+          <div className="sk2-note" role="alertdialog" aria-label={`Connect ${ask.s.name}?`}>
+            <span><b>Run {ask.s.name}’s command?</b> It comes with the project, in <span className="mono">{ask.s.path}</span>, not from you. Connecting starts it on this computer:<br /><code className="mt-cmd">{ask.command || '(no command)'}</code></span>
+            <button className="primary" onClick={() => (setAsk(null), void connect(ask.s, true))}>Run it</button>
+            <button onClick={() => setAsk(null)}>Cancel</button>
+          </div>
+        )}
         <section className="drawer sk2" aria-label="MCP servers">
           <div className="sk2-list lib-scrollbar">
             {groups.map((g) => (
@@ -82,7 +108,7 @@ export function McpTab({ folder }: { folder?: string }) {
                         <span className="sk2-main"><b>{s.name}</b><small>{s.transport}{s.fact ? ` · ${s.fact}` : ''}{st === 'ownoff' ? ' · off in its own file' : ''}</small></span>
                       </button>
                       <span className="mt-tail">
-                        {s.where !== 'office' && !p && !busy.has(s.id) && <button className="sm" aria-label={`Connect ${s.name}`} onClick={() => void connect(s)}>Connect</button>}
+                        {s.where !== 'office' && !p && !busy.has(s.id) && <button className="sm" aria-label={`Connect ${s.name}`} onClick={() => start(s)}>Connect</button>}
                         {s.where !== 'office' && <StatusChip probe={p} busy={busy.has(s.id)} />}
                         <span className="sk2-size">{n || '–'}</span>
                         {st === 'locked' ? <span className="sk2-chip">locked</span> : st === 'readonly' ? <span className="sk2-chip">{s.where === 'agy-cli' ? 'agy’s list' : 'read only'}</span> : <Switch on={st === 'on'} label={`${s.name} for Claude agents`} onChange={(v) => set(s.name, v)} />}
@@ -103,7 +129,7 @@ export function McpTab({ folder }: { folder?: string }) {
             <McpEntry folder={folder} onSaved={(id) => void load().then(() => (setOpen(id || null), setReader('overview')))} onRemoved={() => undefined} />
           </div>
         ) : current ? (
-          <ServerReader key={current.id} s={current} all={rep!.servers} off={off} usage={usage} probe={probes[current.id]} busy={busy.has(current.id)} folder={folder} reader={reader} onReader={setReader} onSet={set} onConnect={() => void connect(current)}
+          <ServerReader key={current.id} s={current} all={rep!.servers} off={off} usage={usage} probe={probes[current.id]} busy={busy.has(current.id)} folder={folder} reader={reader} onReader={setReader} onSet={set} onConnect={() => start(current)}
             onSaved={(id) => void load().then(() => setOpen(id || null))} onRemoved={() => void load().then(() => setOpen(null))} />
         ) : <p className="hint">Pick a server to see where it lives, whether it connects, and the tools it offers.</p>}
       </div>

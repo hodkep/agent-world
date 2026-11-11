@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -32,10 +32,43 @@ describe('writing a program\'s own file', () => {
     writeFileSync(real, 'old')
     const link = join(dir, '.claude.json')
     symlinkSync(real, link)
-    writeConfig(link, 'new')
+    writeConfig(link, 'new', { followLink: true })
     expect(lstatSync(link).isSymbolicLink()).toBe(true)
     expect(readlinkSync(link)).toBe(real)
     expect(readFileSync(real, 'utf8')).toBe('new')
     expect(readFileSync(`${real}.aw-bak`, 'utf8')).toBe('old')
+  })
+
+  it('refuses a link when the file may come with a project, where a link can point anywhere', () => {
+    const victim = join(dir, 'victim.txt')
+    writeFileSync(victim, 'mine')
+    const link = join(dir, '.mcp.json')
+    symlinkSync(victim, link)
+    expect(() => writeConfig(link, '{}')).toThrow(/link/)
+    expect(readFileSync(victim, 'utf8')).toBe('mine')
+  })
+
+  it('does not write through a link planted where the backup goes, and leaves no temporary file', () => {
+    const f = join(dir, 'mcp.json')
+    const victim = join(dir, 'victim.txt')
+    writeFileSync(f, 'old')
+    writeFileSync(victim, 'mine')
+    symlinkSync(victim, `${f}.aw-bak`)
+    writeConfig(f, 'new')
+    expect(readFileSync(victim, 'utf8')).toBe('mine')
+    expect(lstatSync(`${f}.aw-bak`).isSymbolicLink()).toBe(false)
+    expect(readFileSync(`${f}.aw-bak`, 'utf8')).toBe('old')
+    expect(readdirSync(dir).filter((n) => n.endsWith('.aw-tmp'))).toEqual([])
+  })
+
+  it('does not write through a link planted at a guessable temporary name', () => {
+    const f = join(dir, 'mcp.json')
+    const victim = join(dir, 'victim.txt')
+    writeFileSync(f, 'old')
+    writeFileSync(victim, 'mine')
+    symlinkSync(victim, `${f}.aw-tmp`)
+    writeConfig(f, 'new')
+    expect(readFileSync(victim, 'utf8')).toBe('mine')
+    expect(readFileSync(f, 'utf8')).toBe('new')
   })
 })

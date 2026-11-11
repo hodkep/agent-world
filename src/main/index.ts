@@ -7,7 +7,7 @@ import { editFile, enableEntry, findRaw, maskEntry, prepareEntry, unmaskEntry, t
 import { probe } from './library/mcpProbe'
 import { writeConfig } from './library/mcpFile'
 import { ToolLog, ToolPolicy } from './library/toolPolicy'
-import { agyDenies, claudeRules, toolUsage, type McpServer, type ProbeResult } from '../shared/mcp'
+import { agyDenies, claudeRules, needsConfirm, toolUsage, type McpServer, type ProbeResult } from '../shared/mcp'
 import { syncGuide } from './library/guide'
 import { syncVisuals } from './library/visuals'
 import { createTodoService } from './todos/service'
@@ -2637,9 +2637,11 @@ async function main() {
   // MCP servers and tools: what the programs' own files list (read only), what is off, what each tool is told, and what was used.
   ipcMain.handle('library:mcp', () => ({ servers: scanServers(), ...toolPolicy.get(), probes: Object.fromEntries(probes) }))
   // Starting a server runs the command in its entry, so it happens only when the person asks, for a server the last scan found (the screen never sends a command).
-  ipcMain.handle('library:mcp-connect', async (_, id: unknown) => {
+  ipcMain.handle('library:mcp-connect', async (_, id: unknown, confirmed?: unknown) => {
     const s = serverById(id)
     if (!s || s.where === 'office') throw new Error('That server is not listed any more.')
+    // A project's .mcp.json comes with the project: its command runs only after the person has been shown it and said yes.
+    if (needsConfirm(s) && confirmed !== true) throw new Error('This entry comes with a project (.mcp.json). Its command runs only after you confirm it.')
     const def = findRaw(readJsonText, s)
     if (!def) throw new Error('Its entry is not in the file any more.')
     const r = await limited(() => probe(def, { timeoutMs: 20_000, baseEnv: env, ...(s.project && isDir(s.project) && { cwd: s.project }) }))
@@ -2677,7 +2679,7 @@ async function main() {
     else throw new Error('Choose where to keep it.')
     const old = s ? (findRaw(readJsonText, s) ?? undefined) : undefined
     const def = unmaskEntry(prepareEntry(String(o?.json ?? '')), old)
-    writeConfig(file, editFile(readJsonText(file), place, s?.name, name, def))
+    writeConfig(file, editFile(readJsonText(file), place, s?.name, name, def), { followLink: !needsConfirm({ path: file }) })
     if (s) probes.delete(s.id)
     const now = scanServers().find((x) => x.name === name && x.path === file && (x.where === 'agy-cli' || x.where === 'global' || x.where === 'project'))
     return { id: now?.id ?? '' }
@@ -2685,7 +2687,7 @@ async function main() {
   ipcMain.handle('library:mcp-remove', (_, id: unknown) => {
     const s = serverById(id)
     if (!s?.editable) throw new Error('That entry cannot be changed from here.')
-    writeConfig(s.path, editFile(readJsonText(s.path), placeIn(s), s.name, null, null))
+    writeConfig(s.path, editFile(readJsonText(s.path), placeIn(s), s.name, null, null), { followLink: !needsConfirm(s) })
     probes.delete(s.id)
   })
   // On means on everywhere the app can see: out of the app's off list, and out of the entry's own `disabled` flag, which is the person's own file switching it off.
@@ -2696,7 +2698,7 @@ async function main() {
     for (const s of scanServers()) {
       if (s.name !== n || !s.disabled || !s.editable) continue
       const next = enableEntry(readJsonText(s.path), placeIn(s), s.name)
-      if (next) writeConfig(s.path, next)
+      if (next) writeConfig(s.path, next, { followLink: !needsConfirm(s) })
     }
   })
   ipcMain.handle('library:tool-policy', (_, tool: unknown, policy: unknown) => toolPolicy.setTool(String(tool), policy === null ? null : (String(policy) as 'allow')))

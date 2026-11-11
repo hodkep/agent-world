@@ -25,6 +25,12 @@ export interface McpServer {
 export type Policy = 'allow' | 'ask' | 'deny'
 export type Policies = Record<string, Policy | undefined>
 
+/**
+ * A server listed in a project's .mcp.json comes with the project, not from the person: starting it runs whatever command the project ships. Claude Code asks before it trusts such
+ * a server, and so does the app: it is left out of Connect all, and connecting one shows the command first.
+ */
+export const needsConfirm = (s: { path: string }) => s.path.endsWith('.mcp.json')
+
 /** The office's own server: agents need it to reach the office at all. */
 export const OFFICE_SERVER = 'agent-world'
 
