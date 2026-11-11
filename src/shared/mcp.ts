@@ -242,3 +242,19 @@ export interface ProbeResult {
   ms: number
   at: number
 }
+
+/** Which of a merged row's places to take the server out of: one, every project's, every place, or all but one global (made first when there is none). */
+export type RemovalMode = 'one' | 'projects' | 'all' | 'keep-global'
+export interface RemovalStep {
+  action: 'remove' | 'add-global'
+  /** The place to remove it from, or the place the global entry is copied from. */
+  id: string
+  /** The file that changes. */
+  path: string
+  project?: string
+  /** The file is a project's own `.mcp.json`: git shows the change. */
+  repo: boolean
+}
+export interface RemovalPlan {
+  steps: RemovalStep[]
+}
