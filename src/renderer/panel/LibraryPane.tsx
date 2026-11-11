@@ -25,9 +25,14 @@ import { toast } from '../toasts'
 import { SkillBulk, type Said } from './SkillBulk'
 import { Callout } from './Callout'
 import { IconButton } from './IconButton'
+import { McpTab } from './McpTab'
+import { McpUsage } from './McpUsage'
+import { ToolsTab } from './ToolsTab'
 import { sizeText } from '../../shared/size'
 
-const SECTIONS: ['skills' | 'playbook' | 'reach', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['reach', 'Usage']]
+type Section = 'skills' | 'mcp' | 'tools' | 'playbook' | 'reach'
+const SECTIONS: [Section, string][] = [['skills', 'Skills'], ['mcp', 'MCP servers'], ['tools', 'Tools'], ['playbook', 'Playbook'], ['reach', 'Usage']]
+const USAGE_TABS: ['skills' | 'playbook' | 'mcp', string][] = [['skills', 'Skills'], ['playbook', 'Playbook'], ['mcp', 'MCP and tools']]
 const MODES: RuleMode[] = ['always', 'on-demand', 'step', 'off']
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
 const CORE_BUDGET = 300
@@ -71,7 +76,8 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const [who, setWho] = useState<ProviderId>(ready[0]?.id ?? 'claude')
   const [preview, setPreview] = useState<LibraryPreview | null>(null)
   const [help, setHelp] = useState(false)
-  const [tab, setTab] = useState<'skills' | 'playbook' | 'reach'>('skills')
+  const [tab, setTab] = useState<Section>('skills')
+  const [usageTab, setUsageTab] = useState<'skills' | 'playbook' | 'mcp'>('skills')
   const [find, setFind] = useState('')
   const [places, setPlaces] = useState<SkillPlaces | null>(null)
   const [busy, setBusy] = useState(false)
@@ -424,6 +430,8 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       </div>
       )}
 
+      {tab === 'mcp' && <McpTab folder={folder} />}
+      {tab === 'tools' && <ToolsTab />}
       {tab === 'playbook' && (
       <div role="tabpanel" id="lib-panel-playbook" aria-labelledby="lib-tab-playbook" className="lib-panel">
       <div className="pb">
@@ -520,8 +528,16 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       )}
       {tab === 'reach' && (
       <div role="tabpanel" id="lib-panel-reach" aria-labelledby="lib-tab-reach" className="lib-panel">
+      <div className="lib-tabs lib-subtabs" role="tablist" aria-label="Usage of">
+        {USAGE_TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={usageTab === id} className={usageTab === id ? 'on' : ''} onClick={() => setUsageTab(id)}>{label}</button>)}
+      </div>
+      {usageTab === 'skills' && (
+      <>
       {places && <SkillUsage items={items} usage={usage30} claudeOff={places.claudeOff} named={named} projects={places.projects} busy={busy} onClaude={(id, on) => void place(() => window.aw.library.setClaude(id, on))} onClear={turnOff} onRemove={(id) => remove(id)} />}
-      <LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />
+      </>
+      )}
+      {usageTab === 'playbook' && (<LibraryReach byId={byId} whenOf={whenOf} onFix={(id, fix) => void fixRule(id, fix)} />)}
+      {usageTab === 'mcp' && <McpUsage />}
       </div>
       )}
     </>
