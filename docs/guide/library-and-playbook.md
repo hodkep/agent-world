@@ -10,7 +10,7 @@ The **playbook** says how an agent gets an item. An item does nothing until a pl
 
 ## Open the library
 
-Click **Playbook and tools** in the top bar. Its tabs are **Skills**, **Playbook** and **Usage**.
+Click **Playbook and tools** in the top bar. Its tabs are **Skills**, **MCP servers**, **Tools**, **Playbook** and **Usage**.
 
 If the button says **Playbook and tools (off)**, open it and click **Open Settings → Features**, then turn on **Library and playbook**. Your items and playbooks are kept while it is off, and agents are told nothing from them.
 
@@ -84,6 +84,16 @@ The Library holds one skill the app makes itself, **Agent World guide**, in the 
 
 An agent can read only items in its playbook. Claude Code also gets the playbook's skills as skills it can load itself. For `agy`, connect it under **Settings** > **Message box** so its messages carry the line too.
 
+## MCP servers and tools
+
+The **MCP servers** tab lists the servers the programs' own files name, in panels by place like skills: the office's own, the ones Claude Code has everywhere, each project's, and agy's two lists. The app only reads those files and never changes them, and it shows the names of a server's variables, never what they hold. The switch at the end of a row turns a server off for the Claude agents the app runs: its tools are no longer offered to them, from their next start. A server whose own file says it is off shows as off, and turning it on clears that flag in the file. agy's lists, plugins and the office's own server are shown but not switched. Open a row to see where it lives, where else it is listed, which tools of it were seen in use, and in which projects.
+
+Nothing is started when the tab opens. Press **Connect** on a row (or **Connect all**) and the app starts that server from its entry, asks it what it is and what it offers, shows its status on the row (connected with its tool count, failed with the reason, needs sign-in, timed out) and ends it. Open the row and its **Tools** tab lists what the server said about each tool: its description, its parameters, and whether it says the tool only reads or changes things. Those tools then also show on the **Tools** tab, so they can be told **Allow**, **Ask** or **Deny** before they are ever used. A server that needs a sign-in is signed in to in Claude Code, not here.
+
+The **Entry (JSON)** tab shows a server's entry as its own file has it, to change and save. Variables and headers show their names with the values masked: a value left masked is kept, and one typed over it is the new value. **Test connection** starts the entry as typed, before it is saved, so a wrong command or a missing variable shows up as a failure with its reason. **Add server…** writes a new entry into Claude Code's own file, the open project's `.mcp.json` or agy's CLI list. The old text of the file is kept beside it as `.aw-bak`.
+
+The **Tools** tab lists Claude Code's own tools, agy's own tools, and the tools of each MCP server as they are seen in use (the app does not start a server to ask it). Each one can be told **Allow**, **Ask** or **Deny** for the agents the app runs: Allow runs without asking, Ask shows the permission band, Deny tells the agent no. Click the one that is on to go back to no rule, which leaves the choice to the agent's permission mode. agy's tools can be told **Deny** only, since the app can say no to an agent of agy's but cannot decide for it.
+
 ## See what the library did
 
 - In the chat, notes under a message say what the library did, such as **Told at the start**, **Rulebook sent**, or an item read or passed over. Click a note to see the exact words.
@@ -91,7 +101,7 @@ An agent can read only items in its playbook. Claude Code also gets the playbook
 
 ## Usage
 
-The top of the **Usage** tab shows the library's skills over the last 30 days, with the start-of-session cost meter. **Most used** ranks them with a bar each, the faces of the agents that used them, the accounts and when each was last used. A use is Claude loading the skill, or an agent reading it, counted once per turn however many of its files it reads then. Only use by agents in the app is counted. **Gathering dust** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, **Remove** to delete it from the library, or **Clear the dust** to turn them all off for Claude. **Used in each project** shows each project's uses over every skill, with the skills used most there (the same counts are on a skill's **Overview**). **Who reached for what** shows each agent with the skills it used.
+The **Usage** tab has three tabs: **Skills**, **Playbook** and **MCP and tools**. The **MCP and tools** one counts calls by server and by tool over 30 days and lists the servers nobody called under **Gathering dust**, with **Turn off for Claude**. The top of the **Skills** tab shows the library's skills over the last 30 days, with the start-of-session cost meter. **Most used** ranks them with a bar each, the faces of the agents that used them, the accounts and when each was last used. A use is Claude loading the skill, or an agent reading it, counted once per turn however many of its files it reads then. Only use by agents in the app is counted. **Gathering dust** lists the rest with what each still costs at the start of every session: click **Turn off for Claude** to stop paying for it, **Remove** to delete it from the library, or **Clear the dust** to turn them all off for Claude. **Used in each project** shows each project's uses over every skill, with the skills used most there (the same counts are on a skill's **Overview**). **Who reached for what** shows each agent with the skills it used.
 
 Below that, the tab judges each item on the prompts that looked related to it, not on every time the rulebook reminder named it (an agent is told to say nothing about a rule that does not apply, so most reminders can only end in silence). Under each name is how often it was reminded; the bars are **related** prompts, how often the item was **read** then (any time later in that session), and **said no**. The verdict is one of: most said no (the "when" is too wide: make it narrower), passed over in silence when it applies (make it firm or a step), fair, working, or too few to judge. Only whether a prompt looked related is kept, never the prompt. Use **Program** to switch between **Both programs**, **Claude** and **agy**. Click a row to see what agents said when they passed it over.
 
