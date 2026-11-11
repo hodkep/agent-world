@@ -20,6 +20,8 @@ export interface McpServer {
   disabled?: boolean
   /** Its entry can be changed or removed from the screen (Claude Code's own files and agy's CLI list). */
   editable?: boolean
+  /** Every place that lists this same server (the same name, command or address and variable names), best first: set only on a row that stands for more than one. */
+  places?: McpServer[]
 }
 
 export type Policy = 'allow' | 'ask' | 'deny'
@@ -98,26 +100,41 @@ export interface McpGroup {
   rows: McpServer[]
 }
 
-const TITLE: Record<Exclude<McpWhere, 'project'>, [string, string]> = {
+const TITLE: Record<string, [string, string]> = {
   office: ['Agent World', 'the office · every agent'],
-  global: ['Everywhere', 'Claude Code’s own file'],
+  claude: ['Claude Code', 'its own files and every project’s'],
   plugin: ['Plugins', 'read only · managed by Claude'],
   'agy-cli': ['agy CLI', 'agy’s list the app keeps its own entry in'],
   'agy-ide': ['agy IDE', 'read only · the IDE’s own list']
 }
-const ORDER: McpWhere[] = ['office', 'global', 'project', 'plugin', 'agy-cli', 'agy-ide']
-const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
+const ORDER = ['office', 'claude', 'plugin', 'agy-cli', 'agy-ide']
+/** Which of a server's places comes first: Claude's own list, then a project's list in it, then a project's own .mcp.json (which comes with the repo and asks before it runs). */
+const rank = (s: McpServer) => (s.where === 'global' ? 0 : needsConfirm(s) ? 2 : 1)
+const kind = (s: McpServer) => JSON.stringify([s.name, s.transport, s.fact, s.env])
 
-/** The servers as panels, in the order the Skills screen has its places: the office, everywhere, each project, plugins, then agy's two lists. */
+/**
+ * The servers as panels by the program that reads them: the office, Claude Code (its everywhere list and every project's), plugins, then agy's two lists. A server set up the same in
+ * several places of one program is one row that holds its places; one of the same name with another command, address or variables stays a row of its own.
+ */
 export function groupServers(list: McpServer[]): McpGroup[] {
   const groups = new Map<string, McpGroup>()
+  const merged = new Map<string, McpServer[]>()
   for (const s of list) {
-    const key = s.where === 'project' ? `project:${s.project ?? ''}` : s.where
-    const g = groups.get(key) ?? { key, title: s.where === 'project' ? base(s.project ?? '') : TITLE[s.where][0], path: s.where === 'project' ? (s.project ?? '') : TITLE[s.where][1], rows: [] }
-    g.rows.push(s)
+    const key = s.where === 'global' || s.where === 'project' ? 'claude' : s.where
+    const g = groups.get(key) ?? { key, title: TITLE[key]![0], path: TITLE[key]![1], rows: [] }
     groups.set(key, g)
+    const k = `${key}:${kind(s)}`
+    const seen = merged.get(k)
+    if (seen) seen.push(s)
+    else merged.set(k, [s])
   }
-  return [...groups.values()].sort((a, b) => ORDER.indexOf(a.key.split(':')[0] as McpWhere) - ORDER.indexOf(b.key.split(':')[0] as McpWhere) || a.title.localeCompare(b.title))
+  for (const [k, places] of merged) {
+    const sorted = [...places].sort((a, b) => rank(a) - rank(b) || (a.project ?? '').localeCompare(b.project ?? '') || a.path.localeCompare(b.path))
+    const rep = sorted[0]!
+    groups.get(k.split(':')[0]!)!.rows.push(sorted.length > 1 ? { ...rep, places: sorted } : rep)
+  }
+  for (const g of groups.values()) g.rows.sort((a, b) => a.name.localeCompare(b.name))
+  return [...groups.values()].sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key))
 }
 
 /** One tool call as the office noted it: names only, never what was asked of the tool. */

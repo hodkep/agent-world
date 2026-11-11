@@ -39,10 +39,31 @@ describe('what agy is told no to', () => {
 })
 
 describe('the servers in groups', () => {
-  it('puts the office first, then everywhere, each project, plugins, agy\'s CLI and agy\'s IDE, and the projects in name order', () => {
+  it('puts the office first, then Claude Code (everywhere and every project together), plugins, agy\'s CLI and agy\'s IDE', () => {
     const g = groupServers([srv('a', 'agy-ide'), srv('z', 'project', '/w/zeta'), srv('b', 'global'), srv('o', 'office'), srv('c', 'project', '/w/alpha'), srv('p', 'plugin'), srv('d', 'agy-cli')])
-    expect(g.map((x) => x.key)).toEqual(['office', 'global', 'project:/w/alpha', 'project:/w/zeta', 'plugin', 'agy-cli', 'agy-ide'])
-    expect(g.find((x) => x.key === 'project:/w/alpha')!.title).toBe('alpha')
+    expect(g.map((x) => x.key)).toEqual(['office', 'claude', 'plugin', 'agy-cli', 'agy-ide'])
+    expect(g.find((x) => x.key === 'claude')!.title).toBe('Claude Code')
+    expect(g.find((x) => x.key === 'claude')!.rows.map((r) => r.name)).toEqual(['b', 'c', 'z'])
+  })
+
+  it('shows a server that is set up the same in several places once, with every place, the one in Claude\'s own file first', () => {
+    const g = groupServers([srv('supabase', 'global'), srv('supabase', 'project', '/w/sip'), srv('supabase', 'project', '/w/app'), srv('other', 'global')])
+    const rows = g.find((x) => x.key === 'claude')!.rows
+    expect(rows.map((r) => r.name)).toEqual(['other', 'supabase'])
+    const s = rows.find((r) => r.name === 'supabase')!
+    expect(s.id).toBe('global::supabase')
+    expect(s.places!.map((p) => p.project ?? 'everywhere')).toEqual(['everywhere', '/w/app', '/w/sip'])
+    expect(rows.find((r) => r.name === 'other')!.places).toBeUndefined()
+  })
+
+  it('keeps a server of the same name with another command, address or variables as a row of its own, and never merges across programs', () => {
+    const a = srv('supabase', 'global')
+    const b = { ...srv('supabase', 'project', '/w/p'), fact: 'npx other' }
+    const c = { ...srv('supabase', 'project', '/w/q'), env: ['TOKEN'] }
+    const d = srv('supabase', 'agy-cli')
+    const g = groupServers([a, b, c, d])
+    expect(g.find((x) => x.key === 'claude')!.rows).toHaveLength(3)
+    expect(g.find((x) => x.key === 'agy-cli')!.rows).toHaveLength(1)
   })
 })
 

@@ -7,9 +7,9 @@ import { alsoIn, rowState } from './mcpView'
 
 const COLOUR: Record<McpServer['where'], string> = { office: '#f2c230', global: '#5f9e5f', project: '#6ad0e0', plugin: '#a4a2b8', 'agy-cli': '#e07aa8', 'agy-ide': '#a4a2b8' }
 const none: ToolUsage = { tools: {}, servers: {} }
-type Reader = 'overview' | 'tools' | 'entry'
+type Reader = 'overview' | 'places' | 'tools' | 'entry'
 
-/** The MCP servers the programs' own files list, as the Skills shelf lists skills: a panel for each place, a row for each server with its status, a reader for the open one. */
+/** The MCP servers the programs' own files list, as the Skills shelf lists skills: a panel for each program, one row for each server with its status, a reader for the open one. */
 export function McpTab({ folder }: { folder?: string }) {
   const [rep, setRep] = useState<McpReport | null>(null)
   const [usage, setUsage] = useState<ToolUsage>(none)
@@ -47,17 +47,20 @@ export function McpTab({ folder }: { folder?: string }) {
     ).finally(() => setBusy((b) => (b.delete(s.id), new Set(b))))
   }
   // Connect all starts what is in the person's own files; a project's .mcp.json is asked about one at a time.
-  const connectAll = () => void Promise.all((rep?.servers ?? []).filter((s) => s.where !== 'office' && !needsConfirm(s) && !busy.has(s.id)).map((s) => connect(s)))
+  const connectAll = () => void Promise.all(rows.filter((s) => s.where !== 'office' && !needsConfirm(s) && !busy.has(s.id)).map((s) => connect(s)))
   const start = (s: McpServer) => {
     if (!needsConfirm(s)) return void connect(s)
     void window.aw.library.mcpDescribe({ id: s.id }).then((d) => setAsk({ s, d }), (err: unknown) => setFail(clean(err)))
   }
   const servers = useMemo(() => (rep?.servers ?? []).filter((s) => !find.trim() || `${s.name} ${s.fact}`.toLowerCase().includes(find.trim().toLowerCase())), [rep, find])
   const groups = useMemo(() => groupServers(servers), [servers])
+  // Each server once, as its row stands for it: the count, the switches and Connect all go by these, not by every place it is listed in.
+  const rows = useMemo(() => groupServers(rep?.servers ?? []).flatMap((g) => g.rows), [rep])
   const off = rep?.off ?? []
-  const current = open && open !== 'new' ? rep?.servers.find((s) => s.id === open) : undefined
-  const on = (rep?.servers ?? []).filter((s) => rowState(s, off) === 'on').length
-  const switchable = (rep?.servers ?? []).filter((s) => ['on', 'off'].includes(rowState(s, off))).length
+  // A row stands for all its places, so the reader opens on the row; a place opened by its own id (after saving it) is found in the list.
+  const current = open && open !== 'new' ? (rows.find((s) => s.id === open) ?? rep?.servers.find((s) => s.id === open)) : undefined
+  const on = rows.filter((s) => rowState(s, off) === 'on').length
+  const switchable = rows.filter((s) => ['on', 'off'].includes(rowState(s, off))).length
   const connected = Object.values(probes).filter((p) => p.status === 'connected').length
   const bad = Object.values(probes).filter((p) => p.status === 'failed' || p.status === 'timeout').length
   return (
@@ -70,7 +73,7 @@ export function McpTab({ folder }: { folder?: string }) {
           <button disabled={busy.size > 0 || !rep} title="Start each server in your own files and read what it answers; a project's .mcp.json is asked about one at a time" onClick={connectAll}>Connect all</button>
           <button className="primary" onClick={() => (setOpen('new'), setReader('entry'))}>Add server…</button>
         </div>
-        {rep && <p className="lib-sum"><span className="hint">{rep.servers.length} {rep.servers.length === 1 ? 'server' : 'servers'} · {on} on for Claude agents of {switchable} you can switch{connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number is calls in 30 days</span></p>}
+        {rep && <p className="lib-sum"><span className="hint">{rows.length} {rows.length === 1 ? 'server' : 'servers'} · {on} on for Claude agents of {switchable} you can switch{connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number is calls in 30 days</span></p>}
         {fail && <p className="error" role="alert">{fail}</p>}
         {ask && <ConfirmRun name={ask.s.name} file={ask.s.path} d={ask.d} onRun={() => (setAsk(null), void connect(ask.s, ask.d.digest))} onCancel={() => setAsk(null)} />}
         <section className="drawer sk2" aria-label="MCP servers">
@@ -90,6 +93,7 @@ export function McpTab({ folder }: { folder?: string }) {
                         <span className="sk2-main"><b>{s.name}</b><small>{s.transport}{s.fact ? ` · ${s.fact}` : ''}{st === 'ownoff' ? ' · off in its own file' : ''}</small></span>
                       </button>
                       <span className="mt-tail">
+                        {s.places && <span className="sk2-chip" title="Listed in each of these; see its Places tab">{s.places.length} places</span>}
                         {s.where !== 'office' && !p && !busy.has(s.id) && <button className="sm" aria-label={`Connect ${s.name}`} onClick={() => start(s)}>Connect</button>}
                         {s.where !== 'office' && <StatusChip probe={p} busy={busy.has(s.id)} />}
                         <span className="sk2-size">{n || '–'}</span>
@@ -125,7 +129,7 @@ function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReade
   const used = usage.servers[mcpKey(s.name)]
   const claude = s.where === 'global' || s.where === 'project'
   const tools = probe?.status === 'connected' ? probe.tools : []
-  const TABS: [Reader, string][] = [['overview', 'Overview'], ['tools', `Tools${tools.length ? ` (${tools.length})` : ''}`], ['entry', 'Entry (JSON)']]
+  const TABS: [Reader, string][] = [['overview', 'Overview'], ['places', 'Places'], ['tools', `Tools${tools.length ? ` (${tools.length})` : ''}`], ['entry', 'Entry (JSON)']]
   return (
     <div className="lip" role="group" aria-label={`${s.name} in detail`}>
       <div className="lip-top">
@@ -174,7 +178,52 @@ function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReade
         </div></div>
       )}
       {reader === 'tools' && <div className="lip-tp"><McpToolsTable server={s.name} tools={tools} usage={usage} connected={probe?.status === 'connected'} /></div>}
-      {reader === 'entry' && <McpEntry server={s} folder={folder} onSaved={onSaved} onRemoved={onRemoved} />}
+      {reader === 'places' && <Places s={s} />}
+      {reader === 'entry' && <EntryOf s={s} folder={folder} onSaved={onSaved} onRemoved={onRemoved} />}
     </div>
+  )
+}
+
+const base = (p: string) => p.replace(/\/+$/, '').split('/').pop() || p
+
+/** Each file that lists this server, by project with Claude Code's own list first: what a row that stands for several says about where it comes from. */
+function Places({ s }: { s: McpServer }) {
+  const all = s.places ?? [s]
+  const by = new Map<string, McpServer[]>()
+  for (const p of all) by.set(p.project ?? '', [...(by.get(p.project ?? '') ?? []), p])
+  return (
+    <div className="lip-tp"><div className="sk2-over">
+      {[...by].map(([project, ps]) => (
+        <section key={project}>
+          <h5 className="mt-pg"><b>{project ? base(project) : 'Everywhere'}</b><span className="mono" title={project}>{project || 'Claude Code’s own file'}</span></h5>
+          {ps.map((p) => (
+            <div key={p.id} className="mt-place">
+              <span className="mono" title={p.path}>{p.path || 'the office itself'}</span>
+              <small>{needsConfirm(p) ? 'comes with the repo · asks before it runs' : p.where === 'global' ? 'Claude Code’s own list' : p.where === 'project' ? 'a project’s list in Claude Code’s own file' : 'its own list'}{p.disabled ? ' · switched off in this file' : ''}</small>
+            </div>
+          ))}
+        </section>
+      ))}
+      {all.length > 1 && <p className="hint skw-note">Listed the same in each place: the same command or address and the same variable names. What the variables hold is never read, so one place could carry another account’s token. Open it in Entry (JSON) to see.</p>}
+    </div></div>
+  )
+}
+
+/** The entry of one place at a time: the one in Claude's own file to begin with, and a pick when the server is listed in several. */
+function EntryOf({ s, folder, onSaved, onRemoved }: { s: McpServer; folder?: string; onSaved: (id: string) => void; onRemoved: () => void }) {
+  const places = s.places ?? [s]
+  const [pid, setPid] = useState(s.id)
+  const cur = places.find((p) => p.id === pid) ?? s
+  return (
+    <>
+      {places.length > 1 && (
+        <label className="mt-placepick">Place to edit
+          <select aria-label="Place to edit" value={cur.id} onChange={(e) => setPid(e.target.value)}>
+            {places.map((p) => <option key={p.id} value={p.id}>{p.project ? base(p.project) : 'Everywhere'} · {p.path}</option>)}
+          </select>
+        </label>
+      )}
+      <McpEntry key={cur.id} server={cur} folder={folder} onSaved={onSaved} onRemoved={onRemoved} />
+    </>
   )
 }

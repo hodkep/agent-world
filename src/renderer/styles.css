@@ -5372,3 +5372,13 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-env dt { font: 700 11.5px Menlo, Consolas, monospace; color: var(--muted); overflow-wrap: anywhere; }
 .mt-env dd { margin: 0; overflow-wrap: anywhere; }
 .mt-risky { margin: 0; padding: 6px 8px; border: 2px solid var(--ink); background: var(--danger-well); color: var(--danger-text); font-size: 12px; }
+
+/* A server that is listed in several places: its Places tab, and the pick of which one Entry (JSON) edits. */
+.mt-pg { display: flex; align-items: baseline; gap: 10px; margin: 0 0 6px; }
+.mt-pg b { font-size: 13px; color: var(--text); }
+.mt-pg .mono { color: var(--hint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mt-place { display: grid; gap: 3px; padding: 8px 12px; margin: 0 0 8px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: 0 0 0 2px var(--line); }
+.mt-place .mono { overflow-wrap: anywhere; }
+.mt-place small { color: var(--hint); }
+.mt-placepick { display: grid; gap: 4px; margin: 10px 18px 0; font-size: 12px; color: var(--muted); }
+.mt-placepick select { min-width: 0; }
