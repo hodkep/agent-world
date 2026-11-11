@@ -114,8 +114,9 @@ describe('the minute summary and the switch', () => {
     expect(summaryEntry(h, { stalls: 2, blocked: 5 })).toEqual({ kind: 'summary', loopMedianMs: 6, loopP99Ms: 18, loopMaxMs: 378, stalls: 2, blocked: 5 })
   })
 
-  it('is on unless AW_PERF=0, and says more with AW_PERF=1', () => {
-    expect(perfMode({})).toBe('on')
+  it('is off unless AW_PERF is set (it wakes the app about 120 times a second), and says more with AW_PERF=1', () => {
+    expect(perfMode({})).toBe('off')
+    expect(perfMode({ AW_PERF: '' })).toBe('off')
     expect(perfMode({ AW_PERF: '0' })).toBe('off')
     expect(perfMode({ AW_PERF: '1' })).toBe('verbose')
     expect(perfMode({ AW_PERF: 'yes' })).toBe('on')

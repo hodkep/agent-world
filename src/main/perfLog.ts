@@ -4,8 +4,8 @@ import { appendFile, rename, stat } from 'node:fs/promises'
 /** A call that holds the main process for this long is written down the moment it returns. */
 export const BLOCKED_MS = 100
 
-/** Whether the watchdog runs: on unless AW_PERF=0; AW_PERF=1 adds the detail a stall entry can carry and the page's long tasks. */
-export const perfMode = (env: NodeJS.ProcessEnv): 'off' | 'on' | 'verbose' => (env.AW_PERF === '0' ? 'off' : env.AW_PERF === '1' ? 'verbose' : 'on')
+/** Whether the watchdog runs: off unless AW_PERF is set, because its timers wake the app about 120 times a second and macOS lists it under "Using Significant Energy". AW_PERF=1 adds the detail a stall entry can carry and the page's long tasks. */
+export const perfMode = (env: NodeJS.ProcessEnv): 'off' | 'on' | 'verbose' => (!env.AW_PERF || env.AW_PERF === '0' ? 'off' : env.AW_PERF === '1' ? 'verbose' : 'on')
 
 /**
  * A log file that is written off the call that adds to it: lines wait in a buffer and are appended together a moment later, in order.
