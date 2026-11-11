@@ -1,6 +1,6 @@
 import { type View, bodyPixels, clean, pixelTexture } from './sprites'
 
-export type StaffKind = 'boy' | 'supervisor' | 'courier' | 'git' | 'pizza' | 'guard'
+export type StaffKind = 'boy' | 'supervisor' | 'courier' | 'git' | 'pizza' | 'guard' | 'librarian'
 /** reach: an arm straight up to a shelf · clasp: both hands behind the back · sip: a cup at the mouth · call: a hand at the ear · chin: a hand on the chin · hold: both hands in front, with a book, a can or a tray in them · wipe: an arm out in front, with a cloth or a broom */
 export type StaffPose = 'stand' | 'walk1' | 'walk2' | 'salute' | 'point' | 'wipe' | 'sip' | 'call' | 'chin' | 'hold' | 'reach' | 'clasp' | 'reach' | 'clasp'
 
@@ -10,6 +10,8 @@ const KEYS: Record<StaffKind, Record<string, number>> = {
   courier: { o: 0x1a1522, h: 0x2b1d14, H: 0x1a120c, s: 0xe0b08a, S: 0xc08a5e, e: 0x1a1522, c: 0xd8782a, C: 0xb05a1c, a: 0xd8782a, p: 0x3a3a4a, k: 0x2a2024, r: 0xd8782a, R: 0xb05a1c, w: 0xf4f4f8 },
   // The git courier: the clock courier's body in a green jacket and cap, so the two are never taken for each other.
   git: { o: 0x1a1522, h: 0x2b1d14, H: 0x1a120c, s: 0xe0b08a, S: 0xc08a5e, e: 0x1a1522, c: 0x2e8c7a, C: 0x1f6a5c, a: 0x2e8c7a, p: 0x3a3a4a, k: 0x2a2024, r: 0x2e8c7a, R: 0x1f6a5c, w: 0xf4f4f8, g: 0xf05033 },
+  // The librarian: grey hair, a plum cardigan, a mustard scarf, and glasses.
+  librarian: { o: 0x1a1522, h: 0xc8c4d4, H: 0x9a96a8, s: 0xf0c49c, S: 0xc8946a, e: 0x1a1522, c: 0x7a3550, C: 0x5a2440, a: 0x7a3550, p: 0x3a3448, k: 0x1a1522, r: 0xd8a030, R: 0xa87820, w: 0xdff0ff },
   pizza: { o: 0x1a1522, h: 0x2b1d14, H: 0x1a120c, s: 0xf0c49c, S: 0xc8946a, e: 0x1a1522, c: 0xc8302e, C: 0x9a2024, a: 0xc8302e, p: 0x2a2a38, k: 0x2a2024, r: 0xc8302e, R: 0x9a2024, w: 0xf4f4f8 },
   guard: { o: 0x1a1522, h: 0x2b1d14, H: 0x1a120c, s: 0xc89870, S: 0xa87850, e: 0x1a1522, c: 0x4a5a7a, C: 0x36435e, a: 0x4a5a7a, p: 0x2a3248, k: 0x14111c, r: 0x36435e, R: 0x222a40, b: 0x14111c, y: 0xd8a030, l: 0xd8a030, w: 0xf4f4f8 },
   supervisor: { o: 0x1a1522, h: 0x5a3825, H: 0x3d2618, s: 0xf5d0a9, S: 0xd8ae88, e: 0x1a1522, c: 0x8fb4d8, C: 0x6f94b8, a: 0x8fb4d8, p: 0x5a5f6a, k: 0x2a2024, b: 0x2a2024, y: 0xd8a030, l: 0xf4f4f8, w: 0xf4f4f8 }
@@ -250,7 +252,15 @@ function visitor(kind: 'courier' | 'git' | 'pizza' | 'guard', view: View, pose: 
   return clean(rows)
 }
 
+/** Glasses over the eyes of the office boy's body: dark frames and a pale lens, from the front and the side. */
+function glasses(rows: Rows, view: View): Rows {
+  if (view === 'front') for (const [x, c] of [[4, 'o'], [5, 'w'], [6, 'o'], [9, 'o'], [10, 'w'], [11, 'o']] as const) put(rows, x, 7, c)
+  if (view === 'side') for (const [x, c] of [[7, 'o'], [8, 'w'], [9, 'o']] as const) put(rows, x, 7, c)
+  return rows
+}
+
 export function staffPixels(kind: StaffKind, view: View, pose: StaffPose): Rows {
+  if (kind === 'librarian') return glasses([...boy(view, pose)], view)
   return kind === 'boy' ? boy(view, pose) : kind === 'supervisor' ? supervisor(view, pose) : visitor(kind, view, pose)
 }
 
