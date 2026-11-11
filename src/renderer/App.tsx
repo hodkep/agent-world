@@ -330,8 +330,11 @@ export function App() {
   }, [])
   useEffect(() => {
     void lookLimits()
-    const t = setInterval(() => void lookLimits(), 30_000)
-    return () => clearInterval(t)
+    // A hidden window asks for nothing; it looks again when it is shown.
+    const t = setInterval(() => document.visibilityState === 'visible' && void lookLimits(), 30_000)
+    const shown = () => document.visibilityState === 'visible' && void lookLimits()
+    document.addEventListener('visibilitychange', shown)
+    return () => (clearInterval(t), document.removeEventListener('visibilitychange', shown))
   }, [lookLimits])
   const scanProviders = useCallback(() => {
     return window.aw.listProviders().then(setProviders, () => setProviders([]))

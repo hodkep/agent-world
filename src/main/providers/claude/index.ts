@@ -24,7 +24,7 @@ export const claude: Provider = {
   detect: (bin, run) => detectClaude(bin, { run: run ?? defaultRun }),
   // Its agents report their limits as they go; this asks for them when there is no agent to (the Usage tab and the office tanks).
   accounts: claudeAccounts,
-  limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage'])) },
+  limits: { read: async (bin, ask = usageRun) => parseClaudeUsage(await ask(bin, ['-p', '/usage', ...NO_MCP])) },
   // Claude Code's tools already carry the chat's names.
   calls: claudeCalls,
   callSamples: ['Bash', 'Read', 'Write', 'Edit', 'MultiEdit', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'Agent', 'mcp__docs__search'].map((name) => ({ id: 'c', name, args: {} })),
@@ -77,5 +77,7 @@ export const claude: Provider = {
 const defaultRun = (file: string, args: string[]) =>
   new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 10_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
 
+// The question needs none of the user's MCP servers; without them the program starts in two thirds of the time and without a handful of node processes.
+const NO_MCP = ['--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}']
 const usageRun = (file: string, args: string[]) =>
   new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))

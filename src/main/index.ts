@@ -36,6 +36,7 @@ import { listProcs, stopProc } from './procs'
 import { shared } from './shared'
 import { type SleepDeps, quietSince, sleepBlocker, sleepIdle } from './sleepIdle'
 import { startPerf, watched } from './perf'
+import { LIMITS_FRESH_MS, needsProbe } from './limitsProbe'
 import { perfMode } from './perfLog'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -223,13 +224,15 @@ const shells = new Map<string, pty.IPty>()
 const shellIdle = new Map<string, string>()
 // When each agent's terminal was started: a provider that reports nothing itself uses it to tell its sessions apart.
 const spawnedAt = new Map<string, number>()
-// Providers whose limits have to be asked for are asked at most this often, whoever is looking.
-const LIMITS_FRESH_MS = 120_000
-const polled: LimitWindow[][] = []
+// What a program last said about each login, kept while a later ask leaves that login out.
+const polled = new Map<string, LimitWindow[]>()
+const reportedAt = new Map<string, number>()
 let limitsAt = 0
+let forced = false
 async function askLimits() {
   limitsAt = Date.now()
-  polled.length = 0
+  const asked = forced
+  forced = false
   await Promise.all(
     providers().map(async (p) => {
       if (!p.limits || !agents.some((a) => providerOf(a).id === p.id) && (await detectOf(p)).state !== 'ready') return
@@ -237,14 +240,16 @@ async function askLimits() {
       const logins = p.accounts ? ['', ...prefs.accounts.filter((x) => x.provider === p.id).map((x) => x.id)] : [undefined]
       await Promise.all(
         logins.map(async (account) => {
+          if (!needsProbe({ live: !!p.capabilities.liveLimits, reportedAt: reportedAt.get(account ?? ''), forced: asked, now: Date.now() })) return
           const extra = accountsSvc.envFor(p.id, accountsSvc.dirOf(p.id, account))
           const run = (file: string, args: string[]) =>
             new Promise<string>((resolve, reject) => execFile(file, args, { env: { ...providerOf({}).env(process.env), ...extra }, timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
           try {
             const ws = await p.limits!.read(binFor(p), Object.keys(extra).length ? run : undefined)
-            polled.push(account === undefined ? ws : ws.map((w) => ({ ...w, account })))
+            polled.set(`${p.id}|${account ?? ''}`, account === undefined ? ws : ws.map((w) => ({ ...w, account })))
           } catch {
             /* not signed in or offline: its windows are simply missing */
+            polled.delete(`${p.id}|${account ?? ''}`)
           }
         })
       )
@@ -964,6 +969,7 @@ function onStats(s: AgentStats, agentId: string) {
   send('agent-stats', a.id, s)
   if (s.limits.fiveHour || s.limits.sevenDay) {
     limitsBook.record(a.account ?? '', s.limits)
+    reportedAt.set(a.account ?? '', Date.now())
     send('usage', limitsBook.tightest())
     try {
       mkdirSync(HOME, { recursive: true })
@@ -1789,6 +1795,7 @@ async function main() {
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => limitsBook.tightest())
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
+    if (refresh) forced = true
     if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
@@ -1796,10 +1803,10 @@ async function main() {
     const logins = ['', ...prefs.accounts.filter((x) => x.provider === liveId).map((x) => x.id)]
     const own = logins.flatMap((account) => {
       const live = claudeWindows(limitsBook.of(account)).map((w) => ({ ...w, account }))
-      const asked = polled.flat().filter((w) => w.provider === liveId && (w.account ?? '') === account)
+      const asked = [...polled.values()].flat().filter((w) => w.provider === liveId && (w.account ?? '') === account)
       return live.length ? [...live, ...asked.filter((w) => w.group !== live[0]!.group)] : asked
     })
-    const all = [...own, ...polled.flat().filter((w) => w.provider !== liveId)]
+    const all = [...own, ...[...polled.values()].flat().filter((w) => w.provider !== liveId)]
     snapshotLimits(all)
     return all
   })
