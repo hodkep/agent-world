@@ -31,6 +31,24 @@ export type Policies = Record<string, Policy | undefined>
  */
 export const needsConfirm = (s: { path: string }) => s.path.endsWith('.mcp.json')
 
+/** A server's name as Claude Code writes it into the name of its tools (`mcp__<this>__<tool>`): anything outside letters, digits, `_` and `-` becomes `_`. */
+export const mcpKey = (name: string) => name.replace(/[^A-Za-z0-9_-]/g, '_')
+
+/** What starting an entry would run, worked out in the main process by the rule the probe uses, for the person to read before it is started. */
+export interface Described {
+  /** Only one of the command and the address is set: the address when the entry's url is text, as when it is started. */
+  command?: string
+  args: string[]
+  url?: string
+  env: { name: string; value: string }[]
+  headers: { name: string; value: string }[]
+  cwd?: string
+  /** Variables in `env` that change how a program loads (PATH, NODE_OPTIONS, LD_*, DYLD_*…). */
+  risky: string[]
+  /** Of the entry and the folder it runs in: a start asks for the digest of what was shown and runs nothing when the entry is not that now. */
+  digest: string
+}
+
 /** The office's own server: agents need it to reach the office at all. */
 export const OFFICE_SERVER = 'agent-world'
 
@@ -65,7 +83,7 @@ const SERVER = /^[\w.-]+$/
  */
 export function claudeRules(policy: Policies, off: string[]): { allow: string[]; ask: string[]; deny: string[] } {
   const out = { allow: [] as string[], ask: [] as string[], deny: [] as string[] }
-  for (const s of off) if (SERVER.test(s) && s !== OFFICE_SERVER) out.deny.push(`mcp__${s}`)
+  for (const s of off) if (SERVER.test(s) && s !== OFFICE_SERVER) out.deny.push(`mcp__${mcpKey(s)}`)
   for (const [tool, p] of Object.entries(policy)) if (p && NAME.test(tool)) out[p].push(tool)
   return out
 }

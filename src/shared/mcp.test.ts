@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agyDenies, claudeRules, groupServers, needsConfirm, serverFact, toolUsage, type McpServer } from './mcp'
+import { agyDenies, claudeRules, groupServers, mcpKey, needsConfirm, serverFact, toolUsage, type McpServer } from './mcp'
 
 const srv = (name: string, where: McpServer['where'], project?: string): McpServer => ({ id: `${where}:${project ?? ''}:${name}`, name, transport: 'stdio', fact: '', env: [], where, path: '/p', ...(project && { project }), readOnly: where === 'agy-ide' || where === 'plugin' })
 
@@ -85,5 +85,16 @@ describe('which servers are started only after the person has read the command',
     expect(needsConfirm({ path: '/w/p/.mcp.json' })).toBe(true)
     expect(needsConfirm({ path: '/home/me/.claude.json' })).toBe(false)
     expect(needsConfirm({ path: '/home/me/.gemini/config/mcp_config.json' })).toBe(false)
+  })
+})
+
+describe('a server\'s name as Claude Code writes it in a tool\'s name', () => {
+  it('turns anything outside letters, digits, underscore and dash into an underscore', () => {
+    expect(mcpKey('my.server')).toBe('my_server')
+    expect(mcpKey('a b/c')).toBe('a_b_c')
+    expect(mcpKey('plain-name_1')).toBe('plain-name_1')
+  })
+  it('denies a server that is off under that name, so the rule matches its tools', () => {
+    expect(claudeRules({}, ['my.server', 'plain']).deny).toEqual(['mcp__my_server', 'mcp__plain'])
   })
 })
