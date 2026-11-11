@@ -67,7 +67,7 @@ export const claude: Provider = {
     const mcpFile = join(i.dir, 'mcp.json')
     const headerFile = join(i.dir, 'status-curl.cfg')
     writeFileSync(headerFile, curlHeaderConfig(i.agentToken), { mode: 0o600 })
-    writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: i.hookUrl, token: i.agentToken, headerFile, permissionTimeoutSec: i.permissionTimeoutSec, platform: i.platform })), { mode: 0o600 })
+    writeFileSync(settingsFile, JSON.stringify(hookSettings({ url: i.hookUrl, token: i.agentToken, headerFile, permissionTimeoutSec: i.permissionTimeoutSec, platform: i.platform, rules: i.rules })), { mode: 0o600 })
     writeFileSync(mcpFile, JSON.stringify(mcpConfig({ url: i.mcpUrl, agentToken: i.agentToken })), { mode: 0o600 })
     return { settingsFile, mcpFile, env: telemetryEnv(i.hookUrl, i.agentToken) }
   },

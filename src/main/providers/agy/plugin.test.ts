@@ -28,13 +28,15 @@ const run = (event: string, input: object, env: Record<string, string>) =>
   })
 
 describe("agy's plugin hooks", () => {
-  it('ask the office before each of agy\'s editing tools, and only those, so an edit can be held back', () => {
+  it('ask the office before each of agy\'s own tools, so an edit can be held back, a tool can be denied, and the calls can be counted', () => {
     const hooks = JSON.parse(readFileSync(join(dir, 'hooks.json'), 'utf8'))['aw-library']
-    expect(hooks.PreToolUse.map((h: { matcher: string }) => h.matcher).sort()).toEqual(['multi_replace_file_content', 'replace_file_content', 'write_to_file'])
+    const names = hooks.PreToolUse.map((h: { matcher: string }) => h.matcher)
+    expect(names).toEqual(expect.arrayContaining(['multi_replace_file_content', 'replace_file_content', 'write_to_file', 'run_command', 'view_file']))
+    expect(new Set(names).size).toBe(names.length)
     for (const h of hooks.PreToolUse) expect(h.hooks).toEqual([{ type: 'command', command: './hook.sh pre-tool' }])
   })
   it('carry a newer version than the plugin that had no such hook, so connecting again replaces it', () => {
-    expect(JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')).version).toBe('0.1.3')
+    expect(JSON.parse(readFileSync(join(dir, 'plugin.json'), 'utf8')).version).toBe('0.1.4')
   })
 })
 

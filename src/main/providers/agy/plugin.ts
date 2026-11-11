@@ -1,5 +1,6 @@
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { AGY_TOOLS } from '../../../shared/mcp'
 
 /** The agy plugin that lets the office see what an agy agent does with the library. agy has no per-session flag for plugins, so it is installed once and does nothing unless the office started the agent. */
 export const PLUGIN_NAME = 'aw-library'
@@ -26,7 +27,7 @@ fi
 `
 
 /** The version the plugin is written as: an installed one older than this has not got every hook. */
-export const PLUGIN_VERSION = '0.1.3'
+export const PLUGIN_VERSION = '0.1.4'
 
 /** agy's tools that write a file. */
 export const EDIT_TOOLS = ['write_to_file', 'replace_file_content', 'multi_replace_file_content']
@@ -36,7 +37,7 @@ export const HOOKS = {
     PreInvocation: [{ type: 'command', command: './hook.sh pre-inv' }],
     PostToolUse: [{ matcher: 'view_file', hooks: [{ type: 'command', command: './hook.sh post-tool' }] }],
     // Before agy edits a file: the office may hold the edit back (the plan was not approved). Anything but a held edit gets no answer, so agy decides as it always did.
-    PreToolUse: EDIT_TOOLS.map((matcher) => ({ matcher, hooks: [{ type: 'command', command: './hook.sh pre-tool' }] }))
+    PreToolUse: [...new Set([...EDIT_TOOLS, ...AGY_TOOLS.map((t) => t.name)])].map((matcher) => ({ matcher, hooks: [{ type: 'command', command: './hook.sh pre-tool' }] }))
   }
 }
 

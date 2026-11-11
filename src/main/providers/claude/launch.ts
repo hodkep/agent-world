@@ -34,16 +34,18 @@ function statusLine(url: string, headerFile: string, platform: NodeJS.Platform) 
   }
 }
 
-export function hookSettings(o: { url: string; token: string; headerFile: string; permissionTimeoutSec: number; platform: NodeJS.Platform }) {
+export function hookSettings(o: { url: string; token: string; headerFile: string; permissionTimeoutSec: number; platform: NodeJS.Platform; /** What the person set in Playbook and tools: servers off and tools told Allow, Ask or Deny. */ rules?: { allow: string[]; ask: string[]; deny: string[] } }) {
   const hook = (timeout: number) => [
     { hooks: [{ type: 'http', url: o.url, timeout, headers: { Authorization: `Bearer ${o.token}` } }] }
   ]
   const hooks: Record<string, ReturnType<typeof hook>> = {}
   for (const e of OBSERVED) hooks[e] = hook(OBSERVE_TIMEOUT_SEC)
   hooks.PermissionRequest = hook(o.permissionTimeoutSec + PERMISSION_GRACE_SEC)
+  const rules = o.rules && (o.rules.allow.length || o.rules.ask.length || o.rules.deny.length) ? o.rules : undefined
   return {
     hooks: hooks as Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>>,
-    statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.headerFile, o.platform)
+    statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.headerFile, o.platform),
+    ...(rules && { permissions: { allow: rules.allow, ask: rules.ask, deny: rules.deny } })
   }
 }
 

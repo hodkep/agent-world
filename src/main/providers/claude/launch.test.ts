@@ -102,6 +102,18 @@ describe('claude launch', () => {
   })
 })
 
+describe('the rules in an agent\'s own settings', () => {
+  const base = { url: 'http://127.0.0.1:9/hook', token: 't', headerFile: '/h/curl.cfg', permissionTimeoutSec: 300, platform: 'darwin' as const }
+  it('carries the allow, ask and deny rules it is given, in the settings only this agent reads', () => {
+    const s = hookSettings({ ...base, rules: { allow: ['Read'], ask: ['Bash'], deny: ['mcp__higgsfield', 'WebFetch'] } }) as { permissions?: unknown }
+    expect(s.permissions).toEqual({ allow: ['Read'], ask: ['Bash'], deny: ['mcp__higgsfield', 'WebFetch'] })
+  })
+  it('has no permissions at all when there is no rule, so nothing changes for an agent without any', () => {
+    expect('permissions' in hookSettings(base)).toBe(false)
+    expect('permissions' in hookSettings({ ...base, rules: { allow: [], ask: [], deny: [] } })).toBe(false)
+  })
+})
+
 describe('agent environment', () => {
   it('drops the launching Claude session\'s link variables so each agent is its own session', () => {
     const env = agentEnv({

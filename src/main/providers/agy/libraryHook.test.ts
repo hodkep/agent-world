@@ -119,6 +119,17 @@ describe("agy's hooks", () => {
     expect(agyLibraryHook('pre-tool', payload('c1', {}), held.io)).toEqual({})
     expect(held.edits).toEqual([])
   })
+  it('note each tool agy is about to call, and deny one the person told Deny, in its own words', () => {
+    const noted: string[] = []
+    const t = { ...io().io, toolCall: (n: string) => void noted.push(n), toolDenied: (n: string) => n === 'run_command' }
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'run_command', args: { CommandLine: 'ls' } } }), t)).toEqual({ decision: 'deny', reason: 'run_command is turned off for agents in Agent World (Playbook and tools → Tools).' })
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'view_file', args: {} } }), t)).toEqual({})
+    expect(noted).toEqual(['run_command', 'view_file'])
+  })
+  it('hold an edit back first, before it asks whether the tool is denied', () => {
+    const t = { ...io('LINE', 'Not yet.').io, toolDenied: () => true }
+    expect(agyLibraryHook('pre-tool', payload('c1', { toolCall: { name: 'write_to_file', args: { TargetFile: '/w/a.ts' } } }), t)).toEqual({ decision: 'deny', reason: 'Not yet.' })
+  })
   it('answer an event it does not know with an empty object', () => {
     expect(agyLibraryHook('stop', payload(), io().io)).toEqual({})
   })
