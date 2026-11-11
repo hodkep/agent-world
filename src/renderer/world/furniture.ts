@@ -418,6 +418,16 @@ function drawPiece(f: Furniture, layer: Container, built: Built, rand: () => num
       })
       built.arcades.push({ x: px + 3, y: py - 7 })
       break
+    case 'lectern':
+      // A slanted wooden stand with an open book on it.
+      place(layer, bottom, (g) => {
+        box(g, px + 6, py + 6, 4, 10, 0x6a4124)
+        box(g, px + 2, py + 1, 12, 6, 0x8e5b34)
+        r(g, px + 3, py + 2, 4, 4, 0xf1ecd9)
+        r(g, px + 9, py + 2, 4, 4, 0xf1ecd9)
+        r(g, px + 7, py + 2, 2, 4, 0xc9c2a8)
+      })
+      break
     case 'cooler':
       place(layer, bottom, (g) => {
         box(g, px + 3, py - 2, 10, 17, 0xe8ecf2)
@@ -519,6 +529,13 @@ function drawDecor(d: WallDecor, layer: Container, rand: () => number) {
       case 'wallplant':
         plantSprite(g, px + 8, py + 31, rand, false)
         break
+      case 'rack': {
+        // A dark panel with four sockets; the plugs in them are drawn live, by the health of each MCP server.
+        r(g, px + 2, py + 3, TILE - 4, 26, P.ink)
+        r(g, px + 3, py + 4, TILE - 6, 24, 0x1c1a28)
+        for (let i = 0; i < 4; i++) r(g, px + 4, py + 6 + i * 6, 6, 4, 0x0c0b12)
+        break
+      }
       case 'window':
         break
     }

@@ -99,6 +99,7 @@ import { defaultWorkflow, windingDown, withDefault, workflowsShown } from '../sh
 import { TerminalView } from './panel/TerminalView'
 import { gitKindOfEvent } from './world/gitCourier'
 import { OfficeWorld } from './world/World'
+import { freshItems } from './world/librarian'
 import type { CardData } from './profile/facts'
 import { cardLayout, cardMaxHeight } from './profile/layout'
 import { onRevealRightClick } from './files/reveal'
@@ -706,7 +707,8 @@ export function App() {
     let w: OfficeWorld | null = null
     void OfficeWorld.create(stage.current!, (id) => select(id, true), {
       plant: { onHover: (v, x, y) => plantHover.current(v, x, y) },
-      handbook: (id) => handbookOpen.current(id)
+      handbook: (id) => handbookOpen.current(id),
+      library: () => setLibraryOpen(true)
     }).then((created) => {
       if (!alive) return created.destroy()
       w = office.current = created
@@ -724,6 +726,7 @@ export function App() {
   useEffect(
     () =>
       window.aw.onLibraryUse((id, how, item) => {
+        office.current?.libraryUse(id, how, item)
         if (how !== 'fetched' && how !== 'skill' && how !== 'read') return
         const until = Date.now() + 6000
         setReading((r) => ({ ...r, [id]: { until, item } }))
@@ -731,6 +734,43 @@ export function App() {
       }),
     []
   )
+  // The librarian's shelves: what is in the library, what was used in 30 days, and what showed up in the last day (remembered between runs).
+  useEffect(() => {
+    if (!officeReady) return
+    const load = () =>
+      void Promise.all([window.aw.library.list(), window.aw.library.usage30()])
+        .then(([{ items }, usage]) => {
+          let seen: Record<string, number> | null = null
+          try {
+            seen = JSON.parse(localStorage.getItem('aw.librarySeen') ?? 'null')
+          } catch {
+            seen = null
+          }
+          const f = freshItems(items.map((i) => i.id), seen, Date.now())
+          try {
+            localStorage.setItem('aw.librarySeen', JSON.stringify(f.seen))
+          } catch {
+            // Storage refused: every item is old next time, which only loses the NEW mark.
+          }
+          office.current?.libraryState(items.map((i) => ({ id: i.id, name: i.name })), usage, f.fresh)
+        })
+        .catch(() => {})
+    load()
+    const every = setInterval(load, 300_000)
+    const off = window.aw.onLibrarySizes(load)
+    return () => (clearInterval(every), off())
+  }, [officeReady, libraryOpen])
+  // The librarian's tool rack: MCP servers' health, read through a running agent (it health-checks every server, so seldom: at start, every 15 minutes, and after Playbook and tools closes).
+  useEffect(() => {
+    if (!officeReady || libraryOpen) return
+    const check = () => {
+      const a = agentsRef.current.find((x) => x.online)
+      if (a) void window.aw.listTools(a.id).then((info) => office.current?.toolHealth(info.mcp.map((m) => ({ name: m.name, health: m.health }))), () => {})
+    }
+    const first = setTimeout(check, 5000)
+    const every = setInterval(check, 900_000)
+    return () => (clearTimeout(first), clearInterval(every))
+  }, [officeReady, libraryOpen])
   // An agent that is only waiting for the person's word on a run raises its hand in the office, as for a permission.
   const askedOffice = <T extends { activity: string }>(id: string, st: T): T => (['idle', 'waiting'].includes(st.activity) && waits.some((w) => w.agentId === id) ? { ...st, activity: 'permission' } : st)
   useEffect(() => {

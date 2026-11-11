@@ -72,10 +72,10 @@ export interface Spot extends Pt {
 
 export type Furniture =
   | { kind: 'desk' | 'meeting' | 'sofa-top' | 'sofa-bottom' | 'coffee-table' | 'counter' | 'fridge' | 'arcade' | 'carrom'; x: number; y: number; w: number; h: number }
-  | { kind: 'plant' | 'cooler' | 'printer' | 'bin' | 'bistro' | 'beanbag' | 'chair-desk' | 'chair-top' | 'chair-bottom'; x: number; y: number; w: number; h: number }
+  | { kind: 'plant' | 'cooler' | 'printer' | 'bin' | 'bistro' | 'beanbag' | 'chair-desk' | 'chair-top' | 'chair-bottom' | 'lectern'; x: number; y: number; w: number; h: number }
 
 export type WallDecor =
-  | { kind: 'shelf' | 'kanban' | 'vine' | 'clock' | 'frame' | 'tv' | 'wallplant' | 'window'; x: number; y: number; w: number; variant?: number }
+  | { kind: 'shelf' | 'kanban' | 'vine' | 'clock' | 'frame' | 'tv' | 'wallplant' | 'window' | 'rack'; x: number; y: number; w: number; variant?: number }
 
 export const W = 30
 export const H = 17
@@ -141,6 +141,8 @@ function buildOffice() {
     { kind: 'plant', x: 1, y: 14, w: 1, h: 1 },
     { kind: 'cooler', x: 17, y: 2, w: 1, h: 1 },
     { kind: 'printer', x: 16, y: 14, w: 2, h: 1 },
+    // The librarian's lectern, between the kanban board and the right bookshelf: she stands behind it, on the row below.
+    { kind: 'lectern', x: 13, y: 2, w: 1, h: 1 },
     { kind: 'bin', x: 2, y: 15, w: 1, h: 1 },
     // Lounge, upper half: bean bags in front of the wall TV, arcade cabinets in the corner.
     ...BEANBAG_XS.map((x) => ({ kind: 'beanbag' as const, x, y: 4, w: 1, h: 1 })),
@@ -175,7 +177,8 @@ function buildOffice() {
     { kind: 'clock', x: 6, y: 0, w: 1 },
     { kind: 'window', x: 7, y: 0, w: 1 },
     { kind: 'kanban', x: 8, y: 0, w: 5 },
-    { kind: 'window', x: 13, y: 0, w: 1 },
+    // The librarian's tool rack, one plug per MCP server, on the wall over her lectern.
+    { kind: 'rack', x: 13, y: 0, w: 1 },
     { kind: 'shelf', x: 14, y: 0, w: 3, variant: 2 },
     { kind: 'vine', x: 17, y: 0, w: 1 },
     { kind: 'frame', x: 19, y: 0, w: 1, variant: 0 },
