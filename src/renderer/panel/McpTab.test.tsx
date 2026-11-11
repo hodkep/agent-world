@@ -31,10 +31,10 @@ const click = (el: Element | null | undefined) => act(async () => void (el as HT
 describe('the MCP servers tab', () => {
   afterEach(() => void (document.body.innerHTML = ''))
 
-  it('lists the servers in panels by place, the office\'s own locked and agy\'s IDE list read only', async () => {
+  it('lists the servers in panels by program, the office\'s own locked and agy\'s IDE list read only', async () => {
     const { host } = await mount(<McpTab />, {})
     const panels = [...host.querySelectorAll('[role="group"].sk2-pnl')].map((p) => p.getAttribute('aria-label'))
-    expect(panels).toEqual(['Agent World', 'Everywhere', 'agy IDE'])
+    expect(panels).toEqual(['Agent World', 'Claude Code', 'agy IDE'])
     expect(host.querySelector('[aria-label="Open agent-world"]')!.closest('.sk2-row')!.textContent).toContain('locked')
     expect(host.querySelector('[aria-label="Open stripe"]')!.closest('.sk2-row')!.textContent).toContain('read only')
     expect(host.querySelector('[aria-label="supabase for Claude agents"]')!.getAttribute('aria-checked')).toBe('true')
@@ -45,7 +45,7 @@ describe('the MCP servers tab', () => {
     const lib = { mcp: vi.fn(async () => report({ servers: [srv('supabase'), srv('supabase', { where: 'agy-cli', readOnly: true })] })) }
     const { host } = await mount(<McpTab />, lib)
     const size = (where: string) => host.querySelector(`[role="group"][aria-label="${where}"] .sk2-size`)!.textContent
-    expect(size('Everywhere')).toBe('3')
+    expect(size('Claude Code')).toBe('3')
     expect(size('agy CLI')).toBe('–')
   })
 
@@ -410,5 +410,53 @@ describe('the MCP and tools usage', () => {
     const { host } = await mount(<McpUsage />, { toolUsage: vi.fn(async () => ({ tools: {}, servers: {} })) })
     expect(host.textContent).toContain('No tool call has been noted yet')
     expect(host.textContent).toContain('0 calls')
+  })
+})
+
+describe('a server that is set up the same in several places', () => {
+  afterEach(() => void (document.body.innerHTML = ''))
+  const places = () => report({ servers: [
+    srv('supabase', { env: ['T'] }),
+    srv('supabase', { env: ['T'], where: 'project', project: '/w/app', path: '~/.claude.json', id: 'project:/w/app:supabase' }),
+    srv('supabase', { env: ['T'], where: 'project', project: '/w/sip', path: '/w/sip/.mcp.json', id: 'project:/w/sip:supabase' })
+  ] })
+  const lib = () => ({ mcp: vi.fn(async () => places()) })
+
+  it('is one row, saying in how many places it is listed', async () => {
+    const { host } = await mount(<McpTab />, lib())
+    expect(host.querySelectorAll('[aria-label="Open supabase"]')).toHaveLength(1)
+    expect(host.querySelector('.sk2-row')!.textContent).toContain('3 places')
+    expect(host.querySelector('.lib-sum')!.textContent).toContain('1 server')
+  })
+
+  it('connects the one in Claude\'s own file, not the one that comes with a project', async () => {
+    const { host, lib: l } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Connect supabase"]'))
+    expect(l.connectMcp).toHaveBeenCalledWith('global:supabase')
+  })
+
+  it('lists its places in a tab, by project, and says which one comes with the repo', async () => {
+    const { host } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Open supabase"]'))
+    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
+    const r = host.querySelector('.lip')!
+    expect([...r.querySelectorAll('.mt-pg b')].map((b) => b.textContent)).toEqual(['Everywhere', 'app', 'sip'])
+    expect(r.textContent).toContain('/w/sip/.mcp.json')
+    expect(r.textContent).toContain('comes with the repo')
+  })
+
+  it('edits one place at a time in Entry (JSON), the one in Claude\'s own file to begin with', async () => {
+    const mcpEntry = vi.fn(async () => ({ json: '{}', file: '/f', name: 'supabase', editable: true }))
+    const { host } = await mount(<McpTab />, { ...lib(), mcpEntry })
+    await click(host.querySelector('[aria-label="Open supabase"]'))
+    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Entry (JSON)'))
+    expect(mcpEntry).toHaveBeenLastCalledWith('global:supabase')
+    const pick = host.querySelector('select[aria-label="Place to edit"]') as HTMLSelectElement
+    expect(pick.options).toHaveLength(3)
+    await act(async () => {
+      pick.value = 'project:/w/sip:supabase'
+      pick.dispatchEvent(new Event('change', { bubbles: true }))
+    })
+    expect(mcpEntry).toHaveBeenLastCalledWith('project:/w/sip:supabase')
   })
 })
