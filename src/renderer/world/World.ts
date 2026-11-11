@@ -37,6 +37,8 @@ import type { LimitView, UsageLimits } from '../../shared/usage'
 import { textPixels } from './pixelfont'
 import { type Facing, OFFICE, type Pt, RETINUE_SEATS, type Spot, TILE, retinueSpot } from './office'
 import { spread } from './overlap'
+import { LibrarianDesk, beatSteps, besideShelf, libraryMarks, shelfSlot } from './librarian'
+import { serverColor } from '../chat/instruments'
 import { nextZoom, wheelSteps } from './zoomSteps'
 import { type AgentState, type Place, placeFor, roleOf } from './worldState'
 
@@ -125,7 +127,10 @@ export interface AgentView {
   readingName?: string
 }
 
-export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void }
+export type WorldHandlers = { plant: PlantHandlers; handbook: (agentId: string) => void; library: () => void }
+/** Where the librarian stands, behind her lectern, facing it. */
+const LIB_STAND = { x: 13, y: 3 }
+const SLOTS = 48
 export interface PlantHandlers {
   onHover: (v: { five: LimitView; week: LimitView } | null, x: number, y: number) => void
 }
@@ -254,6 +259,20 @@ export class OfficeWorld {
   private readonly board = new Graphics()
   // The book an agent has pulled out of the wall shelf while it reads.
   private readonly pulledBook = new Graphics()
+  // The librarian: who she is, what she is asked to do, and what the shelves and her tool rack show.
+  private librarian!: StaffActor
+  private readonly libDesk = new LibrarianDesk()
+  private libMarks: { glow: string[]; dusty: string[]; fresh: string[] } = { glow: [], dusty: [], fresh: [] }
+  private readonly libNames = new Map<string, string>()
+  private readonly libShelved = new Set<string>()
+  private libFetch: { agent: string; at: number } | null = null
+  private libSkipped: { name: string; at: number } | null = null
+  private libDustAt = 0
+  private libShushed: unknown = null
+  private tools: { name: string; health: string }[] = []
+  private readonly libSpines = new Graphics()
+  private readonly libPlugs = new Graphics()
+  private onLibrary: () => void = () => {}
   private pulledKey = ''
   private boardKey = ''
   private ambient!: Ambient
@@ -300,6 +319,7 @@ export class OfficeWorld {
     const shadows = new Graphics()
     this.street = new Street(OFFICE.map)
     this.onHandbook = handlers.handbook
+    this.onLibrary = handlers.library
     this.plant = new PowerPlant(OFFICE.map.w * TILE - PLANT.w - 14, -PLANT.h - 1, handlers.plant)
     this.root.addChild(drawGrounds(OFFICE.map), this.billboard, this.scoreboard, this.plant.view, this.sign, this.street.view, drawLampPosts(OFFICE.map), this.visitors.view, this.riders, this.ambience.outside, drawFloors(OFFICE.map), shadows, this.layer, this.overlays)
     this.overlays.addChild(this.rampView.inner, this.ambience.tint, this.ambience.lights, this.mail, this.visitors.bubbles, this.ambience.banner)
@@ -836,6 +856,17 @@ export class OfficeWorld {
       a.view.visible = false
       this.layer.addChild(a.view)
     }
+    // The librarian is always at her lectern, even when the office is quiet: a click on her opens Playbook and tools.
+    const lib = new StaffActor('librarian', 'the librarian', OFFICE.map, LIB_STAND, (over) => over && this.libHover())
+    lib.view.cursor = 'pointer'
+    lib.view.on('pointertap', () => !this.dragged && this.onLibrary())
+    lib.setShown(true)
+    lib.give([{ kind: 'wait', ms: 1000, face: 'up' }])
+    this.librarian = lib
+    this.layer.addChild(lib.view)
+    this.libSpines.zIndex = TILE * 2
+    this.libPlugs.zIndex = TILE * 2
+    this.layer.addChild(this.libSpines, this.libPlugs)
   }
 
   /** The person hid the office or brought it back: while hidden nothing is drawn, and the scene stays as it was, so showing it again is at once. */
@@ -1316,6 +1347,116 @@ export class OfficeWorld {
     this.ramp.add(kind, { x: home.x * TILE + TILE, y: (home.y - 1) * TILE - 6 }, this.rampMs)
   }
 
+  /** An agent read, was given or skipped a library item: she brings the book to it at the shelf, or marks the skip in her ledger. */
+  libraryUse(agentId: string, how: string, item: string) {
+    const now = performance.now()
+    if (how === 'fetched' || how === 'skill' || how === 'read') this.libFetch = { agent: agentId, at: now }
+    else if (how === 'skipped') {
+      this.libSkipped = { name: this.libNames.get(item) ?? item, at: now }
+      this.libDesk.want({ kind: 'ledger' }, now)
+    }
+  }
+
+  /** What is in the library and how much each item was used in 30 days; `fresh` are the items that showed up less than a day ago. */
+  libraryState(items: { id: string; name: string }[], usage: Record<string, { used: number }>, fresh: string[]) {
+    this.libNames.clear()
+    for (const i of items) this.libNames.set(i.id, i.name)
+    this.libMarks = { ...libraryMarks(items.map((i) => i.id), usage), fresh }
+    for (const id of fresh) if (!this.libShelved.has(id)) (this.libShelved.add(id), this.libDesk.want({ kind: 'shelve', at: this.slotSpot(shelfSlot(id, SLOTS)) }, performance.now()))
+  }
+
+  /** The MCP servers and how each is: a server that starts failing pulls its plug on her rack, and she taps it. */
+  toolHealth(servers: { name: string; health: string }[]) {
+    const was = new Set(this.tools.filter((s) => s.health === 'failed').map((s) => s.name))
+    this.tools = servers
+    if (servers.some((s) => s.health === 'failed' && !was.has(s.name))) this.libDesk.want({ kind: 'tap' }, performance.now())
+  }
+
+  private libHover() {
+    const failing = this.tools.filter((s) => s.health === 'failed').length
+    const skipped = this.libSkipped && performance.now() - this.libSkipped.at < 600_000 ? ` · skipped: ${this.libSkipped.name}` : ''
+    const text = `${this.libNames.size} in the library${failing ? ` · ${failing} tool${failing === 1 ? '' : 's'} failing` : ''}${skipped}`
+    this.shouts.say('staff:librarian', text, 2600, () => ({ x: this.librarian.view.x + TILE / 2, y: this.librarian.view.y - 28 }))
+  }
+
+  /** The two wall bookshelves hold 48 slots, 24 each in three tiers of eight; this is the tile in front of a slot. */
+  private slotRect(slot: number) {
+    const shelves = OFFICE.decor.filter((d) => d.kind === 'shelf')
+    const shelf = shelves[Math.floor(slot / 24) % shelves.length]!
+    const k = slot % 24
+    const tier = Math.floor(k / 8)
+    return { x: shelf.x * TILE + 6 + (k % 8) * 4, y: shelf.y * TILE + 9 + tier * 7, shelf }
+  }
+
+  private slotSpot(slot: number) {
+    const r = this.slotRect(slot)
+    const x = Math.min(r.shelf.x + r.shelf.w - 1, Math.max(r.shelf.x, Math.floor(r.x / TILE)))
+    return { x, y: 2 }
+  }
+
+  /** Her beats when she is free, the dusting now and then, a shush when carrom starts, and the marks on the spines and the plugs on the rack. */
+  private libraryTick(dt: number, t: number, on: boolean) {
+    const lib = this.librarian
+    const say = (text: string, ms: number) => this.shouts.say('staff:librarian', text, ms, () => ({ x: lib.view.x + TILE / 2, y: lib.view.y - 28 }))
+    lib.update(dt, t, { then: () => {}, say })
+    lib.fade(dt)
+    if (on) {
+      const now = performance.now()
+      const reader = this.libFetch && this.claims.get('shelf')?.get(this.libFetch.agent)
+      if (reader && this.libFetch) (this.libDesk.want({ kind: 'fetch', at: besideShelf(reader, (p) => OFFICE.map.walkable(p)) }, this.libFetch.at), (this.libFetch = null))
+      if (this.libFetch && now - this.libFetch.at > 4000) this.libFetch = null
+      if (this.libMarks.dusty.length && now > this.libDustAt) {
+        if (this.libDustAt) this.libDesk.want({ kind: 'dust', at: this.slotSpot(shelfSlot(this.libMarks.dusty[Math.floor(Math.random() * this.libMarks.dusty.length)]!, SLOTS)) }, now)
+        this.libDustAt = now + (360_000 + Math.random() * 240_000) / staffSpeed()
+      }
+      if (this.game?.started && this.libShushed !== this.game) (this.libShushed = this.game, this.libDesk.want({ kind: 'shush' }, now))
+      const beat = lib.free ? this.libDesk.next(now) : null
+      if (beat) lib.give(beatSteps(beat, LIB_STAND))
+    }
+    this.drawLibrary(t)
+  }
+
+  private drawLibrary(t: number) {
+    const g = this.libSpines
+    g.clear()
+    const spine = (id: string, color: number) => {
+      const r = this.slotRect(shelfSlot(id, SLOTS))
+      g.rect(r.x, r.y, 2, 5).fill(color)
+      return r
+    }
+    for (const id of this.libMarks.dusty) {
+      const r = spine(id, 0x5a5660)
+      g.rect(r.x, r.y + 1, 1, 1).fill(0x9a96a0)
+      g.rect(r.x + 1, r.y + 3, 1, 1).fill(0x9a96a0)
+    }
+    for (const id of this.libMarks.glow) {
+      const r = spine(id, 0xf2c230)
+      g.rect(r.x, r.y, 2, 1).fill(0xfff6c8)
+      g.rect(r.x - 1, r.y - 1, 4, 7).fill({ color: 0xf2c230, alpha: 0.18 + 0.08 * Math.sin(t / 400 + r.x) })
+    }
+    for (const id of this.libMarks.fresh) {
+      const r = spine(id, 0x6ad0e0)
+      if (Math.floor(t / 500) % 2) g.rect(r.x - 1, r.y - 3, 4, 2).fill(0xf2c230)
+    }
+    // The rack: a plug in each socket, in its server's colour; a failing one is pulled out and red.
+    const p = this.libPlugs
+    p.clear()
+    const rack = OFFICE.decor.find((d) => d.kind === 'rack')
+    if (!rack) return
+    this.tools.slice(0, 4).forEach((s, i) => {
+      const x = rack.x * TILE + 4
+      const y = rack.y * TILE + 6 + i * 6
+      if (s.health === 'failed') {
+        p.rect(x + 1, y + 1, 2, 2).fill(0xd83a3a)
+        p.rect(x + 8, y + 3, 2, 5).fill(0x3a3654)
+        if (Math.floor(t / 350) % 2) p.rect(x - 2, y, 2, 2).fill(0xff8a8a)
+      } else {
+        p.rect(x + 1, y + 1, 4, 2).fill(Number.parseInt(serverColor(s.name).slice(1), 16))
+        p.rect(x + 5, y + 1, 4, 2).fill(0x3a3654)
+      }
+    })
+  }
+
   private dropCaller(trip: Trip) {
     const c = this.callers.get(trip)
     if (!c) return
@@ -1368,6 +1509,11 @@ export class OfficeWorld {
       const call = takeCall()
       const forced = /^gitcourier:(commit|push|pr)$/.exec(call ?? '')?.[1] as GitKind | undefined
       if (forced) this.deliver([...this.chars.keys()].find((k) => this.chars.get(k)?.role !== 'intern') ?? '', forced)
+      // Trials and specs can ask the librarian for a beat at once: "lib:fetch", "lib:shelve", "lib:dust", "lib:ledger", "lib:tap" or "lib:shush".
+      const libCall = /^lib:(fetch|shelve|dust|ledger|tap|shush)$/.exec(call ?? '')?.[1]
+      if (libCall === 'fetch') this.libDesk.want({ kind: 'fetch', at: besideShelf(OFFICE.shelf[1]!, (p) => OFFICE.map.walkable(p)) }, t)
+      else if (libCall === 'shelve' || libCall === 'dust') this.libDesk.want({ kind: libCall, at: this.slotSpot(shelfSlot(libCall, SLOTS)) }, t)
+      else if (libCall) this.libDesk.want({ kind: libCall as 'ledger' | 'tap' | 'shush' }, t)
       if (call === 'courier') this.spawnGuest('courier', () => courierSteps(this.places.door, this.places.printer))
       else if (call === 'pizza') this.spawnGuest('pizza', () => pizzaSteps(this.places.door, this.places.counter))
       const sup = this.staff[1]!
@@ -1460,6 +1606,7 @@ export class OfficeWorld {
     const on = this.officeLife && this.chars.size > 0 && !calmMotion()
     this.lifeOn = on
     this.ambientTick(dt, t, on)
+    this.libraryTick(dt, t, on)
     if (on) this.rampMs += dt * staffSpeed()
     else this.ramp.clear()
     this.rampView.draw(this.ramp.frame(this.rampMs), t)
