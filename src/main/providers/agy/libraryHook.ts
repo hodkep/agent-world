@@ -80,10 +80,13 @@ export function agyLibraryHook(event: string, payload: Record<string, unknown>, 
   if (event === 'pre-tool') {
     const call = payload.toolCall as { name?: string; args?: { TargetFile?: unknown } } | undefined
     const file = call?.args?.TargetFile
+    if (call?.name) io.toolCall?.(call.name)
     if (call?.name && EDIT_TOOLS.includes(call.name) && typeof file === 'string' && file) {
       const why = io.editBlock?.(file)
       if (why) return { decision: 'deny', reason: why }
     }
+    // A tool the person told Deny in Playbook and tools: agy is told no and carries on. Allow and Ask are agy's own to decide.
+    if (call?.name && io.toolDenied?.(call.name)) return { decision: 'deny', reason: `${call.name} is turned off for agents in Agent World (Playbook and tools → Tools).` }
     return {}
   }
   if (event === 'post-tool') {

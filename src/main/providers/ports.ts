@@ -171,6 +171,8 @@ export interface PrepareInput {
   agentToken: string
   permissionTimeoutSec: number
   platform: NodeJS.Platform
+  /** Permission rules from the person's choices in Playbook and tools, for a program that reads them from a settings file. */
+  rules?: { allow: string[]; ask: string[]; deny: string[] }
 }
 
 /** A provider's way to look at and press keys on its agents' terminals, for providers that report nothing themselves. */
@@ -305,6 +307,10 @@ export interface LibraryHookIO {
   used(path: string): void
   /** Why an edit to this file must wait, or null when it may go ahead. */
   editBlock?(file: string): string | null
+  /** The program is about to call this tool: noted, so Usage can say what is used. */
+  toolCall?(tool: string): void
+  /** This tool was told Deny. */
+  toolDenied?(tool: string): boolean
   /** The office's tools reach this agent, so its program may be told how to call them. */
   officeTools?: boolean
   /** This agent's own saved conversation, which the app resolves from its record: used instead of any path the caller sends. */

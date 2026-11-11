@@ -34,6 +34,8 @@ describe('connecting agy to the office message box', () => {
     at('0.1.2')
     expect(make().outdated()).toBe(true)
     at('0.1.3')
+    expect(make().outdated()).toBe(true)
+    at('0.1.4')
     expect(make().outdated()).toBe(false)
     at('0.1.10')
     expect(make().outdated()).toBe(false)
