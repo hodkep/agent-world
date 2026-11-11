@@ -4,6 +4,26 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-11
+
+![Agent World 0.13.0: MCP servers and tools, in one place](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.0/docs/images/releases/0.13.0/poster.png)
+
+### Added
+
+- Library: Playbook and tools gets MCP servers and Tools tabs listing the MCP servers and tools of Claude Code and agy, so you can see whether each server connects and what it offers, turn servers off, add or change entries, and tell each tool Allow, Ask or Deny, with their usage beside the skills'.
+- Office: a librarian joins the office; click her to open Playbook and tools and watch her bring agents their books, shelve new skills, dust unused ones and point out a failing MCP tool.
+- Chat: a step you mark done by hand shows as a small two-row card, the step you marked and the step that starts, instead of a block of text.
+
+### Changed
+
+- Library: errors show as pop-up messages on top of the window instead of lines that stay, and the playbook's "agents need a restart" notice is a small button in the tab bar.
+- Performance: the stall log (`perf.log`) is off unless `AW_PERF` is set, so the app no longer wakes itself about 120 times a second and uses less energy.
+
+### Fixed
+
+- Library: deleting a skill that your skills folder links to now works.
+- Chat: cards that ask you something no longer have their top edge hidden behind items in the chat.
+
 ## [0.12.0] - 2026-11-09
 
 ![Agent World 0.12.0: a browser for agents, and a new look for the office](https://raw.githubusercontent.com/hodkep/agent-world/v0.12.0/docs/images/releases/0.12.0/poster.png)
