@@ -93,3 +93,19 @@ describe('usage figures for the screen', () => {
     expect(byAgentCalls(usage).map((a) => [a.name, a.n, a.top])).toEqual([['Ada', 6, ['Bash', 's · q']], ['Bo', 1, ['s · q']]])
   })
 })
+
+describe('servers whose names Claude Code changes', () => {
+  const dotted = srv('my.server')
+  it('finds a dotted server\'s calls under the name its tools carry', () => {
+    const usage: ToolUsage = { tools: {}, servers: { my_server: cc(3) } }
+    expect(unusedServers([dotted], [], usage)).toEqual([])
+    expect(unusedServers([dotted], [], { tools: {}, servers: {} }).map((s) => s.name)).toEqual(['my.server'])
+  })
+  it('lists a dotted server\'s found tools under the key Claude gives them, so a rule on one matches', () => {
+    const tools = [{ name: 'list.tables', description: 'x', params: [] }]
+    const f = foundTools([dotted], { [dotted.id]: { status: 'connected', tools, ms: 1, at: 1 } })
+    expect(Object.keys(f)).toEqual(['my_server'])
+    const g = toolGroups({}, { tools: {}, servers: {} }, '', f)
+    expect(g.find((x) => x.key === 'mcp:my_server')!.rows[0]!.key).toBe('mcp__my_server__list_tables')
+  })
+})

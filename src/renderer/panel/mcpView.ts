@@ -1,4 +1,4 @@
-import { AGY_TOOLS, CLAUDE_TOOLS, type CallCount, type McpServer, type Policy, type ProbeResult, type ProbeTool, type ToolUsage } from '../../shared/mcp'
+import { AGY_TOOLS, CLAUDE_TOOLS, mcpKey, type CallCount, type McpServer, type Policy, type ProbeResult, type ProbeTool, type ToolUsage } from '../../shared/mcp'
 
 /** How a server's row reads: the office's own cannot be turned off, a list the app only reads cannot be switched, and a server its own file switched off stays off. */
 export type RowState = 'locked' | 'readonly' | 'ownoff' | 'on' | 'off'
@@ -11,7 +11,7 @@ export const alsoIn = (s: McpServer, all: McpServer[]) => ({
 })
 
 /** Servers a switch can reach that nobody called in the last 30 days: where Usage offers to turn them off. */
-export const unusedServers = (servers: McpServer[], off: string[], usage: ToolUsage) => servers.filter((s) => rowState(s, off) === 'on' && !usage.servers[s.name]?.n)
+export const unusedServers = (servers: McpServer[], off: string[], usage: ToolUsage) => servers.filter((s) => rowState(s, off) === 'on' && !usage.servers[mcpKey(s.name)]?.n)
 
 /** What a server's status says on its row. */
 export function statusOf(p: ProbeResult | undefined, busy: boolean): { word: string; tone: '' | 'ok' | 'bad' | 'warn' } {
@@ -28,7 +28,8 @@ export function foundTools(servers: McpServer[], probes: Record<string, ProbeRes
   const out: Record<string, ProbeTool[]> = {}
   for (const s of servers) {
     const p = probes[s.id]
-    if (p?.status === 'connected' && !out[s.name]) out[s.name] = p.tools
+    // Under the name Claude Code writes into a tool's name, so a rule or a count on one of its tools matches.
+    if (p?.status === 'connected' && !out[mcpKey(s.name)]) out[mcpKey(s.name)] = p.tools
   }
   return out
 }
@@ -62,7 +63,7 @@ export function toolGroups(policy: Record<string, Policy>, usage: ToolUsage, fin
   const seen = new Set<string>()
   const add = (server: string, r: ToolRow) => (seen.add(r.key), mcp.set(server, [...(mcp.get(server) ?? []), r]))
   // What a connection found comes first: it has the tool's own words. A tool only seen in use has its name.
-  for (const [server, tools] of Object.entries(found)) for (const t of tools) add(server, { ...row(t.name.replaceAll('_', ' '), t.description.split('\n')[0] || 'MCP tool', server, 'mcp', `mcp__${server}__${t.name}`), found: t })
+  for (const [server, tools] of Object.entries(found)) for (const t of tools) add(server, { ...row(t.name.replaceAll('_', ' '), t.description.split('\n')[0] || 'MCP tool', server, 'mcp', `mcp__${server}__${mcpKey(t.name)}`), found: t })
   for (const full of Object.keys(usage.tools)) {
     const m = /^mcp__(.+?)__(.+)$/.exec(full)
     if (m && !seen.has(full)) add(m[1]!, row(m[2]!.replaceAll('_', ' '), 'MCP tool', m[1]!, 'mcp', full))
