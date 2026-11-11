@@ -55,6 +55,32 @@ describe('what Delete would remove, and removing it', () => {
     const gone = (await lib.list()).find((i) => i.id === 'review')!
     expect((await planDelete(gone, ctx(withProject))).files).toEqual([])
   })
+  it('plans a real folder outside the skills folders when a skills folder links to it, and still refuses one nothing links to', async () => {
+    // As a shared harness folder: the real folder elsewhere, a link to it in ~/.claude/skills.
+    skill(join(home, '.harnesses-shared', 'skills', 'chirp'), 'chirp')
+    mkdirSync(join(home, '.claude', 'skills'), { recursive: true })
+    symlinkSync(join(home, '.harnesses-shared', 'skills', 'chirp'), join(home, '.claude', 'skills', 'chirp'), 'dir')
+    const linked = (await lib.addSkillFolder(join(home, '.claude', 'skills', 'chirp'), 'cli', { kind: 'global' }))!
+    const plan = await planDelete(linked, ctx())
+    expect(plan.refused).toBeUndefined()
+    expect(plan.files).toEqual([{ path: expect.stringMatching(/\.harnesses-shared\/skills\/chirp$/) }])
+    expect(plan.links).toEqual([expect.stringMatching(/\.claude\/skills\/chirp$/)])
+    await deleteSkill(plan, lib)
+    expect(existsSync(join(home, '.harnesses-shared', 'skills', 'chirp'))).toBe(false)
+    expect(existsSync(join(home, '.claude', 'skills', 'chirp'))).toBe(false)
+    // Nothing links to this one: still refused.
+    skill(join(home, 'elsewhere', 'lone'), 'lone')
+    const lone = (await lib.addSkillFolder(join(home, 'elsewhere', 'lone'), 'x', { kind: 'global' }))!
+    expect((await planDelete(lone, ctx())).refused).toMatch(/not in a skills folder/i)
+  })
+  it('refuses a linked folder elsewhere that is a git repository: removing it would take the history too', async () => {
+    skill(join(home, 'code', 'myskill'), 'myskill')
+    mkdirSync(join(home, 'code', 'myskill', '.git'), { recursive: true })
+    mkdirSync(join(home, '.claude', 'skills'), { recursive: true })
+    symlinkSync(join(home, 'code', 'myskill'), join(home, '.claude', 'skills', 'myskill'), 'dir')
+    const item = (await lib.addSkillFolder(join(home, '.claude', 'skills', 'myskill'), 'cli', { kind: 'global' }))!
+    expect((await planDelete(item, ctx())).refused).toMatch(/git repository/i)
+  })
   it('never deletes a folder the plan refused', async () => {
     skill(join(dir, 'plug', 'skills', 'edit'), 'edit')
     const plug = (await lib.addSkillFolder(join(dir, 'plug', 'skills', 'edit'), 'plugin', { kind: 'plugin' }))!
