@@ -1,3 +1,4 @@
+import { Toasts } from './ToastHost'
 import { DEFAULT_PROVIDER } from '../shared/types'
 import { BRAND } from '../shared/brand'
 import { Fragment, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -1545,6 +1546,7 @@ export function App() {
   }, [covered])
   return (
     <div className={`app${barsOff ? ' bars-off' : ''}${barsPeek ? ' bars-peek' : ''}`}>
+      <Toasts />
       {flight?.shown && <Switcher kind={flight.kind} title={flight.kind === 'agents' ? 'Switch agent' : 'Switch project'} tiles={switchTiles(flight)} at={flight.at} onPick={pickTile} />}
       {/* A window that has no project yet (every fresh one) opens on the picker; with nothing saved there is nothing to pick, so Welcome handles it. */}
       {workspaces && !workspaces.active && workspaces.items.length > 0 && (

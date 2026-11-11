@@ -20,7 +20,8 @@ import { SkillInstall } from './SkillInstall'
 import { AgyChip } from './AgyChip'
 import { FoundReader, SkillFooter, SkillOverview } from './SkillOverview'
 import { shelfGroups } from './skillGroups'
-import { restartWhenIdle } from './restartWhenIdle'
+import { restartRefusal, restartWhenIdle } from './restartWhenIdle'
+import { toast } from '../toasts'
 import { SkillBulk, type Said } from './SkillBulk'
 import { Callout } from './Callout'
 import { IconButton } from './IconButton'
@@ -58,8 +59,6 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const [usage, setUsage] = useState<Record<string, { claude: number; agy: number; total: number }>>({})
   const [open, setOpen] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ id?: string; kind: LibraryKind; name: string; description: string; body: string } | null>(null)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   // The screen for adding and removing skills in bulk, over the list; null shows the list.
   const [bulk, setBulk] = useState<'add' | 'remove' | null>(null)
   // A copy that is not the same as its original, waiting for the person to say it may be deleted for a link.
@@ -91,8 +90,8 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
     setItems(r.items)
     setUsage(r.usage)
   }, [])
-  const loadPlaces = useCallback(() => window.aw.library.places(folder || undefined).then(setPlaces, (e) => setError(clean(e))), [folder])
-  useEffect(() => void load().catch((e) => setError(clean(e))), [load])
+  const loadPlaces = useCallback(() => window.aw.library.places(folder || undefined).then(setPlaces, toast), [folder])
+  useEffect(() => void load().catch(toast), [load])
   // Opening the tab reads both again: a folder may have been installed, moved or deleted since.
   useEffect(() => {
     if (tab !== 'skills') return
@@ -102,7 +101,7 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   // A skill's size was measured: the list is read again, which brings the sizes.
   useEffect(() => window.aw.onLibrarySizes(() => void load()), [load])
   useEffect(() => void loadPlaces(), [loadPlaces, items])
-  const loadUsage = useCallback(() => window.aw.library.usage30().then(setUsage30, (e) => setError(clean(e))), [])
+  const loadUsage = useCallback(() => window.aw.library.usage30().then(setUsage30, toast), [])
   useEffect(() => void loadUsage(), [loadUsage, items])
   // A skill an agent just loaded or read pulses in the list for a moment, and its numbers move on.
   const [live, setLive] = useState<Set<string>>(new Set())
@@ -115,18 +114,17 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   // One change at a time, so two quick clicks cannot cross; the switches show what is on disk afterwards.
   const place = async (go: () => Promise<void>) => {
     setBusy(true)
-    setError('')
     try {
       await go()
     } catch (e) {
-      setError(clean(e))
+      toast(e)
     }
     await loadPlaces()
     setBusy(false)
   }
   // Clear the dust: each skill turned off for Claude in turn, as one change.
   const turnOff = (ids: string[]) => void place(async () => { for (const id of ids) await window.aw.library.setClaude(id, false) })
-  useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch((e) => setError(clean(e))), [folder])
+  useEffect(() => void window.aw.library.playbook(folder || undefined).then(setBooks).catch(toast), [folder])
   const refreshStale = useCallback(() => (folder ? window.aw.library.holders(folder).then(setHolders, () => setHolders([])) : Promise.resolve(setHolders([]))), [folder])
   useEffect(() => void refreshStale(), [refreshStale, books])
   // The hooks of agy's plugin are quiet when they work, so ask now and then; an agent that has worked and never been heard from is shown.
@@ -140,11 +138,11 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   useEffect(() => window.aw.onLibraryUse(() => void refreshStale()), [refreshStale])
   const restartStale = async () => {
     setRestarting(true)
-    setError('')
-    const bad = new Set(await restartWhenIdle(stale.map((a) => a.id), (id) => window.aw.reconfigure(id, {})))
-    const failed = stale.filter((a) => bad.has(a.id)).map((a) => a.name)
+    const why = new Map<string, string>()
+    const bad = new Set(await restartWhenIdle(stale.map((a) => a.id), (id) => window.aw.reconfigure(id, {}).catch((e: unknown) => (why.set(id, clean(e)), Promise.reject(e)))))
+    const failed = stale.filter((a) => bad.has(a.id)).map((a) => ({ name: a.name, why: why.get(a.id) ?? '' }))
     setRestarting(false)
-    if (failed.length) setError(`${failed.join(', ')} ${failed.length === 1 ? 'is' : 'are'} in the middle of a turn. Try again when ${failed.length === 1 ? 'it finishes' : 'they finish'}.`)
+    if (failed.length) toast(restartRefusal(failed))
     setTimeout(() => void refreshStale(), 1500)
   }
   const refreshPreview = useCallback(() => (folder ? window.aw.library.preview(folder, who).then(setPreview, () => setPreview(null)) : Promise.resolve()), [folder, who])
@@ -159,7 +157,7 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
     try {
       await window.aw.library.setPlaybook(scope === 'global' ? null : folder, next)
     } catch (e) {
-      setError(clean(e))
+      toast(e)
     }
   }
   const change = (n: number, patch: Partial<PlaybookRule>) => void saveRules(rules.map((r, i) => (i === n ? { ...r, ...patch } : r)))
@@ -179,7 +177,7 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
     try {
       await window.aw.library.setPlaybook(where === 'global' ? null : folder, next)
     } catch (e) {
-      setError(clean(e))
+      toast(e)
     }
   }
   // Skills a playbook rule hands to agents whatever the switch says: never offered as dust.
@@ -187,8 +185,6 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const whenOf = useCallback((id: string) => [...books.workspace, ...books.global].find((r) => r.id === id)?.when ?? '', [books])
 
   const openBulk = (m: 'add' | 'remove') => {
-    setError('')
-    setNotice('')
     setOpen(null)
     setDraft(null)
     refreshScan()
@@ -229,10 +225,10 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       const saved = await window.aw.library.save(draft)
       setDraft(null)
       setOpen(saved.id)
-      setNotice(`Saved ${saved.name}.`)
+      toast(`Saved ${saved.name}.`, 'ok')
       await load()
     } catch (e) {
-      setError(clean(e))
+      toast(e)
     }
   }
   // Asked over the button that was pressed: nothing is removed until it is answered.
@@ -251,14 +247,13 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const foundCurrent = open && !current ? scan.find((c) => c.dir === open) : undefined
   // Adds a found skill to the library as a link, and opens it.
   const addFound = async (c: LibraryCandidate) => {
-    setError('')
     try {
       const r = await window.aw.library.import(folder || undefined, [c.dir])
       await load()
       refreshScan()
       setOpen(r.added[0] ?? null)
     } catch (e) {
-      setError(clean(e))
+      toast(e)
     }
   }
   const edit = (i: LibraryItem) => setDraft({ id: i.id, kind: i.kind, name: i.name, description: i.description, body: i.body })
@@ -269,28 +264,25 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
         {SECTIONS.map(([id, label]) => (
           <button key={id} role="tab" id={`lib-tab-${id}`} aria-selected={tab === id} aria-controls={`lib-panel-${id}`} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>
         ))}
-        {agyMissing && <><span className="lib-sp" /><AgyChip onOpen={() => onOpenSettings?.('mail')} /></>}
+        <span className="lib-sp" />
+        {stale.length > 0 && (
+          <span className="lib-chip lib-stale" role="status" title={`${stale.map((a) => a.name).join(', ')} keep${stale.length === 1 ? 's' : ''} what they were told until they restart.`}>
+            <i aria-hidden />
+            {stale.length} {stale.length === 1 ? 'agent needs' : 'agents need'} a restart
+            <button className="primary sm" disabled={restarting} aria-label={`Restart ${stale.map((a) => a.name).join(', ')}`} onClick={() => void restartStale()}>{restarting ? 'Restarting…' : 'Restart'}</button>
+          </span>
+        )}
+        {agyMissing && <AgyChip onOpen={() => onOpenSettings?.('mail')} />}
       </div>
-      {error && <p className="error" role="alert">{error}</p>}
       <div className="lib-notices" aria-label="Things to know">
         {silent.length > 0 && (
           <div className="lib-notice bad" role="note"><div><b>The library plugin could not reach the office for {silent.map((a) => a.name).join(', ')}.</b><span>agy carried on without a library line, and what it reads is not counted. Check that the plugin is installed under Message box, and that Agent World was running when the agent started.</span></div></div>
-        )}
-        {stale.length > 0 && (
-          <div className="lib-notice warn" role="note">
-            <div>
-              <b>{stale.length} {stale.length === 1 ? 'agent started' : 'agents started'} before you changed this playbook.</b>
-              <span>{stale.map((a) => a.name).join(', ')} keep{stale.length === 1 ? 's' : ''} what they were told until they restart.</span>
-              <div className="actions"><button className="primary" disabled={restarting} onClick={() => void restartStale()}>{restarting ? 'Restarting…' : `Restart ${stale.length} ${stale.length === 1 ? 'agent' : 'agents'}`}</button></div>
-            </div>
-          </div>
         )}
       </div>
 
       {tab === 'skills' && (
       <div role="tabpanel" id="lib-panel-skills" aria-labelledby="lib-tab-skills" className="lib-panel lib-panel-shelf">
       <div className="lib-col">
-      {notice && <p className="mc-done" role="status">{notice}</p>}
       {removing && (
         <Callout at={removing.at} tone="ask" label={`Remove ${removing.id}`} onClose={() => setRemoving(null)}>
           <b>Remove {removing.id} from the library?</b>

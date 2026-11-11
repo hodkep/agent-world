@@ -1,3 +1,4 @@
+import { toast } from '../toasts'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { LibraryItem } from '../../shared/library'
 import { Markdown } from '../chat/markdown'
@@ -13,9 +14,8 @@ export function LibraryItemPane({ item, usage, where, footer, stats, colour, log
   const scroller = useRef<HTMLDivElement>(null)
   const [more, setMore] = useState(false)
   // Why Open, Show in Finder or Copy did not work, said under the files.
-  const [fail, setFail] = useState('')
-  const act = (p: Promise<unknown>) => void p.then(() => setFail(''), (e: unknown) => setFail(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e)))
-  useEffect(() => (setTab(first), setFail('')), [item.id, first])
+  const act = (p: Promise<unknown>) => void p.catch(toast)
+  useEffect(() => setTab(first), [item.id, first])
   const lines = item.body.split('\n').length
   const file = item.kind === 'skill' ? `${item.id}/SKILL.md` : `${item.id}.md`
   const check = () => {
@@ -96,7 +96,6 @@ export function LibraryItemPane({ item, usage, where, footer, stats, colour, log
               <button onClick={() => act(window.aw.library.file(item.id, null, 'show'))}>Show in Finder</button>
             </div>
           )}
-          {fail && <p className="error" role="alert">{fail}</p>}
         </div>
       )}
       {tab === 'used' && (

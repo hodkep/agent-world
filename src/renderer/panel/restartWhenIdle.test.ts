@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { restartWhenIdle } from './restartWhenIdle'
+import { restartRefusal, restartWhenIdle } from './restartWhenIdle'
 
 const wait = new Error("Error invoking remote method 'agent-reconfigure': Error: Wait until it finishes its turn.")
 const sleep = () => new Promise<void>((r) => setTimeout(r, 0))
@@ -24,5 +24,18 @@ describe('restarting agents that are still finishing a turn', () => {
     const failed = await restartWhenIdle(['a'], async () => { calls++; throw new Error('That agent is not running.') }, sleep)
     expect(calls).toBe(1)
     expect(failed).toEqual(['a'])
+  })
+})
+
+describe('saying why agents were not restarted', () => {
+  it('tells busy agents to try again when they finish', () => {
+    expect(restartRefusal([{ name: 'ada', why: 'Wait until it finishes its turn.' }])).toBe('ada is in the middle of a turn. Try again when it finishes.')
+    expect(restartRefusal([{ name: 'ada', why: 'Wait until it finishes its turn.' }, { name: 'bo', why: 'Wait until it finishes its turn.' }])).toBe('ada, bo are in the middle of a turn. Try again when they finish.')
+  })
+  it('lists several other refusals one to a line', () => {
+    expect(restartRefusal([{ name: 'ada', why: 'No.' }, { name: 'bo', why: 'Not now.' }])).toBe('• ada: No.\n• bo: Not now.')
+  })
+  it('gives any other refusal in the main process\'s own words, per agent, so an asleep agent is not called busy', () => {
+    expect(restartRefusal([{ name: 'ada', why: 'It is asleep: wake it first.' }, { name: 'bo', why: 'Wait until it finishes its turn.' }])).toBe('• ada: It is asleep: wake it first.\nbo is in the middle of a turn. Try again when it finishes.')
   })
 })
