@@ -5382,3 +5382,27 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-place small { color: var(--hint); }
 .mt-placepick { display: grid; gap: 4px; margin: 10px 18px 0; font-size: 12px; color: var(--muted); }
 .mt-placepick select { min-width: 0; }
+
+/* Taking a server or a skill out of several places: the buttons, and the list that says what would change. */
+.mt-rm { display: grid; gap: 8px; }
+.mt-rm-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mt-rm-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.mt-rm-list li { display: grid; gap: 2px; }
+.mt-rm-list small { color: var(--hint); }
+.mt-place .mt-rm { margin-top: 4px; }
+
+/* The removal rows: an icon in a box, the name, one line on what it does. One look for the removals and for what a skill's footer held. */
+.mt-opts { display: grid; gap: 6px; }
+.mt-opts + .mt-opts, .mt-opts + .mt-rm, .mt-rm + .mt-opts { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft); }
+.mt-opt { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: center; width: 100%; padding: 7px 10px; text-align: left; background: var(--panel-2); }
+.mt-opt:hover:not(:disabled) { box-shadow: 0 0 0 2px var(--line); }
+.mt-opt:disabled { opacity: 0.55; cursor: default; }
+.mt-opt-ic { width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid var(--ink); background: var(--bg); color: var(--muted); }
+.mt-opt:hover:not(:disabled) .mt-opt-ic { color: var(--text); }
+.mt-opt-t { display: grid; gap: 1px; min-width: 0; }
+.mt-opt-t b { font-size: 13px; font-weight: 600; }
+.mt-opt-t small { color: var(--hint); font-size: 11.5px; line-height: 1.35; }
+.mt-opt.mt-keep .mt-opt-ic { color: var(--ok-text); background: #1d3a22; }
+.mt-opt.mt-danger .mt-opt-ic, .mt-opt.mt-danger b { color: var(--danger-text); }
+.mt-opt-inline { display: inline-flex; align-items: center; gap: 6px; }
+.mt-lib { margin: 0; }

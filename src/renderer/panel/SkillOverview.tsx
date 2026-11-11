@@ -3,10 +3,12 @@ import { useState, type ReactNode } from 'react'
 import type { DeletePlan, LibraryCandidate, LibraryItem, SkillPlaces, SkillUse } from '../../shared/library'
 import { sizeText } from '../../shared/size'
 import { shortPath } from './skillGroups'
+import type { HeaderIconName } from './IconButton'
 import { toast } from '../toasts'
+import { ActionRow, RemoveFrom, type RemovePlan } from './RemoveFrom'
 
 /** The skill's reader, as one calm column: where it lives, where it works, and where it is used. */
-export function SkillOverview({ item, use, places, where, original, busy, onUseOriginal }: { item: LibraryItem; use?: SkillUse; places: SkillPlaces; where: ReactNode; original?: string; busy: boolean; onUseOriginal: (dir: string, at: DOMRect) => void }) {
+export function SkillOverview({ item, use, places, where, original, busy, folder, onChanged, footer, onUseOriginal }: { folder?: string; onChanged?: () => void; /** What is done to the library entry itself (remove it, delete its files): rows in the same section. */ footer?: ReactNode; item: LibraryItem; use?: SkillUse; places: SkillPlaces; where: ReactNode; original?: string; busy: boolean; onUseOriginal: (dir: string, at: DOMRect) => void }) {
   const p = item.place
   const projects = Object.entries(use?.projects ?? {}).sort((a, b) => b[1] - a[1])
   const top = projects[0]?.[1] ?? 1
@@ -38,6 +40,11 @@ export function SkillOverview({ item, use, places, where, original, busy, onUseO
       </section>
       {!item.missing && <section><h5>Where it works</h5>{where}</section>}
       <section>
+        <h5>Take it out of</h5>
+        {!item.missing && item.place?.kind !== 'plugin' && <SkillRemoveFrom id={item.id} name={item.name} folder={folder} onChanged={onChanged ?? (() => undefined)} />}
+        {footer}
+      </section>
+      <section>
         <h5>Used in 30 days</h5>
         {projects.length === 0 ? <p className="hint">Not used in the last 30 days.</p> : (
           <div className="sk2-used">
@@ -67,12 +74,11 @@ export function SkillFooter({ item, busy, onRemove, onDeleted }: { item: Library
   const total = plan?.files.reduce((n, f) => n + (f.bytes ?? 0), 0) ?? 0
   const asking = plan && !plan.refused && (plan.files.length || plan.links.length) && at
   const close = () => (setPlan(null), setAgain(false))
+  const hint = copy ? 'The files are kept in the library, so this deletes them.' : item.missing ? 'Its folder is gone, so there is nothing left to delete.' : item.place?.kind === 'plugin' ? 'Claude manages this skill: it can only be removed.' : 'Keeps its files where they are'
   return (
-    <div className="sk2-foot">
-      <button className="ghost" disabled={busy} onClick={(e) => onRemove(e.currentTarget.getBoundingClientRect())}>{copy ? 'Delete from the library' : 'Remove from library'}</button>
-      {!copy && !item.missing && item.place?.kind !== 'plugin' && <button className="ghost bad-text" disabled={busy} onClick={ask}>Delete…</button>}
-      <span className="lib-sp" />
-      <span className="hint">{copy ? 'The files are kept in the library, so this deletes them.' : item.missing ? 'Its folder is gone, so there is nothing left to delete.' : item.place?.kind === 'plugin' ? 'Claude manages this skill: it can only be removed.' : 'Remove keeps the files. Delete removes them.'}</span>
+    <div className="mt-opts mt-lib">
+      <ActionRow icon={copy ? 'trash' : 'unlink'} tone={copy ? 'danger' : undefined} label={copy ? 'Delete from the library' : 'Remove from library'} hint={hint} disabled={busy} onClick={(e) => onRemove(e.currentTarget.getBoundingClientRect())} />
+      {!copy && !item.missing && item.place?.kind !== 'plugin' && <ActionRow icon="trash" tone="danger" label="Delete…" hint="Removes its folder and every link that leads to it" disabled={busy} onClick={ask} />}
       {asking && plan && (
         <Callout at={at} tone="ask" label={`Delete ${item.name}`} onClose={close}>
           <b>Delete {item.name}?</b>
@@ -121,4 +127,29 @@ export function FoundReader({ c, busy, onAdd }: { c: LibraryCandidate; busy: boo
       </div>
     </div>
   )
+}
+
+type SkillScope = { scope: 'project'; folder: string } | { scope: 'projects' | 'global' | 'all' | 'keep-global' }
+
+/** Links only: a skill's real folder is never deleted here (Delete… does that). Says which folders would lose their link before any does, and which hold a copy that stays. */
+export function SkillRemoveFrom({ id, name, folder, onChanged }: { id: string; name: string; folder?: string; onChanged: () => void }) {
+  type Row = [string, string, SkillScope, string, HeaderIconName, ('keep' | 'danger')?]
+  const scopes: Row[] = [
+    ...(folder ? [['project', 'This project', { scope: 'project', folder }, 'The links in the open project’s folders', 'folder'] as Row] : []),
+    ['projects', 'Every project', { scope: 'projects' }, 'The links in every project the app knows', 'layers'],
+    ['global', 'Global', { scope: 'global' }, 'The links in Claude’s and Antigravity’s own folders', 'globe'],
+    ['all', 'Everywhere', { scope: 'all' }, 'Every link, global and project', 'unlink', 'danger'],
+    ['keep-global', 'Keep one global, remove the project ones', { scope: 'keep-global' }, 'Links it into the programs installed here first, then takes the project links away', 'pin', 'keep']
+  ]
+  const plan = async (key: string): Promise<RemovePlan> => {
+    const sc = scopes.find((s) => s[0] === key)![2]
+    const shown = await window.aw.library.skillRemovalPlan(id, sc)
+    if (!shown.steps.length) throw new Error('It is not linked into any of those folders.')
+    return {
+      lines: shown.steps.map((s) => ({ text: s.dir, note: `${s.action === 'link' ? 'links it here first, so one global stays' : 'takes the link away'} · ${s.label}` })),
+      left: shown.left,
+      commit: () => window.aw.library.skillRemoval(id, sc, shown)
+    }
+  }
+  return <RemoveFrom name={name} options={scopes.map(([key, label, , hint, icon, tone]) => ({ key, label, hint, icon, tone }))} plan={plan} onDone={onChanged} />
 }

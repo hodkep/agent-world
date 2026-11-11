@@ -45,6 +45,10 @@ const ICONS = {
   hide: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /><path d="M3 3l18 18" /></>,
   undo: <><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>,
   redo: <><path d="M15 14l5-5-5-5" /><path d="M20 9H10a6 6 0 0 0 0 12h3" /></>,
+  folder: <path d="M3 6h7l2 2h9v11H3z" />,
+  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3.5 3.2 3.5 14.8 0 18M12 3c-3.5 3.2-3.5 14.8 0 18" /></>,
+  layers: <path d="M12 3l9 5-9 5-9-5zM3 12.5l9 5 9-5M3 17l9 5 9-5" />,
+  unlink: <path d="M9.5 14.5l5-5M8 11l-2.5 2.5a3.5 3.5 0 0 0 5 5L13 16M16 13l2.5-2.5a3.5 3.5 0 0 0-5-5L11 8M4 4l3 3M20 20l-3-3" />,
   trash: <path d="M3 6h18M8 6V3h8v3M6 6l1 15h10l1-15M10 11v6M14 11v6" />,
   // A note from a hook, and the fold button on it.
   flag: <path d="M5 21V4h13l-3 4.5 3 4.5H5" />,

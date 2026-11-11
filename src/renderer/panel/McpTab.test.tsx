@@ -416,9 +416,9 @@ describe('the MCP and tools usage', () => {
 describe('a server that is set up the same in several places', () => {
   afterEach(() => void (document.body.innerHTML = ''))
   const places = () => report({ servers: [
-    srv('supabase', { env: ['T'] }),
-    srv('supabase', { env: ['T'], where: 'project', project: '/w/app', path: '~/.claude.json', id: 'project:/w/app:supabase' }),
-    srv('supabase', { env: ['T'], where: 'project', project: '/w/sip', path: '/w/sip/.mcp.json', id: 'project:/w/sip:supabase' })
+    srv('supabase', { env: ['T'], editable: true }),
+    srv('supabase', { env: ['T'], editable: true, where: 'project', project: '/w/app', path: '~/.claude.json', id: 'project:/w/app:supabase' }),
+    srv('supabase', { env: ['T'], editable: true, where: 'project', project: '/w/sip', path: '/w/sip/.mcp.json', id: 'project:/w/sip:supabase' })
   ] })
   const lib = () => ({ mcp: vi.fn(async () => places()) })
 
@@ -459,4 +459,33 @@ describe('a server that is set up the same in several places', () => {
     })
     expect(mcpEntry).toHaveBeenLastCalledWith('project:/w/sip:supabase')
   })
+
+  it('takes it out of one place, after showing exactly which file would change', async () => {
+    const plan = { steps: [{ action: 'remove', id: 'project:/w/sip:supabase', path: '/w/sip/.mcp.json', project: '/w/sip', repo: true }] }
+    const mcpRemovalPlan = vi.fn(async () => plan)
+    const mcpRemoval = vi.fn(async () => undefined)
+    const { host } = await mount(<McpTab />, { ...lib(), mcpRemovalPlan, mcpRemoval })
+    await click(host.querySelector('[aria-label="Open supabase"]'))
+    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
+    const cards = [...host.querySelectorAll('.mt-place')]
+    const card = cards.find((c) => c.textContent?.includes('/w/sip/.mcp.json'))!
+    await click([...card.querySelectorAll('button')].find((b) => b.textContent === 'Remove from here'))
+    expect(mcpRemovalPlan).toHaveBeenCalledWith('global:supabase', 'one', 'project:/w/sip:supabase')
+    expect(card.querySelector('[role="alertdialog"]')!.textContent).toContain('comes with the repo: git shows the change')
+    expect(mcpRemoval).not.toHaveBeenCalled()
+    await click([...card.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent === 'Remove'))
+    expect(mcpRemoval).toHaveBeenCalledWith('global:supabase', 'one', 'project:/w/sip:supabase', plan)
+  })
+
+  it('offers every project, every place, and keeping one global, once it is in more than one place', async () => {
+    const mcpRemovalPlan = vi.fn(async () => ({ steps: [] }))
+    const { host } = await mount(<McpTab />, { ...lib(), mcpRemovalPlan })
+    await click(host.querySelector('[aria-label="Open supabase"]'))
+    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
+    const bulk = host.querySelector('section .mt-rm')!
+    expect([...bulk.querySelectorAll('button b')].map((b) => b.textContent)).toEqual(['Every project', 'Every place', 'Keep one global, remove the project ones'])
+    await click([...bulk.querySelectorAll('button')].find((b) => b.querySelector('b')?.textContent?.startsWith('Keep one')))
+    expect(mcpRemovalPlan).toHaveBeenCalledWith('global:supabase', 'keep-global', undefined)
+  })
 })
+

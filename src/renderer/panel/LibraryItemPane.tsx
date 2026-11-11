@@ -46,7 +46,7 @@ export function LibraryItemPane({ item, usage, where, footer, stats, colour, log
   return (
     <div className="lip" role="group" aria-label={`${item.name} in detail`}>
       <div className="lip-top">
-        <div className="lip-title">{logo ? <img className="lip-logo" src={logo} alt="" style={colour ? ({ '--c': colour } as React.CSSProperties) : undefined} /> : <span className="lip-ic" style={colour ? ({ '--sk': colour } as React.CSSProperties) : undefined}><PixelIcon name={ICON[item.kind]} scale={3} /></span>}<h3>{item.name}</h3><small className="lib-kind">{item.kind}</small><span className="lib-sp" /><button onClick={onEdit}>Edit</button>{!footer && <button className="bad-text" onClick={onRemove}>Remove</button>}</div>
+        <div className="lip-title">{logo ? <img className="lip-logo" src={logo} alt="" style={colour ? ({ '--c': colour } as React.CSSProperties) : undefined} /> : <span className="lip-ic" style={colour ? ({ '--sk': colour } as React.CSSProperties) : undefined}><PixelIcon name={ICON[item.kind]} scale={3} /></span>}<h3>{item.name}</h3><small className="lib-kind">{item.kind}</small><span className="lib-sp" /><button onClick={onEdit}>Edit</button>{!footer && item.kind !== 'skill' && <button className="bad-text" onClick={onRemove}>Remove</button>}</div>
         <p className="lip-desc">{item.description}</p>
         {stats}
       </div>

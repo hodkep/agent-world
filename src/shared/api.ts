@@ -623,6 +623,12 @@ export interface AwApi {
     /** Writes an entry into its file: changes the one `id` names, or adds one at `target`. */
     saveMcp(o: { id?: string; name: string; target?: 'claude' | 'project' | 'agy'; folder?: string; json: string }): Promise<{ id: string }>
     removeMcp(id: string): Promise<void>
+    /** What taking a server out of some of its places would change, before anything is. */
+    mcpRemovalPlan(id: string, mode: import('./mcp').RemovalMode, placeId?: string): Promise<import('./mcp').RemovalPlan>
+    mcpRemoval(id: string, mode: import('./mcp').RemovalMode, placeId: string | undefined, shown: import('./mcp').RemovalPlan): Promise<void>
+    /** The same for a skill's links: which folders it would be taken out of, and which hold a copy that stays. */
+    skillRemovalPlan(id: string, scope: { scope: 'project'; folder: string } | { scope: 'projects' | 'global' | 'all' | 'keep-global' }): Promise<{ steps: { action: 'link' | 'unlink'; target: string; dir: string; label: string }[]; left: string[] }>
+    skillRemoval(id: string, scope: { scope: 'project'; folder: string } | { scope: 'projects' | 'global' | 'all' | 'keep-global' }, shown: { steps: { action: 'link' | 'unlink'; target: string; dir: string; label: string }[]; left: string[] }): Promise<void>
     /** Where each skill works: on for Claude, and linked into each other program's folder. */
     places(folder?: string): Promise<SkillPlaces>
     /** Switches a skill on or off for every Claude account in the app. */
