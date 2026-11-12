@@ -626,14 +626,12 @@ async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean; 
 }
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 // The builder never has a task of its own.
-// The programs that can answer a question of the app's own (Claude and agy have a headless mode), as last looked at; looking costs a process, so it is kept for a minute.
-let askersSeen: { at: number; ready: ProviderId[] } | undefined
-async function readyAskers(): Promise<ProviderId[]> {
-  if (askersSeen && Date.now() - askersSeen.at < 60_000) return askersSeen.ready
-  const ready = (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await detectOf(p)).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x)
-  askersSeen = { at: Date.now(), ready }
-  return ready
-}
+// The programs that can answer a question of the app's own (Claude and agy have a headless mode), as last looked at. Looking starts the programs
+// (agy twice: `--version`, then `-p /usage`, which launches its node helpers), and the push check asks every 20 s, so the answer is kept for ten minutes;
+// the Providers rescan forgets it.
+const askersSeen = shared<ProviderId[]>(10 * 60_000)
+const readyAskers = (): Promise<ProviderId[]> =>
+  askersSeen('ready', async () => (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await detectOf(p)).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x))
 // Offered whenever workflows are on, in a project that uses none too (task_begin then says nothing is recorded): taken away mid-conversation, a tool the agent still has from its start fails as not found.
 const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
@@ -2923,9 +2921,10 @@ async function main() {
     pt.onExit(() => (shells.delete(sid), buffers.delete(sid), send('pty-exit', sid)))
     return sid
   })
-  ipcMain.handle('list-providers', () =>
-    Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await detectOf(p), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
-  )
+  ipcMain.handle('list-providers', () => {
+    askersSeen.clear()
+    return Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await detectOf(p), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
+  })
   ipcMain.handle('list-history', async (_, folder: string) => {
     const sessions = await providerOf({}).transcript.history(folder, join(HOME, 'worktrees', repoSlug(folder)))
     return sessions.map((s) => {
