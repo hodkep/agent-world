@@ -582,7 +582,12 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
   ask: async (id, prompt, model) => {
     const a = byId(id)
     if (!a) throw new Error('Unknown agent.')
-    const askerId = pickAsker(providerOf(a).id, await readyAskers())
+    let askerId = pickAsker(providerOf(a).id, await readyAskers())
+    // Someone is asking and nothing can answer: look again now, they may have just signed in, rather than wait out the kept answer.
+    if (!askerId) {
+      askersSeen.clear()
+      askerId = pickAsker(providerOf(a).id, await readyAskers())
+    }
     if (!askerId) throw new Error('No model is ready to ask: connect Claude or agy.')
     const p = providers().find((x) => x.id === askerId)!
     const own = p.id === providerOf(a).id
