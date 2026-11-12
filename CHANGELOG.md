@@ -4,6 +4,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-11-12
+
+### Changed
+
+- Performance: the app asks Claude and agy whether they are ready, and for their limits, at most every 15 minutes (it asked agy twice a minute), and a refresh, the Setup "Check again" or an ask that finds no program ready asks again at once, so the app starts far fewer background programs and uses less energy.
+
 ## [0.13.2] - 2026-11-11
 
 ![Agent World 0.13.2: one row per server, fewer background probes](https://raw.githubusercontent.com/hodkep/agent-world/v0.13.2/docs/images/releases/0.13.2/poster.png)
