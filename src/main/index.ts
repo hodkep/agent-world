@@ -39,6 +39,7 @@ import { shared } from './shared'
 import { type SleepDeps, quietSince, sleepBlocker, sleepIdle } from './sleepIdle'
 import { startPerf, watched } from './perf'
 import { LIMITS_FRESH_MS, needsProbe } from './limitsProbe'
+import { programKeep } from './programKeep'
 import { perfMode } from './perfLog'
 import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -247,7 +248,8 @@ async function askLimits() {
           const run = (file: string, args: string[]) =>
             new Promise<string>((resolve, reject) => execFile(file, args, { env: { ...providerOf({}).env(process.env), ...extra }, timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
           try {
-            const ws = await p.limits!.read(binFor(p), Object.keys(extra).length ? run : undefined)
+            // agy's readiness check asks the same `-p /usage` as its limits: asked through the same keep, it starts agy once for both.
+            const ws = await p.limits!.read(binFor(p), programs.ask(Object.keys(extra).length ? run : plainRun, account ?? ''))
             polled.set(`${p.id}|${account ?? ''}`, account === undefined ? ws : ws.map((w) => ({ ...w, account })))
           } catch {
             /* not signed in or offline: its windows are simply missing */
@@ -585,7 +587,7 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
     let askerId = pickAsker(providerOf(a).id, await readyAskers())
     // Someone is asking and nothing can answer: look again now, they may have just signed in, rather than wait out the kept answer.
     if (!askerId) {
-      askersSeen.clear()
+      programs.refresh()
       askerId = pickAsker(providerOf(a).id, await readyAskers())
     }
     if (!askerId) throw new Error('No model is ready to ask: connect Claude or agy.')
@@ -631,12 +633,9 @@ async function kickChecks(id: string, o: { fresh?: boolean; answered?: boolean; 
 }
 // An agent with a task open (or workflows on) gets the task tools; one that was running one when the switch went off keeps them until it finishes.
 // The builder never has a task of its own.
-// The programs that can answer a question of the app's own (Claude and agy have a headless mode), as last looked at. Looking starts the programs
-// (agy twice: `--version`, then `-p /usage`, which launches its node helpers), and the push check asks every 20 s, so the answer is kept for ten minutes;
-// the Providers rescan forgets it.
-const askersSeen = shared<ProviderId[]>(10 * 60_000)
-const readyAskers = (): Promise<ProviderId[]> =>
-  askersSeen('ready', async () => (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await detectOf(p)).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x))
+// The programs that can answer a question of the app's own (Claude and agy have a headless mode), as last looked at (see programs above).
+const readyAskers = async (): Promise<ProviderId[]> =>
+  (await Promise.all(providers().filter((p) => p.id === 'claude' || p.id === 'agy').map(async (p) => ((await detectOf(p)).state === 'ready' ? p.id : null)))).filter((x): x is ProviderId => !!x)
 // Offered whenever workflows are on, in a project that uses none too (task_begin then says nothing is recorded): taken away mid-conversation, a tool the agent still has from its start fails as not found.
 const workflowsFor = (agentId: string) => !byId(agentId)?.builder && (prefs.workflows.enabled || workflows.runs().some((r) => r.agent === agentId && r.status === 'open'))
 /** The agent's new commits since its branch began, attached to its runs; runs when a turn ends, which is when a commit is likely to exist. */
@@ -1129,10 +1128,14 @@ async function accountsSignedIn(p: Provider): Promise<number> {
   signedInAccounts.set(p.id, { at: Date.now(), n })
   return n
 }
-const detectOf = async (p: Provider): Promise<Detection> => {
-  const d = await p.detect(binFor(p))
-  return d.state === 'needs-sign-in' ? withAccounts(d, await accountsSignedIn(p)) : d
-}
+// What the app knows of each program (is it ready, what are its limits) is asked of the program once per PROGRAMS_FRESH_MS, or again when the person asks (programs.refresh()).
+const programs = programKeep()
+const plainRun = (file: string, args: string[]) => new Promise<string>((resolve, reject) => execFile(file, args, { timeout: 30_000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))))
+const detectOf = (p: Provider): Promise<Detection> =>
+  programs.detect(p.id, async () => {
+    const d = await p.detect(binFor(p), programs.ask(plainRun))
+    return d.state === 'needs-sign-in' ? withAccounts(d, await accountsSignedIn(p)) : d
+  })
 
 function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   if (sessions.has(a.id)) return
@@ -1800,7 +1803,7 @@ async function main() {
   ipcMain.handle('roles:delete', (_, id: string) => deleteRole(ROLES_FILE, id))
   ipcMain.handle('get-usage', () => limitsBook.tightest())
   ipcMain.handle('limits:get', async (_, refresh?: boolean) => {
-    if (refresh) forced = true
+    if (refresh) (forced = true, programs.refresh())
     if (refresh || pollLimits.running() || Date.now() - limitsAt > LIMITS_FRESH_MS) await pollLimits()
     // What Claude's agents report as they work is the freshest; what was asked for stands in until there is one (and adds the per-model weeks).
     // The program whose agents report them (capabilities.liveLimits) is the one `usage` belongs to.
@@ -2927,7 +2930,7 @@ async function main() {
     return sid
   })
   ipcMain.handle('list-providers', () => {
-    askersSeen.clear()
+    programs.refresh()
     return Promise.all(providers().map(async (p): Promise<ProviderInfo> => ({ id: p.id, label: p.label, capabilities: p.capabilities, detection: await detectOf(p), models: p.models, modes: p.modes, hireModes: p.hireModes, handbook: p.handbook, ...(p.remoteNote && { remoteNote: p.remoteNote }), autonomy: p.autonomy, mail: mailState(p), ...(mailState(p) === 'connected' && p.mail?.outdated?.() && { mailOutdated: true }), relaunchModes: p.relaunchModes })))
   })
   ipcMain.handle('list-history', async (_, folder: string) => {
