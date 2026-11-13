@@ -402,10 +402,13 @@ export interface AwApi {
   onChatMod(cb: (s: import('./chatMod').ChatModState) => void): () => void
   chatModKeep(): Promise<void>
   chatModUndo(): Promise<void>
-  chatModReset(): Promise<void>
+  /** Puts a version (by its number) or the system look in force; the look left is saved as a version. False when there is no such version or it already is. */
+  chatModSwitch(to: number | 'system'): Promise<boolean>
+  chatModRename(n: number, name: string): Promise<boolean>
+  /** Deletes a version; the one in force cannot be. */
+  chatModRemove(n: number): Promise<boolean>
   /** The figures a widget's series ask for, from the agent's own telemetry: a number, or null where Claude has not reported it. */
   readingSeries(agentId: string, series: import('./readings').SeriesSpec[]): Promise<Record<string, number | null>>
-  chatModBack(): Promise<void>
   /** Lets the draft's widgets load their data before it is kept. */
   chatModLoadData(): Promise<void>
   /** What the widgets' addresses answered, by `current:<id>` or `draft:<id>`, then by the feed's id. */
