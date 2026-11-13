@@ -128,6 +128,8 @@ export async function checkForUpdates(onState: (s: UpdateState) => void, channel
     set({ state: 'checking' })
     const found = await latestRelease(runningVersion(), info.repo, getRelease, origins, { all: manual, mirror: mirrorFor(info.mirror, origins)?.base })
     if (found.state !== 'available' || !found.latest) return set(found)
+    // The in-app installer replaces a Mac app (dmg and zip); a Linux AppImage or deb is only told about, with the release page to get it from.
+    if (!origins.testing && process.platform === 'linux') return set({ ...found, tag: `v${found.latest}`, current: runningVersion() })
     // A copy Homebrew installed is updated here like any other; the state says so, so the person is told Homebrew's record of the version may lag.
     const casks = origins.testing ? [process.env.AW_UPDATE_CASKROOM ?? ''].filter(Boolean) : ['/opt/homebrew/Caskroom', '/usr/local/Caskroom']
     const homebrew = isHomebrewInstall(casks, existsSync)
