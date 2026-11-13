@@ -59,13 +59,14 @@ function waitingFor(here: StepState, runDone: boolean, landing: 'pr' | 'merge' =
 
 /**
  * Where a run stands on its workflow, for the track shown above the agent's chat and in its tab. Nothing for a run that landed, was stopped,
- * follows no workflow, or has every step met: there is nothing left to show.
+ * or follows no workflow. A run that is still open keeps its track when every step is met (it waits for task_done, or an item added to it has steps left), standing on its last one.
  */
 export function trackOf(run: Run, ctx: StepContext): Track | undefined {
   if (run.status === 'stopped' || run.landed || !run.workflow) return undefined
   const steps = stepStates(run, ctx)
-  const at = steps.findIndex((s) => s.state !== 'passed' && s.state !== 'skipped')
-  if (at < 0) return undefined
+  const first = steps.findIndex((s) => s.state !== 'passed' && s.state !== 'skipped')
+  if (!steps.length || (first < 0 && run.status !== 'open')) return undefined
+  const at = first < 0 ? steps.length - 1 : first
   const round = run.rounds[run.rounds.length - 1]!
   const stations = steps.map((s, i): Station => {
     const n = s.kind === 'check' ? s.tries : s.kind === 'plan' ? round.plan?.sentBack : undefined

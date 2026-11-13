@@ -188,4 +188,16 @@ describe('work added to the run', () => {
     expect(track([submitted(), planned('approved'), done('build'), item, { k: 'step', t: 460, run: 'r1', round: 1, step: 'build', state: 'done', item: 2 }])!.lane).toBeUndefined()
     expect(track([submitted()])!.lane).toBeUndefined()
   })
+
+  it('still has a track once every step of the run itself is met but an item has steps left, or the run is open and waits for task_done', () => {
+    const one: RunWorkflow = { id: 'one', name: 'One', steps: [{ id: 'build', kind: 'work', name: 'Build' }] }
+    const begun: RunEvent = { ...begin, workflow: one }
+    const built: RunEvent = { k: 'step', t: 400, run: 'r1', round: 1, step: 'build', state: 'done' }
+    const item: RunEvent = { k: 'item', t: 450, run: 'r1', title: 'Also count lines' }
+    const of = (events: RunEvent[]) => trackOf(reduceRuns([begun, ...events])[0]!, ctx)
+    expect(of([built, item])).toMatchObject({ lane: { item: 2, step: { id: 'build' } } })
+    expect(of([built])?.stations.map((s) => s.state)).toEqual(['done'])
+    expect(of([built, { k: 'done', t: 500, run: 'r1' }])).toBeUndefined()
+    expect(trackOf(reduceRuns([{ ...begin, workflow: { ...one, steps: [] } }])[0]!, ctx)).toBeUndefined()
+  })
 })
