@@ -1,0 +1,82 @@
+name: release-linux
+# The Linux beta installers (AppImage and deb, x64). The Mac installers are built on the owner's Mac and uploaded to the draft release (RELEASING.md); Linux cannot be built there
+# (node-pty is native), so this builds from the tag on Linux and adds its two files to that same draft.
+#   gh workflow run release-linux.yml -f tag=v0.14.0      builds from the tag, starts the AppImage, uploads both files to the release of that tag
+# A pull request that touches the packaging builds and starts the app the same way and uploads nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      tag: { description: 'The release tag to build and upload to, for example v0.14.0', required: true }
+  pull_request:
+    paths:
+      - electron-builder.yml
+      - package.json
+      - pnpm-lock.yaml
+      - build/**
+      - scripts/fetch-git.mjs
+      - scripts/git-archives.json
+      - scripts/smoke-linux.mjs
+      - .github/workflows/release-linux.yml
+# A pull request runs the build of its own branch, so the build job only reads; only the upload job, which runs for a tag started by hand, can write.
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { ref: "${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}" }
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: pnpm }
+      - run: for i in 1 2 3; do pnpm install --frozen-lockfile && break; [ "$i" = 3 ] && exit 1; sleep 20; done
+      - run: for i in 1 2 3; do node node_modules/electron/install.js && break; [ "$i" = 3 ] && exit 1; sleep 20; done
+      - run: node scripts/fetch-git.mjs --platform
+      - run: test -x build/git/linux-x64/bin/git
+      - run: pnpm exec electron-vite build
+      - run: pnpm exec electron-builder --linux --x64 --publish never
+      - run: ls -l dist/*.AppImage dist/*.deb
+      # The app has to start from the file people download, not only from the unpacked folder. An AppImage needs FUSE to mount itself, which a runner has not: it unpacks and runs.
+      - name: Start the AppImage and wait for the office
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a node scripts/smoke-linux.mjs dist/*.AppImage
+      # The deb must at least be a package apt can read and one that installs its files where the menu looks.
+      - name: Check the deb
+        run: |
+          dpkg-deb --info dist/*.deb
+          dpkg-deb --contents dist/*.deb | grep -E 'usr/share/applications/agent-world.desktop|opt/Agent World/agent-world'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-installers
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          retention-days: 7
+  # Its own job so that the build, which runs code of a pull request, never holds a token that can write.
+  upload:
+    needs: linux
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: linux-installers
+          path: dist
+      # A draft release is not found by its tag, so the release is looked up by tag in the whole list and its files are added by its number.
+      - name: Add the installers to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          id=$(gh api "repos/${{ github.repository }}/releases?per_page=100" --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -n 1)
+          [ -n "$id" ] || { echo "No release for $TAG: make the draft first (RELEASING.md)"; exit 1; }
+          for f in dist/*.AppImage dist/*.deb; do
+            name=$(basename "$f")
+            echo "uploading $name to release $id"
+            gh api -X POST "https://uploads.github.com/repos/${{ github.repository }}/releases/$id/assets?name=$name" -H 'Content-Type: application/octet-stream' --input "$f" --silent
+          done
