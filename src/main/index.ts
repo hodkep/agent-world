@@ -1913,9 +1913,11 @@ async function main() {
   ipcMain.handle('chatmod:state', () => chatMod.state())
   ipcMain.handle('chatmod:keep', () => chatMod.keep())
   ipcMain.handle('chatmod:undo', () => chatMod.undo())
-  ipcMain.handle('chatmod:reset', () => chatMod.reset())
+  // A version is named by its number, or 'system' for the look with nothing changed: anything else is refused.
+  ipcMain.handle('chatmod:switch', (_, to: unknown) => (to === 'system' || Number.isInteger(to) ? chatMod.switchTo(to as number | 'system') : false))
+  ipcMain.handle('chatmod:rename', (_, n: unknown, name: unknown) => (Number.isInteger(n) && typeof name === 'string' ? chatMod.rename(n as number, name) : false))
+  ipcMain.handle('chatmod:remove', (_, n: unknown) => (Number.isInteger(n) ? chatMod.remove(n as number) : false))
   ipcMain.handle('readings:series', (_, agentId: unknown, specs: unknown) => (typeof agentId === 'string' ? readings.values(agentId, specs, Date.now()) : {}))
-  ipcMain.handle('chatmod:back', () => chatMod.back())
   ipcMain.handle('chatmod:loadData', () => chatMod.loadData())
   ipcMain.handle('widgetfeeds:get', () => widgetFeeds.state())
   ipcMain.handle('shot:answer', (_, id: string, ok: boolean) => void shotAsks.get(String(id))?.(ok === true))

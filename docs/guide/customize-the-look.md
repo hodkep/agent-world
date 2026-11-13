@@ -15,7 +15,7 @@ The agent changes the look with layout rules and CSS. Its calls that do so are a
 
 The bar has three controls:
 
-- **Keep** makes the look yours. It is remembered the next time the app opens.
+- **Keep** makes the look yours and saves it as a new numbered version (the button says which, such as **Keep as v5**). It is remembered the next time the app opens.
 - **Undo** drops the draft and puts back the look you had.
 - The eye button shows the look you had while you hold it, and the new one when you let go.
 
@@ -25,10 +25,15 @@ The agent is told when you press Keep, Undo or restore, so it does not write bac
 
 ## Go back
 
-The chat's **⋯** menu has two rows:
+Open **Settings, Looks**. Every look you kept is there as a version, newest first, under the **System look** (the app with nothing changed).
 
-- **Restore system look** removes every change an agent made to the look of the app.
-- **Previous look** brings back the look before the last one you kept.
+- Pick a version to see it beside the look in force: who wrote it and when, why, and what it changes (CSS, layout rules, widgets).
+- **Switch to** puts it in force at once. The look you leave is saved as a version first, so nothing is lost; a note under the list has an **Undo** that switches back.
+- **System look** removes every change an agent made to the look of the app. It is one switch away like any other.
+- **Rename** gives a version a name of your own; a named version is never dropped to make room.
+- **Delete** removes a version you no longer want, after asking. The one in force cannot be deleted.
+
+The last fifty versions are kept. A draft waiting for Keep is dropped when you switch, and the agent is told you switched so it does not write back what you left.
 
 ## What a look can change
 

@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { RemoteState } from '../../shared/types'
 import { OutlineIcon } from '../panel/IconButton'
 import { keysOf } from '../shortcuts'
-import { LookRows } from './layoutUi'
 import { RemoteRows } from './RemoteControl'
 import { askRemote } from './remoteCommands'
 
-/** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export, the app's look and remote control, in groups. */
+/** The conversation's less common tools, folded into one button so they do not take a row: search, notes, export and remote control, in groups. */
 export function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: string; /** Absent for a program that cannot be continued from a phone. */ remote?: RemoteState; markdown: () => string; onSearch: () => void }) {
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
@@ -63,10 +62,6 @@ export function ChatMenu({ agentId, remote, markdown, onSearch }: { agentId: str
               Copy as Markdown
             </span>
           </button>
-          </div>
-          <div className="menu-group">
-            <div className="menu-label">Look of the app</div>
-            <LookRows close={() => setOpen(false)} />
           </div>
           {remote && (
             <>

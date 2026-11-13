@@ -1957,6 +1957,52 @@ dialog.handoff { width: min(640px, 94vw); }
 .set-pane .hire-opt .hint { font-size: 11px; color: var(--muted); padding: 0; }
 @media (max-width: 640px) { .settings-v2[open] { grid-template-columns: 1fr; } .set-nav { display: flex; overflow-x: auto; border-right: 0; border-bottom: 2px solid var(--ink); } .set-nav .g { display: none; } .set-nav button { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; } .set-nav button.on { border-bottom-color: var(--accent); } }
 
+/* Settings, Looks: a timeline of kept looks on the left, the one picked beside the look in force on the right. */
+.lk, .lk-note, .lk-draft { flex: none; }
+.lk { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 0; min-height: 0; background: var(--panel-3); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.lk-tl { display: flex; flex-direction: column; flex: none; max-height: 380px; overflow: auto; border-right: 2px solid var(--ink); padding: 6px 0; }
+.lk-row { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px 7px 30px; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--line-soft); box-shadow: none; color: var(--text); }
+.lk-row::before { content: ''; position: absolute; left: 14px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.lk-row::after { content: ''; position: absolute; left: 10px; top: 50%; margin-top: -5px; width: 10px; height: 10px; background: var(--panel); border: 2px solid var(--dim); }
+.lk-row[data-active='true']::after { background: var(--accent); border-color: var(--accent); }
+.lk-row[data-sel='true'] { background: var(--panel-hover); }
+.lk-row[data-sel='true']::after { border-color: var(--text); }
+.lk-row[data-active='true'][data-sel='true']::after { border-color: var(--accent); }
+.lk-row:hover { background: var(--panel-2); }
+.lk-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lk-row .t { flex: 1; min-width: 0; }
+.lk-row .t b { display: flex; gap: 6px; align-items: baseline; font-weight: 600; }
+.lk-row .t b em { font: 11px Menlo, Consolas, monospace; color: var(--look); font-style: normal; }
+.lk-row .t small { display: block; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+.lk-row[data-active='true'] .t b { color: var(--accent); }
+.lk-badge { flex: none; padding: 1px 6px; background: var(--accent); color: var(--ink); font: 10px Menlo, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.lk-thumb { --lk-bg: #12101a; --lk-panel: #1a1726; --lk-accent: #f2c230; --lk-paper: #f6f6fa; position: relative; flex: none; display: block; width: 52px; height: 36px; overflow: hidden; background: var(--lk-bg); border: 2px solid var(--ink); box-shadow: 0 0 0 1px var(--line); }
+.lk-thumb::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 13px; background: var(--lk-panel); }
+.lk-thumb::after { content: ''; position: absolute; left: 17px; top: 6px; width: 22px; height: 7px; background: var(--lk-paper); box-shadow: 11px 11px 0 0 var(--lk-accent), 0 11px 0 0 var(--lk-panel); }
+.lk-thumb.big { width: 100%; height: 110px; }
+.lk-thumb.big::before { width: 32px; }
+.lk-thumb.big::after { left: 42px; top: 16px; width: 84px; height: 18px; box-shadow: 46px 28px 0 0 var(--lk-accent), 0 28px 0 0 var(--lk-panel); }
+.lk-det { display: flex; flex-direction: column; gap: 12px; padding: 14px; min-width: 0; }
+.lk-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lk-cmp figure { margin: 0; min-width: 0; }
+.lk-cmp figcaption { margin-bottom: 4px; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.lk-facts { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 4px 10px; margin: 0; font-size: 12px; }
+.lk-facts dt { color: var(--muted); }
+.lk-facts dd { margin: 0; overflow-wrap: anywhere; }
+.lk-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.lk-chips span { padding: 2px 7px; background: var(--well); border: 1px solid var(--line); color: var(--muted); font: 11px Menlo, Consolas, monospace; }
+.lk-name { display: flex; gap: 6px; align-items: center; }
+.lk-name input { flex: 1; min-width: 0; }
+.lk-acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+.lk-acts button { display: inline-flex; align-items: center; gap: 6px; }
+.lk-acts button.danger { color: var(--danger-text); }
+.lk-sp { flex: 1; }
+.lk-ask { color: var(--danger-text); font-size: 12px; }
+.lk-draft { margin: 0; padding: 6px 10px; border: 1px dashed var(--accent); color: var(--text); font-size: 12px; }
+.lk-note { display: flex; align-items: center; gap: 10px; margin: 0; padding: 6px 10px; background: var(--selected); border: 1px solid var(--accent-dim); font-size: 12px; }
+.lk-note button { margin-left: auto; }
+@media (max-width: 760px) { .lk { grid-template-columns: 1fr; } .lk-tl { max-height: 200px; border-right: 0; border-bottom: 2px solid var(--ink); } }
+
 /* The dialog has one height whatever the tab (700px, or the window's less a margin) and its body scrolls in what the head, range and tabs leave. */
 .settings.stats .st-body { min-height: 0; }
 .hire-foot { position: sticky; bottom: 0; z-index: 1; }
