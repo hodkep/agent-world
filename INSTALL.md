@@ -1,4 +1,6 @@
-# Installing Agent World (macOS)
+# Installing Agent World (macOS, and Linux beta)
+
+The rest of this page is for a Mac. [Linux (beta)](#linux-beta) is at the end.
 
 **Before you start:** nothing needs installing first. Agent World carries its own `git`, and its setup screen installs the Claude Code CLI for you (press **Install Claude Code**) and Antigravity if you want it. You sign in once with your own account in a terminal inside the setup screen. Agent World runs your own `claude`; it never handles your login.
 
@@ -34,6 +36,19 @@ pnpm run dist        # dist/*.dmg for arm64 and x64
 ```
 
 `pnpm run pack` builds just the app folder for a quick check.
+
+## Linux (beta)
+
+Linux is new and only lightly tested: the release build is checked by starting it on Ubuntu, and the app has been used on macOS. Expect rough edges and say what you find. Only 64-bit Intel and AMD (x64) is built.
+
+Pick a file from the [releases page](../../releases): `Agent-World-<version>-amd64.deb` for Debian and Ubuntu, or `Agent-World-<version>-x86_64.AppImage` for any other distribution.
+
+- **deb:** `sudo apt install ./Agent-World-<version>-amd64.deb`, then open **Agent World** from the menu or run `agent-world`. It also sets up what Chromium's sandbox needs on Ubuntu 24.04 and later.
+- **AppImage:** `chmod +x Agent-World-<version>-x86_64.AppImage`, then run it. It needs FUSE 2 (the `libfuse2` package; `libfuse2t64` on Ubuntu 24.04). Without it, run it with `--appimage-extract-and-run`. If it stops at once with a sandbox error (Ubuntu 23.10 and later restrict what an AppImage may set up), install the deb instead; `--no-sandbox` also starts it, but turns Chromium's sandbox off for that run, and the Preview opens web pages.
+
+Setup works as on a Mac: it installs the Claude Code CLI and has you sign in, in a terminal inside the app; the app carries its own `git`. The Preview keeps its logins encrypted through the desktop's secret service (GNOME Keyring or KWallet), so one has to be running.
+
+The app does not install updates itself on Linux: it says when a newer version is out, and you download the new file.
 
 ## Signing later
 

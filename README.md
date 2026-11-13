@@ -5,7 +5,7 @@
 <p align="center">
   <img alt="latest release" src="https://img.shields.io/github/v/release/hodkep/agent-world?style=flat-square&labelColor=12101a&color=f2c230&label=release">
   <img alt="licence Apache 2.0" src="https://img.shields.io/badge/licence-Apache%202.0-f2c230?style=flat-square&labelColor=12101a">
-  <img alt="platform: macOS" src="https://img.shields.io/badge/platform-macOS-f2c230?style=flat-square&labelColor=12101a">
+  <img alt="platform: macOS, Linux beta" src="https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20beta-f2c230?style=flat-square&labelColor=12101a">
   <img alt="Node 22 or newer" src="https://img.shields.io/badge/node-22%2B-f2c230?style=flat-square&labelColor=12101a">
 </p>
 
@@ -205,7 +205,8 @@ flowchart LR
 The latest version is on the [releases page](../../releases/latest); [CHANGELOG.md](CHANGELOG.md) lists what changed in each.
 
 - **macOS** is the platform it has been used on. The Mac app is not signed with an Apple Developer ID yet, so the first launch needs **Open Anyway**, and the app tells you when a newer version is out but cannot install it itself. The release workflow signs and notarises the build once the Apple signing secrets are set.
-- **Windows and Linux** are not supported yet: there are no installers for them.
+- **Linux** has a beta: an AppImage and a deb for x64, started on Ubuntu by the release build and not yet used much beyond that. The app tells you when a newer version is out but does not install it. See [INSTALL.md](INSTALL.md#linux-beta).
+- **Windows** is not supported yet: there are no installers for it.
 - **Programs:** Claude Code and Antigravity (`agy`).
 - **Next:** signed Mac builds, more agent programs behind the same seam ([docs/providers-design.md](docs/providers-design.md)), and further looks for the office.
 
