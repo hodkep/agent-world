@@ -81,6 +81,7 @@
     "zod": "^4.6.7"
   },
   "description": "Run and steer Claude Code and Antigravity agents from a pixel-art office: each agent gets its own git worktree, chat, terminal and diff view, with approval gates, workflows, a shared skills library and a todo board. macOS.",
+  "desktopName": "agent-world.desktop",
   "author": "Pratik <agentworld.app@gmail.com>",
   "repository": "github:hodkep/agent-world",
   "homepage": "https://github.com/hodkep/agent-world#readme",
