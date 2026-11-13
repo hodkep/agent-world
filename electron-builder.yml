@@ -35,6 +35,21 @@ mac:
   # The git the app uses when the computer has none (a fresh Mac has none until Apple's tools are installed): the one for the processor being built, from scripts/fetch-git.mjs.
   extraResources:
     - { from: "build/git/darwin-${arch}", to: git }
+# The Linux beta: an AppImage (runs anywhere, nothing to install) and a deb (Debian and Ubuntu; its post-install step sets up Chromium's sandbox, which an AppImage cannot).
+# Built on Linux only (node-pty is native): .github/workflows/release-linux.yml. The app does not replace itself here; it says a newer build exists (see updateMode).
+linux:
+  category: Development
+  executableName: agent-world
+  # What the deb's package list shows; the one in package.json is the Mac app's.
+  description: Run and steer Claude Code and Antigravity agents from a pixel-art office (Linux beta).
+  # Lets the desktop link a running window to its menu entry and icon.
+  syncDesktopName: true
+  target:
+    - { target: AppImage, arch: [x64] }
+    - { target: deb, arch: [x64] }
+  # A computer with no git still works: the same bundled git as on the Mac, for the processor being built.
+  extraResources:
+    - { from: "build/git/linux-${arch}", to: git }
 dmg:
   title: "Agent World"
 artifactName: "Agent-World-${version}-${arch}.${ext}"
