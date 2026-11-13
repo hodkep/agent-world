@@ -61,3 +61,12 @@ describe('the Linux build workflow', () => {
     expect(wf).toMatch(/--publish never/)
   })
 })
+
+describe('the Linux start-up check', () => {
+  const smoke = read('scripts/smoke-linux.mjs')
+  it('takes the app process before it closes the app, because Playwright forgets the app once it is closed and asking it then throws', () => {
+    const taken = smoke.indexOf('app.process()')
+    expect(taken).toBeGreaterThan(0)
+    expect(taken).toBeLessThan(smoke.indexOf('app.close()'))
+  })
+})

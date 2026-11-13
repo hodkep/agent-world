@@ -19,6 +19,8 @@ const app = await electron.launch({
   env: { ...process.env, AW_HOME: home, AW_NO_SETUP: '1', AW_HIDDEN: '1', AW_ZOOM: '1' },
   timeout: 60_000
 })
+// Taken now: once the app is closed Playwright no longer knows it, and asking for its process then throws.
+const proc = app.process()
 let failed = false
 try {
   const page = await app.firstWindow({ timeout: 60_000 })
@@ -31,7 +33,7 @@ try {
   console.error(`smoke failed: ${e instanceof Error ? e.message : e}`)
 } finally {
   await Promise.race([app.close().catch(() => {}), new Promise((r) => setTimeout(r, 5000))])
-  app.process().kill('SIGKILL')
+  proc.kill('SIGKILL')
   rmSync(home, { recursive: true, force: true })
 }
 process.exit(failed ? 1 : 0)
