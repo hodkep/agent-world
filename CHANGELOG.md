@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.14.0-beta.1] - 2026-11-13
+
+### Added
+
+- Linux (beta): an AppImage and a deb for x64 computers (Ubuntu 24.04 and similar), with the app's own `git` inside. macOS is the tested platform; the Linux build is a beta, so expect rough edges and tell us what you find.
+- Linux: the app tells you when a newer version exists and opens its page; it does not install updates over itself.
+- Install notes for Linux (INSTALL.md, README and the site download step).
+
+### Fixed
+
+- Workflows: a run whose steps are all met keeps its run bar, with the steps of added work on it, and a new request then starts a run of its own instead of joining the finished one as an item.
+
 ## [0.13.3] - 2026-11-12
 
 ### Changed
