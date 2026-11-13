@@ -156,11 +156,13 @@ export class Workflows {
 
   /**
    * A new request while the agent's run is open is one more item of that run, not another run: one track, one audit of the whole branch, one pull request.
-   * Only a run that is still open counts: not one that was done, landed, stopped or started from a commit, and not a request that continues the last task.
+   * Only a run that is still open counts: not one that was done, landed, stopped or started from a commit, and not a request that continues the last task. Nor one whose steps are all met:
+   * the item would bring steps of its own that nothing can finish, and the run could never end, so the request is a run of its own.
    */
   addition(agentId: string, title: string, followUp = false): Run | undefined {
     const open = this.openRun(agentId)
     if (followUp || !open || open.auto || open.landed) return undefined
+    if (open.workflow && this.states(open).every((s) => s.state === 'passed' || s.state === 'skipped')) return undefined
     this.append({ k: 'item', t: this.deps.now(), run: open.id, title })
     this.link(open.id, agentId, open.todos)
     return this.runs().find((r) => r.id === open.id)

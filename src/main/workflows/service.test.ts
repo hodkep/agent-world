@@ -231,6 +231,28 @@ describe('commits', () => {
       expect(wf.runs()[0]).toMatchObject({ status: 'open', title: 'Fix the old-side numbers', items: [{ title: 'Fold unchanged code' }], todos: ['7'] })
     })
 
+    it('is another run when every step of the open run is already met: an item would bring steps of its own that nothing can finish', () => {
+      const { wf, state } = make()
+      state.pick = () => ({ id: 'one', name: 'One', steps: [{ id: 'build', kind: 'work', name: 'Build' }] })
+      wf.begin('a1', 'Release')
+      wf.stepDone('a1', 'build')
+      expect(wf.runs()[0]!.status).toBe('open')
+      expect(wf.addition('a1', 'Another job')).toBeUndefined()
+      expect(wf.runs()[0]!.items).toBeUndefined()
+    })
+
+    it('can always be ended by the person, even with an item\'s steps left that task_done refuses', () => {
+      const { wf, state } = make()
+      state.pick = () => ({ id: 'one', name: 'One', steps: [{ id: 'build', kind: 'work', name: 'Build' }] })
+      wf.begin('a1', 'Release')
+      wf.addition('a1', 'Also this')
+      wf.stepDone('a1', 'build')
+      expect(() => wf.done('a1')).toThrow('for item 2 first')
+      wf.endRun(wf.runs()[0]!.id, '')
+      expect(wf.runs()[0]!.status).toBe('stopped')
+      expect(wf.openCount()).toBe(0)
+    })
+
     it('is another run when there is none open, the run was done, landed, started from a commit or stopped, or the request continues the last task', () => {
       const { wf } = make()
       expect(wf.addition('a1', 'x')).toBeUndefined()
