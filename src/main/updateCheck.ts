@@ -70,9 +70,11 @@ export const isHomebrewInstall = (caskrooms: string[], exists: (path: string) =>
 /**
  * Whether an installed app can install an update itself. macOS replaces an app only with one signed by the same Developer ID, so a Mac build that was
  * signed ad hoc can find out that a newer one exists but not put it in place: it tells the person and points to the release page.
+ * Linux is told the same way: its installers (an AppImage and a deb) are not something the app replaces itself.
  */
 export function updateMode(o: { packaged: boolean; platform: NodeJS.Platform; signed: boolean }): 'install' | 'tell' | 'off' {
   if (!o.packaged) return 'off'
+  if (o.platform === 'linux') return 'tell'
   return o.platform === 'darwin' && !o.signed ? 'tell' : 'install'
 }
 

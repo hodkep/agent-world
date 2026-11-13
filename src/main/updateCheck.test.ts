@@ -50,9 +50,10 @@ describe('which version is newer', () => {
 })
 
 describe('whether an installed app can install an update itself', () => {
-  it('can on Windows and Linux, and on a Mac only when the build was signed with a Developer ID, because macOS refuses to replace an app that is not', () => {
+  it('can on Windows, and on a Mac only when the build was signed with a Developer ID, because macOS refuses to replace an app that is not; on Linux it is only told, because the installers are an AppImage and a deb the app cannot replace itself', () => {
     expect(updateMode({ packaged: true, platform: 'win32', signed: false })).toBe('install')
-    expect(updateMode({ packaged: true, platform: 'linux', signed: false })).toBe('install')
+    expect(updateMode({ packaged: true, platform: 'linux', signed: false })).toBe('tell')
+    expect(updateMode({ packaged: true, platform: 'linux', signed: true })).toBe('tell')
     expect(updateMode({ packaged: true, platform: 'darwin', signed: true })).toBe('install')
     expect(updateMode({ packaged: true, platform: 'darwin', signed: false })).toBe('tell')
   })
