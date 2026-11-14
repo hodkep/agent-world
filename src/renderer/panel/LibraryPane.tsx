@@ -11,9 +11,9 @@ import { LibraryRule } from './LibraryRule'
 import { ProviderTag } from './ProviderTag'
 import { SkillWhere } from './SkillWhere'
 import { SkillUsage } from './SkillUsage'
-import { CostMeter, DayStrip, Heads } from './SkillBits'
+import { DayBars, Heads } from './SkillBits'
 import { ago } from './addressHistory'
-import { dustOf, splitUsage } from './libraryUsage'
+import { keepGroups, skillView, splitUsage, type SkillView } from './libraryUsage'
 import { findItems, highlightOpening, spineLook, tierOf, type Tier } from './libraryShelf'
 import { SkillShelf } from './SkillShelf'
 import { SkillInstall } from './SkillInstall'
@@ -79,6 +79,8 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
   const [tab, setTab] = useState<Section>('skills')
   const [usageTab, setUsageTab] = useState<'skills' | 'playbook' | 'mcp'>('skills')
   const [find, setFind] = useState('')
+  // Which skills the list shows; null until picked, so it opens on the ones in use.
+  const [view, setView] = useState<SkillView | null>(null)
   const [places, setPlaces] = useState<SkillPlaces | null>(null)
   const [busy, setBusy] = useState(false)
   const [usage30, setUsage30] = useState<Record<string, SkillUse>>({})
@@ -323,9 +325,15 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
         <IconButton icon="chat" label="New prompt" tip="Write text an agent reads when its work calls for it" onClick={() => (setOpen(null), setDraft({ kind: 'prompt', name: '', description: '', body: '' }))} />
       </div>
       {places && (() => {
-        const skills = items.filter((i) => i.kind === 'skill')
-        const on = skills.filter((i) => !places.claudeOff.includes(i.id))
-        return <p className="lib-sum"><span className="hint">{skills.length} {skills.length === 1 ? 'skill' : 'skills'} · {on.length} on for Claude · start-of-session cost</span><CostMeter tokens={on.reduce((n, i) => n + i.tokens.description, 0)} /></p>
+        const split = splitUsage(items, usage30, places.claudeOff)
+        const others = items.filter((i) => i.kind !== 'skill').length
+        const shown = skillView(view, find, split.used.length)
+        const VIEWS: [SkillView, string, number][] = [['use', 'In use', split.used.length], ['rest', 'Resting', split.unused.length], ['all', 'All', items.length], ['others', 'Instructions and prompts', others]]
+        return (
+          <div className="lib-views" role="group" aria-label="Show">
+            {VIEWS.map(([id, label, n]) => <button key={id} className="ghost sm" aria-pressed={shown === id} onClick={() => (setView(id), setFind(''))}>{label} <b>{n}</b></button>)}
+          </div>
+        )
       })()}
 
       {installing && (
@@ -338,9 +346,19 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
       )}
 
       {items.length === 0 && scan.length === 0 && <p className="hint">Nothing here yet. Add skills from this computer, or write an instruction.</p>}
-      {(items.length > 0 || scan.length > 0) && (
-        <SkillShelf groups={shelfGroups(items, scan, find)} others={findItems(items.filter((i) => i.kind !== 'skill'), find)} open={open} live={live} onOpen={(key) => (setOpen(key), setDraft(null))} />
-      )}
+      {(items.length > 0 || scan.length > 0) && (() => {
+        const pick = (key: string) => (setOpen(key), setDraft(null))
+        const split = splitUsage(items, usage30, places?.claudeOff ?? [])
+        const shown = skillView(view, find, split.used.length)
+        if (shown === 'use' || shown === 'rest') {
+          const keep = new Set((shown === 'use' ? split.used : split.unused).map((r) => r.item.id))
+          const uses = Object.fromEntries(items.filter((i) => keep.has(i.id)).map((i) => [i.id, { use: usage30[i.id], description: i.description }]))
+          const kept = keepGroups(shelfGroups(items, scan, ''), usage30, keep)
+          return kept.length ? <SkillShelf groups={kept} others={[]} open={open} live={live} onOpen={pick} uses={uses} /> : <p className="hint">{shown === 'use' ? 'No skill was used in the last 30 days.' : 'Every skill was used in the last 30 days.'}</p>
+        }
+        if (shown === 'others') return <SkillShelf groups={[]} others={items.filter((i) => i.kind !== 'skill')} open={open} live={live} onOpen={pick} />
+        return <SkillShelf groups={shelfGroups(items, scan, find)} others={findItems(items.filter((i) => i.kind !== 'skill'), find)} open={open} live={live} onOpen={pick} />
+      })()}
       </>
       )}
       </div>
@@ -356,11 +374,21 @@ export function LibraryPane({ folder, providers, onOpenSettings }: { folder: str
             const u = usage30[current.id]
             const n = Object.keys(u?.projects ?? {}).length
             return (
-              <div className="lip-stats" aria-label={`${current.name} in the last 30 days`}>
-                {current.size && <span><b>{sizeText(current.size.bytes)}</b> on disk</span>}
-                <span>{u?.used ? <>used <b>{u.used}×</b> in {n} {n === 1 ? 'project' : 'projects'}{u.last ? `, last ${ago(u.last, Date.now())}` : ''}</> : 'not used in 30 days'}</span>
-                <span className="lip-tok" title="What its name and description add to every Claude session">{current.tokens.description} tok each session</span>
-              </div>
+              <section className="lip-box lip-use" aria-label={`${current.name} in the last 30 days`}>
+                <h5>Use, last 30 days</h5>
+                {u?.used ? (
+                  <>
+                    <div className="lip-big"><b>{u.used}×</b><span>{u.last ? `last ${ago(u.last, Date.now())}` : ''}</span></div>
+                    <DayBars days={u.days} />
+                    <div className="lip-who"><Heads who={u.who} max={7} /><small>{u.who.length} {u.who.length === 1 ? 'agent' : 'agents'} · {n} {n === 1 ? 'project' : 'projects'}</small></div>
+                  </>
+                ) : <p className="hint">Not used in the last 30 days.</p>}
+                <dl className="lip-cost">
+                  <dt>Every Claude session</dt><dd title="What its name and description add to every Claude session">{current.tokens.description} tok</dd>
+                  <dt>When read</dt><dd>{current.tokens.body} tok</dd>
+                  {current.size && <><dt>On disk</dt><dd>{sizeText(current.size.bytes)}</dd></>}
+                </dl>
+              </section>
             )
           })() : undefined}
           colour={spineLook(current).colour}

@@ -1,4 +1,5 @@
 import type { LibraryItem, SkillUse } from '../../shared/library'
+import type { ShelfGroup } from './skillGroups'
 
 const NONE: SkillUse = { used: 0, last: 0, agents: [], accounts: [], days: Array<number>(30).fill(0), who: [], projects: {} }
 
@@ -15,6 +16,25 @@ export function splitUsage<T extends Skill>(items: T[], usage: Record<string, Sk
   const used = rows.filter((r) => r.use.used > 0).sort((a, b) => b.use.used - a.use.used || a.item.name.localeCompare(b.item.name))
   const unused = rows.filter((r) => r.use.used === 0).sort((a, b) => a.item.name.localeCompare(b.item.name))
   return { used, unused }
+}
+
+export type SkillView = 'use' | 'rest' | 'others' | 'all'
+
+/** Which items the Skills list shows: what was picked, else the skills in use when any were used; while something is typed, everything, so a search never misses. */
+export function skillView(chosen: SkillView | null, find: string, used: number): SkillView {
+  if (find.trim()) return 'all'
+  return chosen ?? (used > 0 ? 'use' : 'all')
+}
+
+/** The shelf's groups with only the given skills (those in use, or those resting): groups and sources stay in their order, inside a source the most used come first; what was found but is not in the library, and a group left empty, are left out. */
+export function keepGroups(groups: ShelfGroup[], usage: Record<string, SkillUse>, keep: Set<string>): ShelfGroup[] {
+  return groups.flatMap((g) => {
+    if (g.kind === 'found') return []
+    const order = new Map<string, number>()
+    for (const r of g.rows) if (!order.has(r.creator?.name ?? '')) order.set(r.creator?.name ?? '', order.size)
+    const rows = g.rows.filter((r) => keep.has(r.key)).sort((a, b) => order.get(a.creator?.name ?? '')! - order.get(b.creator?.name ?? '')! || (usage[b.key]?.used ?? 0) - (usage[a.key]?.used ?? 0) || a.name.localeCompare(b.name))
+    return rows.length ? [{ ...g, rows, bytes: rows.reduce((n, r) => n + (r.bytes ?? 0), 0), measured: rows.every((r) => r.bytes !== undefined) }] : []
+  })
 }
 
 /** What Clear the dust turns off for Claude: the unused skills still on that no playbook rule hands to agents (those would reach them anyway), and the tokens that saves at the start of every session. */
