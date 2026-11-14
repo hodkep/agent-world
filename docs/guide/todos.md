@@ -105,8 +105,8 @@ Everyone sees the same board. **Activity** says who changed what. A finished tas
 
 By default an agent may add as many lists as it likes (it still has to name the area, and a list that is already there is used as it is). To keep a board to a few lists, go to **Settings** > **Features** and type a number in **Most lists an agent may create**. An agent that wants one more is told the limit and to use a list the board has. The number cannot be lower than the lists the Todos screen has now, lowering it removes no list, and the lists you add yourself never count. Empty means no limit.
 
-## Track every request
+## Track requests as todos
 
-By default agents record only what is put off. To track every request, go to **Settings** > **Features** and turn on **Track every request as a todo**. Each message you send then becomes a task in the **Inbox**. Click **Name and sort N tasks** to name them and put them in lists. A plain git order (commit, push, rebase, open a PR) makes no task; a follow-up to a task (a fix to its review, more work on it) is told which task the agent was on last, so it goes under it as a subtask.
+By default agents record only what is put off. To track requests, go to **Settings** > **Features** and turn on **Track requests as todos**. A small model (Haiku) then reads each message you send, in the background, and decides: no task for a question, an approval, chat, a chore (commit, push, rebase) or a step of the workflow the agent is already following; a subtask of a task on the board for a correction or a bug fix in its work; a new task for a change of direction or new work. A task made this way appears in the **Inbox** (or its list) a few seconds after you send the message, and the agent works on it. Click **Name and sort N tasks** to name the ones left in the Inbox. With no Claude to ask, no task is made for a message; agents can still add one.
 
 Next: [Settings and updates](settings-and-updates.md)

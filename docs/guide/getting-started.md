@@ -27,7 +27,7 @@ Setup opens by itself the first time. Its left side lists six steps. **Your agen
    - **Continue** stays disabled until at least one tool is ready. **Re-scan** looks again.
 3. **Project folder.** Click one of your recent folders, or **Open a folder…** for any folder on this computer. Each card says `git` or `no git, agents share the folder`.
 4. **Defaults.** How much a new agent may do alone: **Ask first**, **Auto-edit**, **Plan first** or **Full auto**. Two switches here: **Tell me when an agent finishes, if I am in another app** and **Commit unfinished work to each agent's own branch when I quit**.
-5. **Features.** Three switches, each with what it costs in extra text sent to the agent: **Library and playbook**, **Track every request as a todo** and **Workflows**. You can change them later in Settings, under Features (see [Settings and updates](settings-and-updates.md)).
+5. **Features.** Three switches, each with what it costs in extra text sent to the agent: **Library and playbook**, **Track requests as todos** and **Workflows**. You can change them later in Settings, under Features (see [Settings and updates](settings-and-updates.md)).
 6. **First agent.** Optionally type a **Name** (otherwise one is picked for you), choose the **Provider**, and switch on **Also hire a starter crew (Explorer, Test writer, Reviewer)** if you want those three too. Press **Hire and finish**.
 
 <img src="../images/setup.png" alt="Setup, step Your agents: Claude Code and agy (Antigravity) each marked Ready, with the Git row below" width="720">

@@ -23,7 +23,7 @@ test('todos: a long message a task came from is folded on whole blocks with a co
   const home = mkdtempSync(join(tmpdir(), 'aw-todo-excerpt-'))
   const args = join(home, 'args.log')
   const { app, shutdown } = await launchApp(
-    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '2000', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1' },
+    { AW_HOME: join(home, 'aw'), AW_USER_HOME: join(home, 'user'), AW_CLAUDE_PROJECTS: join(home, 'projects'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_ARGS: args, FAKE_DELAY_MS: '2000', FAKE_CHAT: '1', FAKE_TRANSCRIPT: '1', FAKE_AUDIT: '{"action":"new","title":"Design options for the Updates channel choice"}' },
     home
   )
   try {
@@ -34,7 +34,7 @@ test('todos: a long message a task came from is folded on whole blocks with a co
     await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
     const settings = page.getByRole('dialog', { name: 'Settings' })
     await settings.getByRole('tab', { name: /Features/ }).click()
-    await settings.getByRole('checkbox', { name: /Track every request as a todo/ }).check()
+    await settings.getByRole('checkbox', { name: /Track requests as todos/ }).check()
     await settings.getByRole('button', { name: 'Close settings' }).click()
 
     await hire(page)
