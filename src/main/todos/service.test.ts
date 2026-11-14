@@ -10,6 +10,9 @@ const make = () => {
   const changes: string[] = []
   const worked: number[] = []
   const asked: string[] = []
+  /** What the triage model is asked, and what it answers next (the last answer repeats). */
+  const triaged: string[] = []
+  const verdicts = ['{"action":"none"}']
   const busyAgents = new Set<string>()
   const answer = { text: '{"title": "Fix the Safari login bug", "list": "Library"}' }
   const remembered: { repo: string; text: string; by: string }[] = []
@@ -34,12 +37,13 @@ const make = () => {
     pause: async () => undefined,
     busy: (id) => busyAgents.has(id),
     ask: async (prompt) => { asked.push(prompt); return answer.text },
+    triage: async (_id, prompt) => { triaged.push(prompt); return verdicts.length > 1 ? verdicts.shift()! : verdicts[0]! },
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     maxLists: () => limit.n,
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work, limit }
+  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work, limit, triaged, verdicts }
 }
 
 describe('the todo service', () => {
@@ -536,5 +540,94 @@ describe('a board made before tasks were sorted by area', () => {
     svc.claimByAgent('a1', next.id)
     expect(svc.lastTaskOf('a1', next.id)).toMatchObject({ id: u.id, title: 'Umbrella' })
     expect(svc.lastTaskOf('b1')).toBeUndefined()
+  })
+})
+
+describe('deciding whether a message is a task', () => {
+  const FIX = 'no, it should also work on Safari, not only Chrome'
+
+  it('makes no task and asks no model for a message the rules already know is no request', async () => {
+    const { svc, triaged } = make()
+    for (const m of ['thanks', 'ok, go on', '/clear', 'commit those and merge to main', '[Agent World] The person pressed Run: start your step "Commit" now.', '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.'])
+      expect(await svc.triageRequest('a1', m)).toBeUndefined()
+    expect(triaged).toEqual([])
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('makes no task when the model says the message is none', async () => {
+    const { svc, triaged } = make()
+    expect(await svc.triageRequest('a1', 'why is this error shown in the preview tab')).toBeUndefined()
+    expect(triaged).toHaveLength(1)
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('makes a task, claimed by the agent and pointing at the message, titled and sorted as the model said', async () => {
+    const { svc, verdicts, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts[0] = '{"action":"new","title":"Add a health check endpoint","list":"Server"}'
+    const t = await svc.triageRequest('a1', 'now add a health check endpoint to the server')
+    expect(t).toMatchObject({ title: 'Add a health check endpoint', list: 'Server', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
+    expect(t!.createdLink).toMatchObject({ agentId: 'a1', excerpt: 'now add a health check endpoint to the server' })
+  })
+
+  it('makes a subtask under the task the model names, in that task\'s list, and gives the model the task in hand', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    const first = svc.addByAgent('a1', { title: 'Fix the login bug', list: 'Library' })
+    svc.claimByAgent('a1', first.id)
+    verdicts[0] = `{"action":"subtask","parent":"${first.id}","title":"Fix the login bug on Safari"}`
+    const t = await svc.triageRequest('a1', FIX)
+    expect(t).toMatchObject({ title: 'Fix the login bug on Safari', parent: first.id, list: 'Library', claimedBy: { id: 'a1' } })
+    expect(triaged[0]).toContain(`todo#${first.id} "Fix the login bug"`)
+    // what the agent last said goes with it, so a short follow-up can be read against it
+    expect(triaged[0]).toContain('The agent last said: Done: it works')
+  })
+
+  it('makes no task when the model fails, says nothing usable, or there is no model to ask', async () => {
+    const { svc, verdicts } = make()
+    verdicts[0] = 'no idea'
+    expect(await svc.triageRequest('a1', FIX)).toBeUndefined()
+    verdicts[0] = '{"action":"subtask","parent":"99","title":"Fix it on Safari"}'
+    expect(await svc.triageRequest('a1', FIX)).toBeUndefined()
+    const bare = createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: () => ({ id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }), lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 1, onChange: () => undefined })
+    expect(await bare.triageRequest('a1', FIX)).toBeUndefined()
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('decides one message after another for an agent, so the second sees the task the first made', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts.splice(0, 1, '{"action":"new","title":"Fix the login bug"}', '{"action":"subtask","parent":"1","title":"Fix the login bug on Safari"}')
+    const [a, b] = await Promise.all([svc.triageRequest('a1', 'please fix the login bug on Chrome'), svc.triageRequest('a1', FIX)])
+    expect(a!.id).toBe('1')
+    expect(b).toMatchObject({ parent: '1' })
+    expect(triaged[1]).toContain('todo#1')
+  })
+
+  it('tells the model about a task the app closed when the agent\'s turn ended, so a follow-up can nest under it', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts.splice(0, 1, '{"action":"new","title":"Add a line to the README"}', '{"action":"subtask","parent":"1","title":"Make the README line two lines"}')
+    const first = await svc.triageRequest('a1', 'add a line to README.md saying this is a test repo')
+    svc.turnEnded('a1')
+    expect(svc.board('/work/shop').todos.find((x) => x.id === first!.id)).toMatchObject({ status: 'done' })
+    const second = await svc.triageRequest('a1', 'no, make it two lines instead')
+    expect(triaged[1]).toContain('todo#1 "Add a line to the README" (done)')
+    expect(second).toMatchObject({ parent: '1' })
+  })
+
+  it('closes a task at once when the agent\'s turn ended before the decision came', async () => {
+    const { svc, verdicts } = make()
+    verdicts[0] = '{"action":"new","title":"Fix the login bug"}'
+    const t = await svc.triageRequest('a1', 'please fix the login bug on Safari')
+    expect(svc.board('/work/shop').todos.find((x) => x.id === t!.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true })
+  })
+
+  it('records a request another agent sent as made by that agent', async () => {
+    const { svc, verdicts, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts[0] = '{"action":"new","title":"Add a health check endpoint"}'
+    const mail = '[Agent World] Message from bob: please add a health check endpoint to the server\n\nWhen you have an answer, reply using the agent-world send_message tool with to="bob" and expects_reply=false.'
+    expect((await svc.triageRequest('a1', mail))!.createdBy).toMatchObject({ kind: 'agent', name: 'bob', id: 'b1' })
   })
 })

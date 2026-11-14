@@ -818,11 +818,20 @@ const todoService = createTodoService({
       execFile(binFor(p), ['-p', '--model', 'haiku', prompt], { env: p.env(process.env), cwd: tmpdir(), timeout: 60_000, maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? '' : stdout))
     )
   },
+  // Whether a message is a task is asked of Haiku through the lean call (no tools, skills or saved session), on the agent's own account when it is Claude's; a project with no Claude to ask makes no task for a message.
+  triage: async (id, prompt) => {
+    const a = byId(id)
+    const p = providers().find((x) => x.id === 'claude')
+    if (!a || !p || !(await readyAskers()).includes('claude')) throw new Error('No Claude is ready to ask.')
+    const env = { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor('claude', providerOf(a).id === 'claude' ? a.configDir : undefined) }
+    return (await askClaude(resolveCommand(binFor(p)), 'haiku', prompt, env, 30_000)).text
+  },
+  run: (id) => workflows.runs().find((r) => r.agent === id && r.status === 'open')?.title,
   // A finished task is also a line in the project's shared memory, where "recall" finds it.
   remember: (repoPath, text, by) => void remember(memoryFile(repoPath), text, by),
   onChange: (workspace) => send('todos-changed', workspace)
 })
-// What is added to each message for the todo board: in fully tracked mode the app makes a task for the request first (not for a subagent, whose work its parent already tracks).
+// What is added to each message for the todo board: in fully tracked mode a small model decides in the background whether the message is a task (not for a subagent, whose work its parent already tracks); the agent is not held for it.
 const todoRemind = (id: string, prompt: string): string => {
   try {
     const a = byId(id)
@@ -830,10 +839,8 @@ const todoRemind = (id: string, prompt: string): string => {
     if (!a || a.parent || a.builder) return ''
     // A finished task that looks like this request is pointed at, whichever mode: it costs a line only when one matches.
     const similar = similarLine(todoService.similarDone(id, prompt))
-    if (prefs.todoTracking !== 'full') return [reminderLine('deferred', prompt), similar].filter(Boolean).join('\n')
-    const made = todoService.trackRequest(id, prompt)
-    const last = todoService.lastTaskOf(id, made?.id)
-    return [reminderLine('full', prompt, made && { id: made.id, list: made.list }, todoService.listsOf(id), last && { id: last.id, title: last.title }), similar].filter(Boolean).join('\n')
+    if (prefs.todoTracking === 'full') void todoService.triageRequest(id, prompt)
+    return [reminderLine(prompt), similar].filter(Boolean).join('\n')
   } catch {
     return ''
   }
