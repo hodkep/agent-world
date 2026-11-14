@@ -39,9 +39,9 @@ pnpm run dist        # dist/*.dmg for arm64 and x64
 
 ## Linux (beta)
 
-Linux is new and only lightly tested: the release build is checked by starting it on Ubuntu, and the app has been used on macOS. Expect rough edges and say what you find. Only 64-bit Intel and AMD (x64) is built.
+Linux is new and only lightly tested: the release build is checked by starting it on Ubuntu, the deb has been installed and run in an Ubuntu 24.04 container, and the app has been used on macOS. It has not been tried on a real Linux desktop yet. Expect rough edges and say what you find. Only 64-bit Intel and AMD (x64) is built.
 
-Pick a file from the [releases page](../../releases): `Agent-World-<version>-amd64.deb` for Debian and Ubuntu, or `Agent-World-<version>-x86_64.AppImage` for any other distribution.
+Pick a file from the [releases page](../../releases): `Agent-World-<version>-amd64.deb` for Debian and Ubuntu, or `Agent-World-<version>-x86_64.AppImage` for any other distribution. If GitHub is slow for you, the newest release's files are also on the project's mirror: [deb](https://dl.agent-world.in/latest/Agent-World-amd64.deb), [AppImage](https://dl.agent-world.in/latest/Agent-World-x86_64.AppImage).
 
 - **deb:** `sudo apt install ./Agent-World-<version>-amd64.deb`, then open **Agent World** from the menu or run `agent-world`. It also sets up what Chromium's sandbox needs on Ubuntu 24.04 and later.
 - **AppImage:** `chmod +x Agent-World-<version>-x86_64.AppImage`, then run it. It needs FUSE 2 (the `libfuse2` package; `libfuse2t64` on Ubuntu 24.04). Without it, run it with `--appimage-extract-and-run`. If it stops at once with a sandbox error (Ubuntu 23.10 and later restrict what an AppImage may set up), install the deb instead; `--no-sandbox` also starts it, but turns Chromium's sandbox off for that run, and the Preview opens web pages.

@@ -25,7 +25,7 @@ Each project is an office floor. Each agent is a character with its own git work
 
 ## <img src="docs/images/icons/hooks.svg" width="24" height="24" alt=""> Quick start
 
-1. **Download** the installer for your computer from the [releases page](../../releases): on a Mac, the `arm64` dmg for Apple silicon (M1 and later) or the `x64` dmg for Intel. Open it and drag **Agent World** into Applications. If GitHub is slow for you, the same dmg is also on the project's mirror: [Apple silicon](https://dl.agent-world.in/latest/Agent-World-arm64.dmg), [Intel](https://dl.agent-world.in/latest/Agent-World-x64.dmg).
+1. **Download** the installer for your computer from the [releases page](../../releases): on a Mac, the `arm64` dmg for Apple silicon (M1 and later) or the `x64` dmg for Intel. Open it and drag **Agent World** into Applications. If GitHub is slow for you, the same dmg is also on the project's mirror: [Apple silicon](https://dl.agent-world.in/latest/Agent-World-arm64.dmg), [Intel](https://dl.agent-world.in/latest/Agent-World-x64.dmg). On Linux (beta, x64) take the deb or the AppImage from the releases page, or from the mirror: [deb](https://dl.agent-world.in/latest/Agent-World-amd64.deb), [AppImage](https://dl.agent-world.in/latest/Agent-World-x86_64.AppImage); the steps are in [INSTALL.md](INSTALL.md#linux-beta).
 2. **Open it once.** The Mac app is not signed with an Apple Developer ID yet, so macOS blocks the first launch. On macOS 15 and later, try to open it, then go to System Settings > Privacy & Security and press **Open Anyway**. Older macOS and the terminal route are in [INSTALL.md](INSTALL.md).
 3. **Follow the setup screens.** Nothing has to be installed first: the app carries its own `git`, and setup installs the Claude Code CLI for you and has you sign in once, in a terminal inside the app. Agent World runs your own `claude` and never handles your login. Antigravity (`agy`) is optional.
 4. **Hire.** Pick a project folder, click **+ Agent**, name it, and the character walks in.
@@ -205,7 +205,7 @@ flowchart LR
 The latest version is on the [releases page](../../releases/latest); [CHANGELOG.md](CHANGELOG.md) lists what changed in each.
 
 - **macOS** is the platform it has been used on. The Mac app is not signed with an Apple Developer ID yet, so the first launch needs **Open Anyway**, and the app tells you when a newer version is out but cannot install it itself. The release workflow signs and notarises the build once the Apple signing secrets are set.
-- **Linux** has a beta: an AppImage and a deb for x64, started on Ubuntu by the release build and not yet used much beyond that. The app tells you when a newer version is out but does not install it. See [INSTALL.md](INSTALL.md#linux-beta).
+- **Linux** has a beta: an AppImage and a deb for x64, started on Ubuntu by the release build, and the deb installed and run in an Ubuntu 24.04 container; it has not been tried on a real Ubuntu desktop yet. The app tells you when a newer version is out but does not install it. See [INSTALL.md](INSTALL.md#linux-beta).
 - **Windows** is not supported yet: there are no installers for it.
 - **Programs:** Claude Code and Antigravity (`agy`).
 - **Next:** signed Mac builds, more agent programs behind the same seam ([docs/providers-design.md](docs/providers-design.md)), and further looks for the office.
