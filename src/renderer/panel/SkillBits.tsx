@@ -11,6 +11,17 @@ export function DayStrip({ days }: { days: number[] }) {
   )
 }
 
+/** A bar for each day of the window, as tall as that day's uses against the busiest day; today is the last. */
+export function DayBars({ days }: { days: number[] }) {
+  const top = Math.max(1, ...days)
+  const n = days.reduce((a, b) => a + b, 0)
+  return (
+    <span className="skbars" role="img" aria-label={`${n} ${n === 1 ? 'use' : 'uses'} in ${days.length} days`}>
+      {days.map((v, i) => <i key={i} className={v ? undefined : 'z'} style={{ height: v ? Math.max(5, Math.round((v / top) * 40)) : 2 }} title={`${days.length - 1 - i === 0 ? 'today' : `${days.length - 1 - i} days ago`}: ${v}`} />)}
+    </span>
+  )
+}
+
 /** The heads of the agents that used it, each in the colours the office gives that agent. */
 export function Heads({ who, max = 4 }: { who: { id: string; name: string }[]; max?: number }) {
   if (!who.length) return null

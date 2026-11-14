@@ -10,6 +10,9 @@ export const alsoIn = (s: McpServer, all: McpServer[]) => ({
   agyIde: all.some((x) => x.where === 'agy-ide' && x.name === s.name)
 })
 
+/** A server's calls in 30 days, by the name Claude agents call it under; null for agy's own lists, whose calls are not counted. */
+export const callsOf = (s: McpServer, usage: ToolUsage): number | null => (s.where === 'agy-cli' || s.where === 'agy-ide' ? null : (usage.servers[mcpKey(s.name)]?.n ?? 0))
+
 /** Servers a switch can reach that nobody called in the last 30 days: where Usage offers to turn them off. */
 export const unusedServers = (servers: McpServer[], off: string[], usage: ToolUsage) => servers.filter((s) => rowState(s, off) === 'on' && !usage.servers[mcpKey(s.name)]?.n)
 
