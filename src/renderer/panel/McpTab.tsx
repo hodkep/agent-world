@@ -4,11 +4,12 @@ import { Bars, clean, ConfirmRun, StatusChip, Switch } from './McpBits'
 import { McpEntry } from './McpEntry'
 import { RemoveFrom, type RemovePlan } from './RemoveFrom'
 import { McpToolsTable } from './McpToolsTable'
-import { alsoIn, rowState } from './mcpView'
+import { alsoIn, callsOf, rowState } from './mcpView'
+import { skillView, type SkillView } from './libraryUsage'
 
 const COLOUR: Record<McpServer['where'], string> = { office: '#f2c230', global: '#5f9e5f', project: '#6ad0e0', plugin: '#a4a2b8', 'agy-cli': '#e07aa8', 'agy-ide': '#a4a2b8' }
 const none: ToolUsage = { tools: {}, servers: {} }
-type Reader = 'overview' | 'places' | 'tools' | 'entry'
+type Reader = 'details' | 'tools' | 'entry'
 
 /** The MCP servers the programs' own files list, as the Skills shelf lists skills: a panel for each program, one row for each server with its status, a reader for the open one. */
 export function McpTab({ folder }: { folder?: string }) {
@@ -17,7 +18,9 @@ export function McpTab({ folder }: { folder?: string }) {
   const [find, setFind] = useState('')
   const [open, setOpen] = useState<string | 'new' | null>(null)
   const [fail, setFail] = useState('')
-  const [reader, setReader] = useState<Reader>('overview')
+  const [reader, setReader] = useState<Reader>('details')
+  // Which servers the list shows; null until picked, so it opens on those called.
+  const [view, setView] = useState<SkillView | null>(null)
   const [probes, setProbes] = useState<Record<string, ProbeResult>>({})
   const [busy, setBusy] = useState<Set<string>>(new Set())
   // A server that comes with a project is not started until its command has been shown and the person has said yes.
@@ -54,7 +57,6 @@ export function McpTab({ folder }: { folder?: string }) {
     void window.aw.library.mcpDescribe({ id: s.id }).then((d) => setAsk({ s, d }), (err: unknown) => setFail(clean(err)))
   }
   const servers = useMemo(() => (rep?.servers ?? []).filter((s) => !find.trim() || `${s.name} ${s.fact}`.toLowerCase().includes(find.trim().toLowerCase())), [rep, find])
-  const groups = useMemo(() => groupServers(servers), [servers])
   // Each server once, as its row stands for it: the count, the switches and Connect all go by these, not by every place it is listed in.
   const rows = useMemo(() => groupServers(rep?.servers ?? []).flatMap((g) => g.rows), [rep])
   const off = rep?.off ?? []
@@ -64,6 +66,15 @@ export function McpTab({ folder }: { folder?: string }) {
   const switchable = rows.filter((s) => ['on', 'off'].includes(rowState(s, off))).length
   const connected = Object.values(probes).filter((p) => p.status === 'connected').length
   const bad = Object.values(probes).filter((p) => p.status === 'failed' || p.status === 'timeout').length
+  const called = rows.filter((s) => (callsOf(s, usage) ?? 0) > 0).length
+  const quiet = rows.filter((s) => callsOf(s, usage) === 0).length
+  const shown = skillView(view, find, called)
+  const keep = (s: McpServer) => shown === 'all' || (shown === 'use' ? (callsOf(s, usage) ?? 0) > 0 : callsOf(s, usage) === 0)
+  const groups = groupServers(servers).flatMap((g) => {
+    const kept = g.rows.filter(keep)
+    return kept.length ? [{ ...g, rows: kept }] : []
+  })
+  const VIEWS: [SkillView, string, number][] = [['use', 'Called in 30 days', called], ['rest', 'Not called', quiet], ['all', 'All', rows.length]]
   return (
     <div role="tabpanel" id="lib-panel-mcp" aria-labelledby="lib-tab-mcp" className="lib-panel lib-panel-shelf">
       <div className="lib-col">
@@ -74,7 +85,11 @@ export function McpTab({ folder }: { folder?: string }) {
           <button disabled={busy.size > 0 || !rep} title="Start each server in your own files and read what it answers; a project's .mcp.json is asked about one at a time" onClick={connectAll}>Connect all</button>
           <button className="primary" onClick={() => (setOpen('new'), setReader('entry'))}>Add server…</button>
         </div>
-        {rep && <p className="lib-sum"><span className="hint">{rows.length} {rows.length === 1 ? 'server' : 'servers'} · {on} on for Claude agents of {switchable} you can switch{connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number is calls in 30 days</span></p>}
+        {rep && (
+          <div className="lib-views" role="group" aria-label="Show" title={`${on} on for Claude agents of ${switchable} you can switch${connected + bad > 0 ? ` · ${connected} connected${bad ? ` · ${bad} failed` : ''}` : ''} · the number on a row is its calls in 30 days`}>
+            {VIEWS.map(([id, label, n]) => <button key={id} className="ghost sm" aria-pressed={shown === id} onClick={() => (setView(id), setFind(''))}>{label} <b>{n}</b></button>)}
+          </div>
+        )}
         {fail && <p className="error" role="alert">{fail}</p>}
         {ask && <ConfirmRun name={ask.s.name} file={ask.s.path} d={ask.d} onRun={() => (setAsk(null), void connect(ask.s, ask.d.digest))} onCancel={() => setAsk(null)} />}
         <section className="drawer sk2" aria-label="MCP servers">
@@ -85,18 +100,17 @@ export function McpTab({ folder }: { folder?: string }) {
                 {g.rows.map((s) => {
                   const st = rowState(s, off)
                   // Calls are counted by Claude agents' server names: they say nothing about agy's own lists.
-                  const n = s.where === 'agy-cli' || s.where === 'agy-ide' ? 0 : (usage.servers[mcpKey(s.name)]?.n ?? 0)
+                  const n = callsOf(s, usage) ?? 0
                   const p = probes[s.id]
                   return (
                     <div key={s.id} className={`sk2-row mt-row${open === s.id ? ' sel' : ''}${st === 'off' || st === 'ownoff' ? ' off' : ''}${s.readOnly && s.where !== 'office' && s.where !== 'agy-cli' ? ' ro' : ''}`}>
-                      <button className="mt-pick" aria-label={`Open ${s.name}`} aria-pressed={open === s.id} onClick={() => (setOpen(s.id), setReader('overview'))}>
+                      <button className="mt-pick" aria-label={`Open ${s.name}`} aria-pressed={open === s.id} onClick={() => (setOpen(s.id), setReader('details'))}>
                         <span className="sk2-spine" style={{ background: COLOUR[s.where] }} aria-hidden />
                         <span className="sk2-main"><b>{s.name}</b><small>{s.transport}{s.fact ? ` · ${s.fact}` : ''}{st === 'ownoff' ? ' · off in its own file' : ''}</small></span>
                       </button>
                       <span className="mt-tail">
                         {s.places && <span className="sk2-chip" title="Listed in each of these; see its Places tab">{s.places.length} places</span>}
-                        {s.where !== 'office' && !p && !busy.has(s.id) && <button className="sm" aria-label={`Connect ${s.name}`} onClick={() => start(s)}>Connect</button>}
-                        {s.where !== 'office' && <StatusChip probe={p} busy={busy.has(s.id)} />}
+                        {s.where !== 'office' && (p || busy.has(s.id)) && <StatusChip probe={p} busy={busy.has(s.id)} />}
                         <span className="sk2-size">{n || '–'}</span>
                         {st === 'locked' ? <span className="sk2-chip">locked</span> : st === 'readonly' ? <span className="sk2-chip">{s.where === 'agy-cli' ? 'agy’s list' : 'read only'}</span> : <Switch on={st === 'on'} label={`${s.name} for Claude agents`} onChange={(v) => set(s.name, v)} />}
                       </span>
@@ -111,39 +125,49 @@ export function McpTab({ folder }: { folder?: string }) {
       </div>
       <div className="lib-read">
         {open === 'new' ? (
-          <div className="lip" role="group" aria-label="New server">
+          <div className="lip lip-page" role="group" aria-label="New server">
             <div className="lip-top"><div className="lip-title"><b>New server</b></div><p className="lip-desc">Write its entry, test it, then save it into the file.</p></div>
-            <McpEntry folder={folder} onSaved={(id) => void load().then(() => (setOpen(id || null), setReader('overview')))} onRemoved={() => undefined} />
+            <McpEntry folder={folder} onSaved={(id) => void load().then(() => (setOpen(id || null), setReader('details')))} onRemoved={() => undefined} />
           </div>
         ) : current ? (
-          <ServerReader key={current.id} s={current} all={rep!.servers} off={off} usage={usage} probe={probes[current.id]} busy={busy.has(current.id)} folder={folder} reader={reader} onReader={setReader} onSet={set} onConnect={() => start(current)}
+          <ServerReader key={current.id} s={current} group={groupServers(rep!.servers).find((g) => g.rows.some((r) => r.id === current.id))?.title ?? ''} all={rep!.servers} off={off} usage={usage} probe={probes[current.id]} busy={busy.has(current.id)} folder={folder} reader={reader} onReader={setReader} onSet={set} onConnect={() => start(current)}
             onSaved={(id) => void load().then(() => setOpen(id || null))} onRemoved={() => void load().then(() => setOpen(null))} />
-        ) : <p className="hint">Pick a server to see where it lives, whether it connects, and the tools it offers.</p>}
+        ) : <div className="lib-box lib-pick"><p className="hint">Pick a server to see where it lives, whether it connects, and the tools it offers.</p></div>}
       </div>
     </div>
   )
 }
 
-function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReader, onSet, onConnect, onSaved, onRemoved }: { s: McpServer; all: McpServer[]; off: string[]; usage: ToolUsage; probe?: ProbeResult; busy: boolean; folder?: string; reader: Reader; onReader: (r: Reader) => void; onSet: (name: string, on: boolean) => void; onConnect: () => void; onSaved: (id: string) => void; onRemoved: () => void }) {
+function ServerReader({ s, group, all, off, usage, probe, busy, folder, reader, onReader, onSet, onConnect, onSaved, onRemoved }: { s: McpServer; group: string; all: McpServer[]; off: string[]; usage: ToolUsage; probe?: ProbeResult; busy: boolean; folder?: string; reader: Reader; onReader: (r: Reader) => void; onSet: (name: string, on: boolean) => void; onConnect: () => void; onSaved: (id: string) => void; onRemoved: () => void }) {
   const st = rowState(s, off)
   const also = alsoIn(s, all)
   const used = usage.servers[mcpKey(s.name)]
   const claude = s.where === 'global' || s.where === 'project'
   const tools = probe?.status === 'connected' ? probe.tools : []
-  const TABS: [Reader, string][] = [['overview', 'Overview'], ['places', 'Places'], ['tools', `Tools${tools.length ? ` (${tools.length})` : ''}`], ['entry', 'Entry (JSON)']]
+  const TABS: [Reader, string][] = [['details', 'Details'], ['tools', `Tools${tools.length ? ` (${tools.length})` : ''}`], ['entry', 'Entry (JSON)']]
+  // The tabs are one stop in the Tab order: the arrow keys, Home and End move between them, and the tab moved to is picked.
+  const keys = (e: React.KeyboardEvent) => {
+    const at = TABS.findIndex(([id]) => id === reader)
+    const to = e.key === 'ArrowRight' ? (at + 1) % TABS.length : e.key === 'ArrowLeft' ? (at - 1 + TABS.length) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : -1
+    if (to < 0) return
+    e.preventDefault()
+    onReader(TABS[to]![0])
+    e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[to]?.focus()
+  }
   return (
-    <div className="lip" role="group" aria-label={`${s.name} in detail`}>
+    <div className="lip lip-page" role="group" aria-label={`${s.name} in detail`}>
       <div className="lip-top">
-        <div className="lip-title mt-title"><b>{s.name}</b>{s.where !== 'office' && <span className="mt-head"><StatusChip probe={probe} busy={busy} /><button className="sm" disabled={busy} onClick={onConnect}>{probe ? 'Reconnect' : 'Connect'}</button></span>}</div>
-        <p className="lip-desc">{s.transport}{s.fact ? ` · ${s.fact}` : ''}</p>
+        <nav className="lip-crumb" aria-label="Where it is"><span>MCP servers</span><i aria-hidden>›</i><span>{group}</span><i aria-hidden>›</i><span>{s.name}</span></nav>
+        <div className="lip-title mt-title"><h3>{s.name}</h3><small className="lib-kind">{s.transport}</small><span className="lib-sp" />{s.where !== 'office' && <span className="mt-head"><StatusChip probe={probe} busy={busy} /><button className="sm" aria-label={`${probe ? 'Reconnect' : 'Connect'} ${s.name}`} disabled={busy} onClick={onConnect}>{probe ? 'Reconnect' : 'Connect'}</button></span>}</div>
+        {s.fact && <p className="lip-desc mono">{s.fact}</p>}
         {probe && probe.status !== 'connected' && <p className="mt-why" role="alert">{probe.message}</p>}
         {probe?.status === 'connected' && probe.server && <p className="hint mt-srv">{probe.server.name} {probe.server.version} · connected in {(probe.ms / 1000).toFixed(1)} s</p>}
       </div>
-      <div className="lip-tabs" role="tablist" aria-label={`About ${s.name}`}>
-        {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={reader === id} className={reader === id ? 'on' : ''} onClick={() => onReader(id)}>{label}</button>)}
+      <div className="lip-tabs" role="tablist" aria-label={`About ${s.name}`} onKeyDown={keys}>
+        {TABS.map(([id, label]) => <button key={id} id={`mt-tab-${id}`} role="tab" aria-selected={reader === id} aria-controls={`mt-panel-${id}`} tabIndex={reader === id ? 0 : -1} className={reader === id ? 'on' : ''} onClick={() => onReader(id)}>{label}</button>)}
       </div>
-      {reader === 'overview' && (
-        <div className="lip-tp"><div className="sk2-over">
+      {reader === 'details' && (
+        <div className="lip-details lib-scrollbar" role="tabpanel" id="mt-panel-details" aria-labelledby="mt-tab-details"><div className="lip-cols"><div className="sk2-over">
           <section>
             <h5>Where it lives</h5>
             <dl className="sk2-kv">
@@ -173,14 +197,14 @@ function ServerReader({ s, all, off, usage, probe, busy, folder, reader, onReade
             </div>
           </section>
           <section>
-            <h5>Used in 30 days</h5>
+            <h5>Calls in 30 days{used?.n ? ` · ${used.n}` : ''}</h5>
             <Bars rows={Object.entries(used?.projects ?? {}).sort((a, b) => b[1] - a[1])} />
           </section>
-        </div></div>
+          <Places s={s} onChanged={onRemoved} />
+        </div></div></div>
       )}
-      {reader === 'tools' && <div className="lip-tp"><McpToolsTable server={s.name} tools={tools} usage={usage} connected={probe?.status === 'connected'} /></div>}
-      {reader === 'places' && <Places s={s} onChanged={onRemoved} />}
-      {reader === 'entry' && <EntryOf s={s} folder={folder} onSaved={onSaved} onRemoved={onRemoved} />}
+      {reader === 'tools' && <div className="lip-tp" role="tabpanel" id="mt-panel-tools" aria-labelledby="mt-tab-tools"><McpToolsTable server={s.name} tools={tools} usage={usage} connected={probe?.status === 'connected'} /></div>}
+      {reader === 'entry' && <div className="lip-tp" role="tabpanel" id="mt-panel-entry" aria-labelledby="mt-tab-entry"><EntryOf s={s} folder={folder} onSaved={onSaved} onRemoved={onRemoved} /></div>}
     </div>
   )
 }
@@ -201,7 +225,7 @@ function Places({ s, onChanged }: { s: McpServer; onChanged: () => void }) {
     }
   }
   return (
-    <div className="lip-tp"><div className="sk2-over">
+    <>
       {all.length > 1 && (
         <section>
           <h5>Take it out of</h5>
@@ -225,7 +249,7 @@ function Places({ s, onChanged }: { s: McpServer; onChanged: () => void }) {
         </section>
       ))}
       {all.length > 1 && <p className="hint skw-note">Listed the same in each place: the same command or address and the same variable names. What the variables hold is never read, so one place could carry another account’s token. Open it in Entry (JSON) to see.</p>}
-    </div></div>
+    </>
   )
 }
 
