@@ -1,5 +1,6 @@
 // POC: a look the person asked an agent for. It is two things: layout rules (where rows sit) and CSS (how anything looks). The system default is no look at all, so it can always come back.
 import { DEFAULT_LAYOUT, checkLayout, type ChatLayout } from './chatLayout'
+import { type Swatch } from './lookSwatch'
 import { checkWidgets, type Widget } from './widgets'
 
 export interface ChatMod {
@@ -14,11 +15,32 @@ export const isEmptyMod = (m: ChatMod) => m.layout.rules.length === 0 && m.css.t
 /** What the person did with a look: the answer an agent has to be told, as it cannot see the buttons pressed. */
 export interface Outcome {
   at: number
-  outcome: 'kept' | 'undone' | 'restored the system look' | 'went back'
+  outcome: 'kept' | 'undone' | 'restored the system look' | 'switched'
   /** Who wrote the look it is about (an agent's name), or the person. */
   by: string
   /** What the writer said it did. */
   why: string
+  /** For a switch: the number of the version put in force. */
+  n?: number
+}
+
+/** A look that was kept, to switch back to at any time. */
+export interface LookVersion {
+  /** Its number, which it keeps for good. */
+  n: number
+  /** The agent that wrote it ('' for a look kept before versions had authors). */
+  by: string
+  why: string
+  /** When it was kept (ms). */
+  at: number
+  /** The person's own name for it, or ''. */
+  name: string
+  /** It is the look in force. */
+  active: boolean
+  cssBytes: number
+  rules: number
+  widgets: number
+  swatch: Swatch
 }
 
 export interface ChatModState {
@@ -28,8 +50,8 @@ export interface ChatModState {
   draftBy: string | null
   /** The agent's one sentence about what it did. */
   draftWhy: string
-  /** How many earlier looks can still be brought back. */
-  history: number
+  /** Every look that was kept, newest first. */
+  versions: LookVersion[]
   /** The person pressed Load data: what the draft's widgets ask to load is loaded before Keep. */
   draftData: boolean
   /** The last answers the person gave, newest first (eight). */

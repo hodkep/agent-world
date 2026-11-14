@@ -8,7 +8,7 @@ import { EMPTY_MOD, GUARD_CSS, isEmptyMod, type ChatMod, type ChatModState } fro
 import { type FeedResult, type MeterName, type Meters, type Widget, type WidgetSlot, feedHost } from '../../shared/widgets'
 
 // POC: the look an agent wrote for the chat. The main process holds it; this is the window's copy, kept current by what main announces.
-const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', history: 0, draftData: false, recent: [] }
+const NONE: ChatModState = { current: EMPTY_MOD, draft: null, draftBy: null, draftWhy: '', versions: [], draftData: false, recent: [] }
 let state: ChatModState = NONE
 const listeners = new Set<() => void>()
 let started = false
@@ -183,39 +183,12 @@ export function ModBar() {
       >
         <OutlineIcon name="eye" size={16} />
       </button>
-      <button className="primary" onClick={() => void window.aw.chatModKeep()}>
-        Keep
+      <button className="primary" onClick={() => void window.aw.chatModKeep()} title="Saved as a new version you can switch back to in Settings, Looks">
+        {/* A draft that is the system look makes no version, so it has no number to name. */}
+        {isEmptyMod(s.draft) ? 'Keep' : `Keep as v${Math.max(0, ...s.versions.map((v) => v.n)) + 1}`}
       </button>
       <button onClick={() => void window.aw.chatModUndo()}>Undo</button>
     </div>
-  )
-}
-
-/** Two menu rows for the chat's "…" menu: the way back to the system look, and to the look before this one. */
-export function LookRows({ close }: { close: () => void }) {
-  const s = useChatModState()
-  const custom = !isEmptyMod(s.current) || s.draft !== null
-  return (
-    <>
-      <button role="menuitem" disabled={!custom} title="Remove every change an agent made to the look of the app" onClick={() => (close(), void window.aw.chatModReset())}>
-        <span className="l">
-          <OutlineIcon name="undo" size={14} />
-          <span className="mi-text">
-            Restore system look
-            <small>{custom ? 'Remove every change an agent made' : 'Nothing changed by an agent yet'}</small>
-          </span>
-        </span>
-      </button>
-      <button role="menuitem" disabled={s.history === 0} title="Bring back the look before the last one you kept" onClick={() => (close(), void window.aw.chatModBack())}>
-        <span className="l">
-          <OutlineIcon name="history" size={14} />
-          <span className="mi-text">
-            Previous look
-            <small>{s.history === 0 ? 'No earlier look kept' : 'The look before the last one you kept'}</small>
-          </span>
-        </span>
-      </button>
-    </>
   )
 }
 

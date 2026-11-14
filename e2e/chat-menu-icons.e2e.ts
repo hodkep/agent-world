@@ -15,7 +15,7 @@ test('the chat menu rows each carry an icon', async () => {
     await page.getByRole('tab', { name: 'Chat' }).click()
     await page.getByRole('button', { name: 'Conversation tools' }).click()
     const menu = page.getByRole('menu', { name: 'Conversation tools' })
-    for (const name of ['Search', 'Save notes', 'Copy as Markdown', 'Restore system look', 'Previous look']) await expect(menu.getByRole('menuitem', { name }).locator('svg')).toHaveCount(1)
+    for (const name of ['Search', 'Save notes', 'Copy as Markdown']) await expect(menu.getByRole('menuitem', { name }).locator('svg')).toHaveCount(1)
     await page.screenshot({ path: join(__dirname, '..', 'test-results', 'menu-icons.png'), clip: { x: 1100, y: 100, width: 380, height: 420 } })
   } finally {
     await shutdown()

@@ -19,21 +19,21 @@ async function open(remote?: Parameters<typeof ChatMenu>[0]['remote'], onSearch 
 describe('the conversation menu', () => {
   afterEach(() => void (document.body.innerHTML = ''))
 
-  it('groups its rows under Conversation, Look of the app and Remote', async () => {
+  it('groups its rows under Conversation and Remote', async () => {
     const { menu } = await open({ state: 'off' })
-    expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation', 'Look of the app', 'Remote'])
+    expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation', 'Remote'])
   })
 
   it('keeps each group in its own well, and draws every row with an outline icon', async () => {
     const { menu } = await open({ state: 'off' })
-    expect(menu.querySelectorAll('.menu-group').length).toBe(3)
+    expect(menu.querySelectorAll('.menu-group').length).toBe(2)
     expect(menu.querySelectorAll('.menu-sep').length).toBe(0)
     for (const r of menu.querySelectorAll('[role="menuitem"]')) expect(r.querySelector('svg'), r.textContent ?? '').not.toBeNull()
   })
 
   it('has no Remote group for a program that cannot be continued from a phone', async () => {
     const { menu } = await open(undefined)
-    expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation', 'Look of the app'])
+    expect([...menu.querySelectorAll('.menu-label')].map((h) => h.textContent)).toEqual(['Conversation'])
     expect(menu.textContent).not.toContain('Remote control')
   })
 
@@ -44,12 +44,10 @@ describe('the conversation menu', () => {
     expect(row('Copy as Markdown')).toBeDefined()
   })
 
-  it('says why a look cannot be brought back, when none was changed', async () => {
-    const { row } = await open()
-    expect(row('Restore system look').textContent).toContain('Nothing changed by an agent yet')
-    expect(row('Restore system look').hasAttribute('disabled')).toBe(true)
-    expect(row('Previous look').textContent).toContain('No earlier look kept')
-    expect(row('Previous look').hasAttribute('disabled')).toBe(true)
+  it('has no rows for the look of the app: they moved to Settings, Looks', async () => {
+    const { menu } = await open({ state: 'off' })
+    expect(menu.textContent).not.toContain('Restore system look')
+    expect(menu.textContent).not.toContain('Previous look')
   })
 
   it('keeps Remote control as a row with its state', async () => {

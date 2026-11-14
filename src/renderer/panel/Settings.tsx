@@ -12,6 +12,7 @@ import { ProviderCard } from './ProviderCard'
 import { useProviderSetup } from './useProviderSetup'
 import { cssColor } from '../../shared/brand'
 import { Accounts } from './Accounts'
+import { LooksPane } from './LooksPane'
 import { TrackingCost } from '../todos/TrackingCost'
 import { ListLimitRow } from './ListLimitRow'
 import { LibraryCostBox } from './LibraryCostBox'
@@ -66,6 +67,7 @@ const PANES = [
   { id: 'features', group: 'Office', label: 'Features', icon: '✓' },
   { id: 'agents', group: 'Office', label: 'New agents', icon: '☺' },
   { id: 'rules', group: 'Office', label: 'House rules', icon: '☰' },
+  { id: 'looks', group: 'Office', label: 'Looks', icon: '◐' },
   { id: 'programs', group: 'Programs', label: 'Providers', icon: '▣' },
   { id: 'accounts', group: 'Programs', label: 'Accounts', icon: '◉' },
   { id: 'jobs', group: 'Programs', label: 'Model by job', icon: '⚒' },
@@ -264,6 +266,7 @@ export function Settings({ project, prefs, roles, onChange, onClose, onSetup, pr
               </label>
             </>
           )}
+          {pane === 'looks' && <LooksPane />}
           {pane === 'programs' && (
             <>
               <legend>Providers</legend>
