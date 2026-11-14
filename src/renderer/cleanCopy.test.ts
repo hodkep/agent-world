@@ -21,6 +21,11 @@ describe('what a copy from the app puts on the clipboard', () => {
     expect(out).toBe('| Step | Pass |\n| --- | --- |\n| 1 | ok \\| yes |')
   })
 
+  it('escapes a backslash in a table cell too, so a cell that ends in one cannot open the pipe after it', () => {
+    const out = md('<div class="table-wrap"><table><thead><tr><th>Path</th><th>Note</th></tr></thead><tbody><tr><td>C:\\dir\\</td><td>a \\| b</td></tr></tbody></table></div>')
+    expect(out).toBe('| Path | Note |\n| --- | --- |\n| C:\\\\dir\\\\ | a \\\\\\| b |')
+  })
+
   it('keeps a code block fenced', () => {
     expect(md('<pre><code>a\nb</code></pre>')).toBe('```\na\nb\n```')
   })

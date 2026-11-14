@@ -547,7 +547,9 @@ export interface AwApi {
     others(project: string | null): Promise<{ project: string; name: string; workflows: import('./workflow').WorkflowEntry[] }[]>
     /** A copy of a workflow another workspace keeps, in this project or for everything. */
     import(source: string, id: string, project: string | null, to: 'global' | 'project'): Promise<import('./workflow').WorkflowEntry>
-    /** Deletes a workflow's file from the project or the global folder. */
+    /** Gives a workflow another name; its id and file stay. Pass the scope the list shows, "built-in" for the built-in Standard. */
+    rename(project: string | null, id: string, scope: 'global' | 'project' | 'built-in', name: string): Promise<import('./workflow').WorkflowEntry>
+    /** Deletes a workflow's file from the project or the global folder; the built-in Standard is deleted for good. */
     remove(project: string | null, id: string, scope: 'global' | 'project'): Promise<void>
     /** The project's workflow builder, made on first use and woken if asleep. What the person typed is sent to it once it can take it. */
     builder(project: string, first?: string, editing?: string): Promise<AgentRecord>

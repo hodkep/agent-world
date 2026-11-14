@@ -16,6 +16,8 @@ import pkg from '../package.json'
 const [MAJOR, MINOR, PATCH] = pkg.version.split('.').map(Number) as [number, number, number]
 const at = (n: number) => `${MAJOR}.${MINOR}.${PATCH + n}`
 const NEW = at(1)
+/** The text as a pattern that matches it literally: every character with a meaning in a pattern is escaped, the backslash too. */
+const literal = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const BETA = `${at(2)}-beta.1`
 const FAR = at(10)
 const plist = (version: string) => `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>CFBundleIdentifier</key><string>dev.agentworld.app</string><key>CFBundleShortVersionString</key><string>${version}</string></dict></plist>\n`
@@ -98,7 +100,7 @@ test('an unsigned Mac build is offered the update, downloads it with progress, c
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) })
+    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) })
     await expect(chip).toHaveText(`↑ ${NEW}`)
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
@@ -238,7 +240,7 @@ test('a download whose checksum is not the published one is dropped, and says so
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
     await expect(pop).toContainText('The download was not used', { timeout: 30_000 })
@@ -256,7 +258,7 @@ test('where the app cannot tell what to replace it keeps the download, says why,
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
     await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
@@ -278,7 +280,7 @@ test("Updates shows the installed version and its What's new, the new version's 
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     // The release's own text, read before Download: cleaned (no script run, no picture, no javascript: link), with its good link kept.
     const notes = pop.getByRole('region', { name: `What's new in ${NEW}` })
@@ -359,7 +361,7 @@ test('a build installed with Homebrew downloads the update and replaces itself l
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) })
+    const chip = page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) })
     await expect(chip).toHaveText(`↑ ${NEW}`)
     await chip.click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
@@ -386,7 +388,7 @@ test('with a mirror, the zip comes from it, the manifest from GitHub, and the up
   try {
     const { page } = w
     await page.evaluate(() => window.aw.checkUpdates())
-    await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
+    await page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) }).click()
     const pop = page.getByRole('dialog', { name: 'Agent World update' })
     await pop.getByRole('button', { name: 'Download' }).click()
     await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })
@@ -406,7 +408,7 @@ for (const mode of ['500', '404', 'wrong', 'stall'] as const) {
     try {
       const { page } = w
       await page.evaluate(() => window.aw.checkUpdates())
-      await page.getByRole('button', { name: new RegExp(`Agent World ${NEW.replace(/\./g, '\\.')} is available`) }).click()
+      await page.getByRole('button', { name: new RegExp(`Agent World ${literal(NEW)} is available`) }).click()
       const pop = page.getByRole('dialog', { name: 'Agent World update' })
       await pop.getByRole('button', { name: 'Download' }).click()
       await expect(pop).toContainText(`${NEW} is ready to install`, { timeout: 30_000 })

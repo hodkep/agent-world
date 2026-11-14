@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 // @ts-expect-error a plain .mjs script, run by the Pages workflow
-import { SITE, build, pagesOf, resolveHref } from './build-site.mjs'
+import { SITE, build, headingText, pagesOf, resolveHref } from './build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
 import { STEPS, tipSide } from '../site/demo.js'
 
@@ -193,4 +193,15 @@ describe('where a link in a repository document goes on the site', () => {
     expect(resolveHref('#top', 'README.md', pages)).toBe('#top')
   })
 
+})
+
+describe('the heading text in a page\'s contents', () => {
+  it('is the words of the heading: tags gone, entities read', () => {
+    expect(headingText('<code>pnpm</code> &amp; <em>more</em> &quot;x&quot; &#39;y&#39;')).toBe('pnpm & more "x" \'y\'')
+  })
+
+  it('leaves no tag behind when stripping one makes another, and the entities read afterwards are not stripped as tags', () => {
+    expect(headingText('<<i>script>alert(1)<<i>/script>')).toBe('alert(1)')
+    expect(headingText('a &lt;b&gt; c')).toBe('a <b> c')
+  })
 })

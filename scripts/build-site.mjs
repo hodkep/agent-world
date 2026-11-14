@@ -46,6 +46,14 @@ export function resolveHref(href, from, pages) {
   return `${GITHUB}/blob/main/${target}${hash && `#${hash}`}`
 }
 
+/** The words of a heading, for the contents list: tags gone (stripped until none is left, as removing one can join the text around it into another), entities read in one pass. The caller escapes it again on output. */
+export function headingText(html) {
+  let s = html
+  for (let before; before !== s; ) ((before = s), (s = s.replace(/<[^<>]*>/g, '')))
+  const named = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'" }
+  return s.replace(/&(?:amp|lt|gt|quot|apos|#39);/g, (e) => named[e]).trim()
+}
+
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const plain = (md) => md.replace(/<[^>]+>/g, ' ').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[`*_>#|]/g, '').replace(/\s+/g, ' ').trim()
 const clip = (s, n) => (s.length <= n ? s : s.slice(0, n).replace(/\s+\S*$/, '') + '…')
@@ -124,7 +132,7 @@ export async function build(root, out) {
     const at = pages.indexOf(page)
     const link = (p, dir) => (p ? `<a href="../${p.slug}/"${dir === 'next' ? ' class="next"' : ''}><small>${dir === 'prev' ? 'Previous' : 'Next'}</small><b>${esc(p.label)}</b></a>` : '<span></span>')
     const body = `${html}\n<div class="pn">${link(pages[at - 1], 'prev')}${link(pages[at + 1], 'next')}</div>\n<p class="edit"><a href="${GITHUB}/edit/main/${page.src}" rel="noopener">Edit this page on GitHub</a></p>`
-    const tocItems = [...html.matchAll(/<h2 id="([^"]+)"[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => ({ id: m[1], text: m[2].replace(/<[^>]+>/g, '').replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim() }))
+    const tocItems = [...html.matchAll(/<h2 id="([^"]+)"[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => ({ id: m[1], text: headingText(m[2]) }))
     const toc = tocItems.length ? `<nav class="toc" aria-label="On this page"><b>On this page</b>${tocItems.map((h) => `<a href="#${h.id}">${esc(h.text)}</a>`).join('')}</nav>` : ''
     const path = `docs/${page.slug}/`
     write(`${path}index.html`, layout({ title: `${h1} · Agent World docs`, description, path, depth: 2, body, active: 'docs/getting-started/', side: sidebar(pages, page, '../../'), toc }))
