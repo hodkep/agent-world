@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deferralCue, isWork, requestTitle, reminderLine, similarLine, trackingCost, trackingHint } from './todoTracking'
+import { deferralCue, isAppLine, isWork, requestTitle, reminderLine, similarLine, trackingCost, trackingHint } from './todoTracking'
 
 describe('trackingHint', () => {
   it('tells an agent in deferred mode to record what is put off, and says nothing about each request', () => {
@@ -8,12 +8,14 @@ describe('trackingHint', () => {
     expect(h).toMatch(/put off|defer/i)
     expect(h).not.toMatch(/every request/i)
   })
-  it('tells an agent in full mode that each request is tracked for it and how to finish it', () => {
+  it('tells an agent in full mode that the app makes a task for work, a correction or a fix, not for every message, and how to finish it', () => {
     const h = trackingHint('full')
     expect(h).not.toMatch(/Application/)
     expect(h).toMatch(/implementation or research/)
+    expect(h).toMatch(/correction/)
     expect(h).toMatch(/todo_done/)
-    expect(h).toMatch(/every request|each request/i)
+    expect(h).not.toMatch(/every request|each request/i)
+    expect(h).toMatch(/parent/)
   })
   it('says a task is done when its change is pushed or tested, not when the code is written', () => {
     const h = trackingHint('full')
@@ -24,7 +26,7 @@ describe('trackingHint', () => {
   })
   it('stays short, because it is paid for in every session', () => {
     expect(trackingHint('deferred').length).toBeLessThan(820)
-    expect(trackingHint('full').length).toBeLessThan(1220)
+    expect(trackingHint('full').length).toBeLessThan(1300)
   })
 })
 
@@ -41,6 +43,18 @@ describe('isWork', () => {
     expect(isWork('/clear')).toBe(false)
     expect(isWork('yes')).toBe(false)
     expect(isWork('   ')).toBe(false)
+  })
+})
+
+describe('isAppLine', () => {
+  it('is a line the app wrote into the conversation: a Run press, an approval, a step marked done, a subagent\'s hand-back', () => {
+    expect(isAppLine('[Agent World] The person pressed Run: start your step "Commit" now.')).toBe(true)
+    expect(isAppLine('[Agent World] Your plan was approved. Go ahead and build it.')).toBe(true)
+    expect(isAppLine('[Subagent hand-back] The text below is the final report of a subagent this session delegated to.')).toBe(true)
+  })
+  it('is not another agent\'s message, which may be a request, nor anything the person typed', () => {
+    expect(isAppLine('[Agent World] Message from os: e2e/todo-cards.e2e.ts fails on main, please fix it')).toBe(false)
+    expect(isAppLine('please add a health check endpoint to the server')).toBe(false)
   })
 })
 
@@ -64,32 +78,13 @@ describe('deferralCue', () => {
 })
 
 describe('reminderLine', () => {
-  it('in deferred mode adds a line only when the message puts something off', () => {
-    expect(reminderLine('deferred', 'do the tests later')).toMatch(/todo_add/)
-    expect(reminderLine('deferred', 'fix the login bug please')).toBe('')
+  it('adds a line only when the message puts something off', () => {
+    expect(reminderLine('do the tests later')).toMatch(/todo_add/)
+    expect(reminderLine('fix the login bug please')).toBe('')
   })
-  it('in full mode names the task made for the request and how to close it', () => {
-    const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, ['Application', 'Canvas'])
-    expect(l).toContain('todo#12')
-    expect(l).toMatch(/todo_done/)
-  })
-  it('in full mode says the same: done once pushed on the person\'s word or tested, not when written', () => {
-    const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' })
-    expect(l).toMatch(/pushed/)
-    expect(l).toMatch(/tested/)
-    expect(l).not.toMatch(/when it is finished/)
-  })
-  it('in full mode says nothing when no task was made (a thank-you)', () => {
-    expect(reminderLine('full', 'thanks')).toBe('')
-  })
-  it('in full mode names the task the agent was on last, and says a push, a pull request or a fix to its review is part of it, by parent, on todo_update or todo_done', () => {
-    const l = reminderLine('full', 'push it and raise a PR', { id: '12', list: 'Inbox' }, [], { id: '7', title: 'Build the Tokens tab' })
-    expect(l).toMatch(/todo#7\b.*Build the Tokens tab/)
-    expect(l).toMatch(/pull request/)
-    expect(l).toMatch(/parent/)
-    expect(l).toMatch(/todo_done/)
-    // Without one, it still says how to nest a follow-up.
-    expect(reminderLine('full', 'push it', { id: '12', list: 'Inbox' })).toMatch(/parent/)
+  it('adds nothing for a plain message: in full mode the app decides in the background and the agent is not asked to name or sort a task', () => {
+    expect(reminderLine('fix the login bug please')).toBe('')
+    expect(reminderLine('thanks')).toBe('')
   })
 })
 
@@ -161,25 +156,8 @@ describe('requestTitle, made readable', () => {
   })
 })
 
-describe('asking the agent to name and sort the task', () => {
-  const l = reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, ['Library', 'Canvas'])
-  it('says to name it and which lists exist, and to make a new one only when none fits', () => {
-    expect(l).toContain('todo_update')
-    expect(l).toContain('Library, Canvas')
-    // only implementation or research is kept: a question is left alone and the app drops it
-    expect(l).toMatch(/implementation or research/)
-    expect(l).toMatch(/question/)
-    expect(l).toMatch(/title/)
-    expect(l).toMatch(/none fits|no list fits/i)
-  })
-  it('with no lists yet says to name an area', () => {
-    expect(reminderLine('full', 'fix the login bug please', { id: '12', list: 'Inbox' }, [])).toMatch(/area/)
-  })
-  it('names at most eight lists, so the line stays short', () => {
-    const many = Array.from({ length: 12 }, (_, i) => `Area${i}`)
-    expect(reminderLine('full', 'x y z w', { id: '1', list: 'Inbox' }, many)).not.toContain('Area9')
-  })
-  it('the opening text asks for lists by feature, never the app itself or a catch-all', () => {
+describe('the opening text on lists', () => {
+  it('asks for lists by feature, never the app itself or a catch-all', () => {
     expect(trackingHint('full')).toMatch(/by feature/)
     expect(trackingHint('deferred')).toMatch(/by feature/)
     expect(trackingHint('full')).toMatch(/never the app itself/)

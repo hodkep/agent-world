@@ -38,8 +38,8 @@ test('a first run walks through setup, hires the first agent with the chosen def
     await expect(library).toHaveAttribute('aria-checked', 'true')
     await expect(setup.getByRole('table', { name: 'What the library and playbook add, on these assumptions' })).toContainText('tokens')
     await expect(setup.getByRole('switch', { name: 'Check before acting' })).toHaveCount(0)
-    // Tracking every request as a todo is the other feature here, with what it adds, and is off until chosen.
-    const track = setup.getByRole('switch', { name: 'Track every request as a todo' })
+    // Tracking requests as todos is the other feature here, with what it adds, and is off until chosen.
+    const track = setup.getByRole('switch', { name: 'Track requests as todos' })
     await expect(track).toHaveAttribute('aria-checked', 'false')
     await expect(setup.getByLabel('What fully tracked todos add, on these assumptions')).toContainText('tokens')
     await track.click()

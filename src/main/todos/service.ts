@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
+import { isAppLine, isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
+import { parseTriage, triagePrompt } from '../../shared/todoTriage'
 import { areaOfFiles } from '../../shared/todoAreas'
 import { noReplyTail, parseAgentMail } from '../../shared/mail'
 import { padPlan } from '../../shared/todoPad'
@@ -33,6 +34,10 @@ export interface TodoDeps {
   busy?: (agentId: string) => boolean
   /** A small model asked to name and sort a task: its answer as text, or '' when it cannot be asked. Not set when there is none to ask. */
   ask?: (prompt: string) => Promise<string>
+  /** A small model asked whether a message of the person's is a task: its answer as text, or throws when it cannot be asked. Not set when there is none to ask. */
+  triage?: (agentId: string, prompt: string) => Promise<string>
+  /** The task and step of an agent's open workflow run, in a line, if it has one. */
+  run?: (agentId: string) => string | undefined
   /** Writes a line into the project's shared memory. */
   remember: (repoPath: string, text: string, by: string) => void
   /** Waits (ms); tests give one that does not. */
@@ -210,6 +215,65 @@ export function createTodoService(d: TodoDeps) {
     })
     return true
   }
+  /** The words of a message that may be a request, or undefined for what never is. */
+  function requestText(prompt: string) {
+    if (isSystemMessage(prompt)) return undefined
+    // Another agent's message is a request from that agent, not from the person; its reply to a message of this agent's is no request at all.
+    const mail = parseAgentMail(prompt)
+    if (mail && prompt.includes(noReplyTail)) return undefined
+    if (!mail && isAppLine(prompt)) return undefined
+    const text = mail ? mail.body : prompt
+    return isWork(text) ? { text, mail } : undefined
+  }
+  function track(agentId: string, prompt: string, how: { title?: string; list?: string; parent?: string; link?: MessageLink } = {}): Todo | undefined {
+    const a = agentOf(agentId)
+    const r = requestText(prompt)
+    if (!r) return undefined
+    const { text, mail } = r
+    const title = how.title ?? requestTitle(text)
+    const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
+    if (same) return same
+    const from = mail ? d.agentNamed?.(a.repoPath, mail.from) : undefined
+    const creator: Actor = mail ? { kind: 'agent', name: mail.from, ...(from && { id: from.id, provider: from.provider }) } : YOU
+    return change(a.repoPath, (b) => {
+      // The list a model named is used as the board allows (a catch-all, or one past the limit, leaves it in the Inbox).
+      let list = INBOX
+      try {
+        if (how.list) list = listFor(b, how.list)
+      } catch {
+        /* stays in the Inbox */
+      }
+      const made = addTodo(b, { title, list, ...(how.parent && { parent: how.parent }), notes: text.trim().length > 120 ? text.trim().slice(0, 1000) : '', auto: true }, creator, now(), how.link ?? d.lastRequest(a.id, prompt))
+      const board = claimTodo(made.board, made.todo.id, actor(a), now())
+      return { board, out: lastTodo(board, made.todo.id) }
+    })
+  }
+  // The decisions in hand, one line of them for each agent.
+  const lane = new Map<string, Promise<unknown>>()
+  async function triage(agentId: string, prompt: string, link?: MessageLink): Promise<Todo | undefined> {
+    const a = d.agent(agentId)
+    const r = requestText(prompt)
+    if (!a || !r || !d.triage) return undefined
+    const b = load(keyOf(a.repoPath))
+    // The tasks it is on and those it finished (a task the app closed at turn end is its own no longer claimed, but a follow-up still belongs to it).
+    const mine = b.todos.filter((t) => t.claimedBy?.id === a.id || t.doneBy?.id === a.id).sort((x, y) => x.updatedAt - y.updatedAt || Number(x.id) - Number(y.id))
+    const cur = currentTodoOf(b, a.id)
+    try {
+      const out = parseTriage(await d.triage(agentId, triagePrompt({ message: r.text, current: cur && { id: cur.id, title: cur.title }, recent: mine.slice(-5).map((t) => ({ id: t.id, title: t.title, status: t.status })), said: d.lastMessage(agentId)?.excerpt, run: d.run?.(agentId), lists: b.lists.filter((l) => l !== INBOX) })), load(keyOf(a.repoPath)).todos.map((t) => t.id))
+      if (out.action === 'none') return undefined
+      const made = track(agentId, prompt, { title: out.title, ...(out.list && { list: out.list }), ...(out.action === 'subtask' && { parent: out.parent }), ...(link && { link }) })
+      // Its turn may have ended while the model was deciding: the request was answered, as `sweep` finds it.
+      if (!made || d.busy?.(agentId) !== false) return made
+      return change(a.repoPath, (board) => {
+        const done = doneTodo(board, made.id, actor(a), 'Closed: its turn had ended', now())
+        const next = { ...done, todos: done.todos.map((x) => (x.id === made.id ? { ...x, closedAtTurnEnd: true, closedBy: 'stopped' as const } : x)) }
+        return { board: next, out: lastTodo(next, made.id) }
+      })
+    } catch {
+      /* no answer, or the board changed under it: no task is better than a wrong one */
+      return undefined
+    }
+  }
   // Finished tasks pointed at an agent, and when, so the same one is not pointed at again at once.
   const asks = new Map<string, number>()
   const shown = new Map<string, number>()
@@ -357,25 +421,16 @@ export function createTodoService(d: TodoDeps) {
           return { id: m.id, title: m.name, by: done.find((t) => t.id === m.id)?.doneBy?.name ?? 'someone' }
         })
     },
-    /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
-    trackRequest(agentId: string, prompt: string): Todo | undefined {
-      const a = agentOf(agentId)
-      if (isSystemMessage(prompt)) return undefined
-      // Another agent's message is a request from that agent, not from the person; its reply to a message of this agent's is no request at all.
-      const mail = parseAgentMail(prompt)
-      if (mail && prompt.includes(noReplyTail)) return undefined
-      const text = mail ? mail.body : prompt
-      if (!isWork(text)) return undefined
-      const title = requestTitle(text)
-      const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
-      if (same) return same
-      const from = mail ? d.agentNamed?.(a.repoPath, mail.from) : undefined
-      const creator: Actor = mail ? { kind: 'agent', name: mail.from, ...(from && { id: from.id, provider: from.provider }) } : YOU
-      return change(a.repoPath, (b) => {
-        const made = addTodo(b, { title, list: INBOX, notes: text.trim().length > 120 ? text.trim().slice(0, 1000) : '', auto: true }, creator, now(), d.lastRequest(a.id, prompt))
-        const board = claimTodo(made.board, made.todo.id, actor(a), now())
-        return { board, out: lastTodo(board, made.todo.id) }
-      })
+    /** Makes the task for a message the person sent (or another agent did): claimed by the agent. Small talk, an approval, a git order and the app's own lines make none. `how` is a decision already made: its title, its list, the task it is part of. */
+    trackRequest: track,
+    /** Fully tracked mode: whether a message is a task is decided by a small model, after the rules have let it through; none, a part of a task on the board or a new one. Asked in turn for each agent, so a message sees the task the one before made. */
+    triageRequest(agentId: string, prompt: string): Promise<Todo | undefined> {
+      if (!d.triage || !requestText(prompt)) return Promise.resolve(undefined)
+      // The message the task will point at is taken now: the answer comes later, and the agent's next message may be the last one then.
+      const link = d.lastRequest(agentId, prompt)
+      const run = (lane.get(agentId) ?? Promise.resolve()).then(() => triage(agentId, prompt, link))
+      lane.set(agentId, run.catch(() => undefined))
+      return run
     },
     /** An agent's turn ended. What the app made for its requests and it is still on is finished (the request was answered), unless the turn was cut off: then it is flagged, so the board does not claim work is in hand. */
     turnEnded(agentId: string, o: { interrupted?: boolean } = {}) {
