@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
-import { chatMenu, hire, launchApp } from './launch'
+import { hire, launchApp } from './launch'
 import { SLOW } from './waits'
 
 test('POC: an agent changes the chat look through its tools; it shows as a draft, only Keep makes it stay, the system look always comes back', async () => {
@@ -137,10 +137,18 @@ test('POC: an agent changes the chat look through its tools; it shows as a draft
     await bar.getByRole('button', { name: 'Keep' }).click()
     await expect(log.locator('.tc')).toHaveCount(tools)
 
-    // And the person can always do it alone, with no agent: bring the kept look back, then restore the system look.
-    await chatMenu(page, 'Previous look')
+    // And the person can always do it alone, with no agent, in Settings › Looks: switch back to the kept look, then to the system look.
+    await page.locator('header').getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = page.getByRole('dialog', { name: 'Settings' })
+    await settings.getByRole('tab', { name: 'Looks' }).click()
+    const looks = settings.getByRole('listbox', { name: 'Kept looks' })
+    await looks.getByRole('option').filter({ hasText: 'a count' }).click()
+    await settings.getByRole('button', { name: /^Switch to/ }).click()
     await expect(log.locator('[data-pack="steps"]')).toBeVisible()
-    await chatMenu(page, 'Restore system look')
+    await looks.getByRole('option').filter({ hasText: 'System look' }).click()
+    await settings.getByRole('button', { name: 'Switch to system look' }).click()
+    await page.keyboard.press('Escape')
+    await expect(settings).toHaveCount(0)
     await expect(log.locator('.tc')).toHaveCount(tools)
     await expect(log.locator('[data-pack]')).toHaveCount(0)
     await expect(log.locator('.msg.assistant')).toHaveCSS('border-left-width', '0px')
