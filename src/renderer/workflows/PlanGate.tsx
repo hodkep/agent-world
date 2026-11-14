@@ -27,7 +27,7 @@ export function PlanGate({ agentName, run, round, onDecide }: { agentName: strin
   const given = answersOf(r, answers)
   const answer = (q: string, a: string) => setAnswers((x) => ({ ...x, [q]: a }))
   return (
-    <section className="inline-need dialog plan-gate" aria-label={`Plan from ${agentName}`}>
+    <section className={`inline-need dialog plan-gate${fold ? ' folded' : ''}`} aria-label={`Plan from ${agentName}`}>
       <header className="dialog-bar">
         <span className="pg-tag">Plan gate</span>
         <b>Check what {agentName} understood before the build starts</b>
