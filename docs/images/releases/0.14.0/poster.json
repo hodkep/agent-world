@@ -1,0 +1,13 @@
+{
+  "version": "0.14.0",
+  "tagline": "Agent World comes to Linux, in beta.",
+  "subtitle": "An AppImage and a deb for x64, plus versioned looks, a todo board that sorts itself and calmer Playbook screens.",
+  "cards": [
+    { "kicker": "Linux", "title": "An AppImage and a deb for x64", "text": "Ubuntu 24.04 and similar, with the app's own git inside. The app tells you when a newer version exists. macOS stays the tested platform.", "chips": ["AppImage", "deb", "x64"] },
+    { "kicker": "Chat", "title": "Looks as numbered versions", "text": "Every look you keep is a numbered version, listed in Settings, Looks, to compare and switch back to.", "chips": ["Settings", "Looks"] },
+    { "kicker": "Agents", "title": "A todo board that sorts itself", "text": "A small model decides which messages become tasks and which task a follow-up belongs to. Labels, subtasks in the right place, and Tidy.", "chips": ["Labels", "Subtasks", "Tidy"] },
+    { "kicker": "Library", "title": "Calmer Playbook screens", "text": "Skills, MCP servers and Tools in Playbook and tools are quieter and easier to read.", "chips": ["Skills", "MCP servers", "Tools"] }
+  ],
+  "also": ["Security alerts cleared", "Rename workflows, delete Standard", "A click anywhere in a diagram box picks it", "Plan gate buttons stay whole in small windows", "A run keeps its run bar until it ends"],
+  "footer": "Linux is a beta. Try it and tell us what breaks."
+}
