@@ -2768,7 +2768,7 @@ aside:not(.drawer) { flex: none; }
 
 /* Library, the picked layout: low shelves and a drawer on the left, the open item at full height on the right. */
 .library-modal .lib-panel { flex: 1; min-height: 0; overflow: auto; padding-top: 2px; }
-.lib-panel-shelf { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 20px; overflow: hidden !important; }
+.lib-panel-shelf { display: grid; grid-template-columns: minmax(360px, 0.8fr) minmax(0, 1.2fr); grid-template-rows: minmax(0, 1fr); gap: 20px; overflow: hidden !important; }
 .lib-col { display: flex; flex-direction: column; gap: 12px; min-height: 0; min-width: 0; overflow: auto; padding-right: 2px; }
 .lib-read { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .lib-read > * { flex: 1; min-height: 0; }
@@ -2821,7 +2821,6 @@ aside:not(.drawer) { flex: none; }
 .lip-scroll > :first-child { margin-top: 0; }
 .lip-more { position: absolute; left: 0; right: 12px; bottom: 27px; height: 46px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 6px; background: linear-gradient(transparent, var(--well) 85%); pointer-events: none; font-size: 11px; color: var(--muted); }
 .lip-more span { background: var(--panel-2); box-shadow: 0 0 0 1px var(--line); padding: 1px 10px; }
-.lip-foot { padding: 5px 12px; border-top: 1px solid var(--line); background: var(--panel-2); font-size: 11px; color: var(--dim); flex: none; }
 .lip-panel { padding: 14px 16px; overflow: auto; flex: 1; min-height: 0; }
 .lip-tp { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .lip-files { margin: 0; padding: 0; list-style: none; font: 12px/1.9 Menlo, Consolas, monospace; }
@@ -5004,12 +5003,63 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .sk2-over .lip-panel.skw { background: none; padding: 0; display: block; overflow: visible; }
 .sk2-over .skw-lib, .sk2-over .skw-cables { display: none; }
 .sk2-over .skw-note { display: none; }
-.lib-sum { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0 2px; font-size: 12px; }
+/* The open item's two tabs: details as boxes in two columns, and its own words. */
+.lip-details { flex: 1; min-height: 0; overflow: auto; padding: 14px; }
+.lip-cols { columns: 2 260px; column-gap: 14px; }
+.lip-cols > *, .lip-cols .sk2-over > section { break-inside: avoid; margin-bottom: 14px; }
+.lip-cols > .lip-files { column-span: all; }
+.lip-details .sk2-over { display: contents; }
+.lip-page .lip-textp { margin: 14px; }
+.lif-dir { border-top: 1px solid var(--line-soft); }
+.lif-dir > summary { display: flex; align-items: center; gap: 8px; padding: 6px; cursor: pointer; list-style: none; font-size: 12.5px; }
+.lif-dir > summary::-webkit-details-marker { display: none; }
+.lif-dir > summary::before { content: '▸'; color: var(--hint); width: 10px; }
+.lif-dir[open] > summary::before { content: '▾'; }
+.lif-dir > summary b { font: 600 12px Menlo, Consolas, monospace; }
+.lif-dir > summary span { color: var(--hint); font-size: 11.5px; margin-left: auto; }
+.lif-dir > summary:hover { background: var(--panel-3); }
+.lif-dir > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lif-dir .lif-list { padding-left: 16px; }
+.lib-views { display: flex; flex-wrap: wrap; gap: 4px; flex: none; }
+.lib-views button { padding-inline: 8px; font-size: 12px; color: var(--muted); border-color: transparent; box-shadow: none; background: none; }
+.lib-views button b { margin-left: 4px; color: var(--hint); font-weight: 600; }
+.lib-views button[aria-pressed='true'] { color: var(--text); background: var(--panel-2); border-color: var(--ink); }
+.lib-views button[aria-pressed='true'] b { color: var(--accent); }
+.sk2-usage { display: flex; align-items: center; gap: 12px; }
+.sk2-n { width: 34px; font: 700 12px Menlo, Consolas, monospace; text-align: right; }
+.sk2-n.none { color: var(--dim); }
+@media (max-width: 1100px) { .sk2-usage .skd { display: none; } }
+/* The open item as a page: its words in the middle, what is known about it in a rail. */
+.lip-crumb { display: flex; flex-wrap: wrap; gap: 6px; color: var(--hint); font-size: 12px; }
+.lip-crumb i { font-style: normal; color: var(--dim); }
+.lip-page .lip-title h3 { font-size: 20px; }
+.lip-page .lip-desc { font-size: 13.5px; line-height: 1.5; max-width: 80ch; max-height: 6em; overflow: auto; }
+.lip-page .lip-bar span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.lip-page .lip-top { padding: 14px 18px 12px; }
+.lip-page .lip-more { bottom: 0; right: 12px; }
+.lip-box, .lip-details .sk2-over > section { flex: none; background: var(--panel); border: 2px solid var(--ink); padding: 10px 12px; }
+.lip-box h5, .lip-details .sk2-over h5 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--hint); }
+.lip-details .sk2-u { grid-template-columns: minmax(0, 90px) minmax(0, 1fr) 30px; gap: 8px; }
+.lip-details .sk2-kv dd { font-size: 12px; }
+.lip-details .lif-list li { gap: 8px; }
+.lip-details .lif-kept { flex-wrap: wrap; }
+.lip-details .lif-kept code { flex-basis: 100%; }
+.lip-big { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.lip-big b { font: 700 22px Menlo, Consolas, monospace; color: var(--accent); }
+.lip-big span { color: var(--hint); font-size: 12px; }
+.lip-use .lip-who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font: inherit; }
+.lip-use .lip-who small { color: var(--hint); font-size: 11.5px; }
+.lip-cost { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; margin: 10px 0 0; padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 12px; }
+.lip-cost dt { color: var(--muted); }
+.lip-cost dd { margin: 0; font-family: Menlo, Consolas, monospace; }
+.skbars { display: grid; grid-template-columns: repeat(30, minmax(0, 1fr)); align-items: end; gap: 2px; height: 40px; }
+.skbars i { display: block; min-height: 2px; background: var(--violet-2); }
+.skbars i.z { background: var(--track); }
 .lib-bar input[aria-label='Find an item'] { width: 190px; }
 
 /* Day squares, the agents' heads and the cost meter, shared by the list, the reader and Usage. */
 .skd { display: inline-flex; gap: 1px; flex: none; }
-.skd i { width: 4px; height: 9px; background: var(--track); }
+.skd i { width: 3px; height: 10px; background: var(--track); }
 .skd i.u1 { background: var(--violet-1); } .skd i.u2 { background: var(--violet-2); } .skd i.u3 { background: var(--violet); }
 .skh { display: inline-flex; align-items: center; gap: 2px; flex: none; }
 .skh-one { display: block; height: 15px; overflow: hidden; }
@@ -5024,10 +5074,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 /* The reader's head: the skill's icon in its colour, and its last 30 days on one line. */
 .lip-ic { flex: none; display: grid; place-items: center; padding: 6px; background: var(--panel-2); border: 2px solid var(--ink); box-shadow: inset 0 4px var(--sk, var(--think)); }
 .lip-ic .pxi { color: var(--sk, var(--think)); }
-.lip-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; color: var(--muted); font-size: 12px; white-space: nowrap; }
-.lip-stats b { color: var(--text); font: 700 13px Menlo, Consolas, monospace; }
 .lip-who { display: inline-flex; align-items: center; gap: 6px; font: 12px Menlo, Consolas, monospace; }
-.lip-tok { font: 11px Menlo, Consolas, monospace; padding: 1px 6px; border: 2px solid var(--ink); background: var(--well); }
 
 /* Where a skill works: the library copy, a cable to each place, and the sockets. */
 .lip-panel.skw { display: grid; grid-template-columns: minmax(110px, 150px) 56px minmax(0, 1fr); align-items: stretch; background: var(--well); padding: 16px; container-type: inline-size; }
@@ -5406,3 +5453,11 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-opt.mt-danger .mt-opt-ic, .mt-opt.mt-danger b { color: var(--danger-text); }
 .mt-opt-inline { display: inline-flex; align-items: center; gap: 6px; }
 .mt-lib { margin: 0; }
+.sku-top .skm small { display: none; } /* the line beside the meter already says it */
+/* A server's places in its details: the project as a plain heading inside the box, not a box label. */
+.lip-details h5.mt-pg { display: flex; gap: 8px; align-items: baseline; min-width: 0; text-transform: none; letter-spacing: 0; font-size: 12.5px; color: var(--text); }
+.lip-details h5.mt-pg .mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--hint); font-size: 11px; }
+.lib-bar input[aria-label='Find a server'] { width: auto; flex: 1 1 110px; min-width: 0; }
+.mt-legend { margin-top: 14px; }
+.lip-cols > .sk2-over > .lip-note { column-span: all; margin: 4px 0 0; }
+.lib-bar input[aria-label='Find a tool'] { width: auto; flex: 1 1 110px; min-width: 0; }
