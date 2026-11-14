@@ -15,7 +15,7 @@ The agent changes the look with layout rules and CSS. Its calls that do so are a
 
 The bar has three controls:
 
-- **Keep** makes the look yours and saves it as a new numbered version (the button says which, such as **Keep as v5**). It is remembered the next time the app opens.
+- **Keep** makes the look yours and saves it as a new numbered version (the button says which, such as “Keep as v5”). It is remembered the next time the app opens.
 - **Undo** drops the draft and puts back the look you had.
 - The eye button shows the look you had while you hold it, and the new one when you let go.
 
