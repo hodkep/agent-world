@@ -75,7 +75,7 @@ describe('the Site data button and menu in the Preview', () => {
   it('clears one site, shows it empty, and leaves the others', async () => {
     const host = await mount()
     await open(host)
-    await click([...host.querySelectorAll('.sd-row')].find((r) => r.textContent?.includes('vercel.com'))!.querySelector('button'))
+    await click([...host.querySelectorAll('.sd-row')].find((r) => r.querySelector('span')?.textContent === 'vercel.com')!.querySelector('button'))
     expect(clearPreviewSite).toHaveBeenCalledWith('vercel.com')
     expect(host.textContent).not.toContain('vercel.com')
     expect(host.textContent).toContain('accounts.google.com')

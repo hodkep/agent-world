@@ -4,7 +4,7 @@ import { liveMarks, type LiveMark } from './liveMarks'
 /** The marks of a text with the caret (or selection) where `|` stands; the `|` itself is not part of the text. */
 function marks(src: string, end?: string): LiveMark[] {
   const from = src.indexOf('|')
-  const text = src.replace('|', '')
+  const text = src.slice(0, from) + src.slice(from + 1)
   const to = end === undefined ? from : text.length
   return liveMarks(text, { from, to })
 }

@@ -20,7 +20,13 @@ describe('what the Mac build produces', () => {
 describe('what the app does with the logins it keeps', () => {
   // The Preview keeps logins for thirty days; with the fuse on, Electron stores their values encrypted (the key is in the Keychain), not as plain text a process of the person's could read.
   it('has the cookie encryption fuse switched on in every build', () => {
-    expect(builder).toMatch(/^electronFuses:\n(?:[ ]+.*\n)*?[ ]+enableCookieEncryption: true$/m)
+    const lines = builder.split('\n')
+    const at = lines.indexOf('electronFuses:')
+    // The block is the indented lines right under the key, up to the next key at the left edge.
+    const end = lines.findIndex((l, i) => i > at && l !== '' && !l.startsWith(' '))
+    const body = lines.slice(at + 1, end < 0 ? undefined : end)
+    expect(at).toBeGreaterThanOrEqual(0)
+    expect(body.map((l) => l.trim())).toContain('enableCookieEncryption: true')
   })
 })
 

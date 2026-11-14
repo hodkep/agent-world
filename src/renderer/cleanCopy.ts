@@ -3,7 +3,7 @@
 
 const SKIP = new Set(['SCRIPT', 'STYLE', 'BUTTON', 'SVG'])
 
-const cell = (el: Element) => inline(el).replace(/\s*\n\s*/g, ' ').replace(/\|/g, '\\|').trim()
+const cell = (el: Element) => inline(el).replace(/\s*\n\s*/g, ' ').replace(/[\\|]/g, '\\$&').trim()
 
 function inline(node: Node): string {
   if (node.nodeType === 3) return (node.textContent ?? '').replace(/\s+/g, ' ')

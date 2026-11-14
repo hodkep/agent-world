@@ -5463,3 +5463,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-legend { margin-top: 14px; }
 .lip-cols > .sk2-over > .lip-note { column-span: all; margin: 4px 0 0; }
 .lib-bar input[aria-label='Find a tool'] { width: auto; flex: 1 1 110px; min-width: 0; }
+.wfl-rename { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; min-width: 0; flex: 1 1 260px; max-width: 460px; }
+.wfl-rename input { min-width: 0; flex: 1 1 120px; }
+.wfl-rename button { flex: none; }
+.wfl-rn { font-size: 12px; padding: 2px 8px; }
