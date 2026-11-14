@@ -55,8 +55,22 @@ export function unitsOf(host: Element): Unit[] {
   return [...units].map(([key, els]) => ({ key, els }))
 }
 
-/** A thin line is hard to click: each message line gets a wide invisible copy beside it. */
+/**
+ * A thin line is hard to click: each message line gets a wide invisible copy beside it. A box drawn by hand is painted only along its strokes and in
+ * hatching with random gaps, so a click inside it could land on nothing: each box gets an invisible rect over its whole size, under its label.
+ */
 export function addHits(host: Element | null) {
+  host?.querySelectorAll(BOX).forEach((n) => {
+    if (n.querySelector(':scope > rect.node-hit')) return
+    const b = (n as unknown as SVGGraphicsElement).getBBox?.()
+    if (!b || !b.width || !b.height) return
+    const hit = n.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect')
+    hit.setAttribute('class', 'node-hit')
+    ;(['x', 'y', 'width', 'height'] as const).forEach((a) => hit.setAttribute(a, String(b[a])))
+    hit.setAttribute('fill', 'transparent')
+    hit.setAttribute('pointer-events', 'all')
+    n.insertBefore(hit, n.firstChild)
+  })
   host?.querySelectorAll('[class*="messageLine"]:not(.hit)').forEach((l) => {
     if (l.nextElementSibling?.classList.contains('hit')) return
     const hit = l.cloneNode(false) as SVGElement
