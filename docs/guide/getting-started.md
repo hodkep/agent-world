@@ -4,7 +4,7 @@ Install Agent World, get Claude Code ready, choose a project folder and hire you
 
 ## What you need
 
-- A Mac. The steps below are for macOS. There are no Windows or Linux installers yet.
+- A Mac. The steps below are for macOS. A Linux beta for x64 computers (an AppImage and a deb) is described in the install notes; there is no Windows installer yet.
 - The Claude Code CLI, signed in. The setup screen can install it for you and open a terminal where you sign in. Agent World runs your own `claude` and never handles your login.
 - Optional: the Antigravity CLI (`agy`), to hire agy agents beside Claude's.
 - Git: nothing to install. The app uses your computer's git when it has a working one and carries its own when it does not.
