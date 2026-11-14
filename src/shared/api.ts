@@ -1,3 +1,4 @@
+import type { TidyPlan } from './todoCleanup'
 import type { BetaState, InstallState, UpdateChannel, UpdateRel } from './updateInstall'
 import type { ShareDay } from './attribution'
 import type { Storage } from './storage'
@@ -296,6 +297,8 @@ export interface AwApi {
   chatEarlier(agentId: string): Promise<{ items: ChatItem[]; more: boolean }>
   /** A project's todo board changed (by the person or an agent): read it again with todos.get. */
   onTodosChanged(cb: (workspace: string) => void): () => void
+  /** How far the titles of a board have been read for a tidy. */
+  onTidyProgress(cb: (p: { folder: string; done: number; total: number }) => void): () => void
   /** The notes window asked an agent about a task, or gave it one: this window (of the agent's project) sends the message. */
   onNotesAsk(cb: (a: { agentId: string; message: string }) => void): () => void
   /** The notes of a project, kept as Markdown files, shown in a window that stays above every other. */
@@ -476,6 +479,14 @@ export interface AwApi {
     ask(folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string): Promise<{ message: string }>
     /** Names and sorts the tasks waiting in the Inbox, by asking a small model; how many were named. */
     tidyInbox(folder: string): Promise<number>
+    /** What a tidy of the board would do; nothing is changed. */
+    tidyPlan(folder: string): Promise<TidyPlan>
+    /** Does a plan after copying the board aside. */
+    tidyApply(folder: string, plan: TidyPlan): Promise<{ removed: number; nested: number; labelled: number; moved: number; backup: string }>
+    /** Stops the reading of the titles for a tidy. */
+    tidyCancel(folder: string): Promise<void>
+    tidyCanUndo(folder: string): Promise<boolean>
+    tidyUndo(folder: string): Promise<void>
     remove(folder: string, id: string): Promise<void>
     done(folder: string, id: string): Promise<void>
     reopen(folder: string, id: string): Promise<void>
