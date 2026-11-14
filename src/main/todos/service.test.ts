@@ -10,6 +10,12 @@ const make = () => {
   const changes: string[] = []
   const worked: number[] = []
   const asked: string[] = []
+  /** What the triage model is asked, and what it answers next (the last answer repeats). */
+  const triaged: string[] = []
+  const verdicts = ['{"action":"none"}']
+  /** What the tidy model is asked (a batch each time), and what it answers next (the last answer repeats). */
+  const leaned: string[] = []
+  const leanAnswers = ['[]']
   const busyAgents = new Set<string>()
   const answer = { text: '{"title": "Fix the Safari login bug", "list": "Library"}' }
   const remembered: { repo: string; text: string; by: string }[] = []
@@ -34,12 +40,14 @@ const make = () => {
     pause: async () => undefined,
     busy: (id) => busyAgents.has(id),
     ask: async (prompt) => { asked.push(prompt); return answer.text },
+    lean: async (_repo, prompt) => { leaned.push(prompt); return leanAnswers.length > 1 ? leanAnswers.shift()! : leanAnswers[0]! },
+    triage: async (_id, prompt) => { triaged.push(prompt); return verdicts.length > 1 ? verdicts.shift()! : verdicts[0]! },
     lastRequest: (id, text) => ({ agentId: id, itemId: `u-${id}`, at: clock, excerpt: text.slice(0, 200) }),
     now: () => (clock += 10),
     maxLists: () => limit.n,
     onChange: (w) => changes.push(w)
   })
-  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work, limit }
+  return { dir, svc, changes, worked, remembered, asked, answer, busyAgents, work, limit, triaged, verdicts, leaned, leanAnswers }
 }
 
 describe('the todo service', () => {
@@ -526,15 +534,215 @@ describe('a board made before tasks were sorted by area', () => {
     svc.doneByAgent('a1', t.id, 'Pushed', { parent: u.id })
     expect(svc.board('/work/shop').todos.find((x) => x.id === t.id)).toMatchObject({ status: 'done', parent: u.id, list: 'Chat' })
   })
-  it('names the task an agent was on last, the one a follow-up belongs under: its umbrella when it was a part, never the request just made', () => {
-    const { svc } = make()
-    const u = svc.addByAgent('a1', { title: 'Umbrella', list: 'Chat' })
-    const p = svc.addByAgent('a1', { title: 'Part', parent: u.id })
-    svc.claimByAgent('a1', p.id)
-    svc.doneByAgent('a1', p.id, 'done')
-    const next = svc.addByAgent('a1', { title: 'Push it' })
-    svc.claimByAgent('a1', next.id)
-    expect(svc.lastTaskOf('a1', next.id)).toMatchObject({ id: u.id, title: 'Umbrella' })
-    expect(svc.lastTaskOf('b1')).toBeUndefined()
+})
+
+describe('deciding whether a message is a task', () => {
+  const FIX = 'no, it should also work on Safari, not only Chrome'
+
+  it('makes no task and asks no model for a message the rules already know is no request', async () => {
+    const { svc, triaged } = make()
+    for (const m of ['thanks', 'ok, go on', '/clear', 'commit those and merge to main', '[Agent World] The person pressed Run: start your step "Commit" now.', '[Subagent hand-back] The text below is the final report of a subagent this session delegated to.'])
+      expect(await svc.triageRequest('a1', m)).toBeUndefined()
+    expect(triaged).toEqual([])
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('makes no task when the model says the message is none', async () => {
+    const { svc, triaged } = make()
+    expect(await svc.triageRequest('a1', 'why is this error shown in the preview tab')).toBeUndefined()
+    expect(triaged).toHaveLength(1)
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('makes a task, claimed by the agent and pointing at the message, titled and sorted as the model said', async () => {
+    const { svc, verdicts, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts[0] = '{"action":"new","title":"Add a health check endpoint","list":"Server"}'
+    const t = await svc.triageRequest('a1', 'now add a health check endpoint to the server')
+    expect(t).toMatchObject({ title: 'Add a health check endpoint', list: 'Server', status: 'doing', auto: true, createdBy: { kind: 'human' }, claimedBy: { id: 'a1' } })
+    expect(t!.createdLink).toMatchObject({ agentId: 'a1', excerpt: 'now add a health check endpoint to the server' })
+  })
+
+  it('makes a subtask under the task the model names, in that task\'s list, and gives the model the task in hand', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    const first = svc.addByAgent('a1', { title: 'Fix the login bug', list: 'Library' })
+    svc.claimByAgent('a1', first.id)
+    verdicts[0] = `{"action":"subtask","parent":"${first.id}","title":"Fix the login bug on Safari"}`
+    const t = await svc.triageRequest('a1', FIX)
+    expect(t).toMatchObject({ title: 'Fix the login bug on Safari', parent: first.id, list: 'Library', claimedBy: { id: 'a1' } })
+    expect(triaged[0]).toContain(`todo#${first.id} "Fix the login bug"`)
+    // what the agent last said goes with it, so a short follow-up can be read against it
+    expect(triaged[0]).toContain('The agent last said: Done: it works')
+  })
+
+  it('makes no task when the model fails, says nothing usable, or there is no model to ask', async () => {
+    const { svc, verdicts } = make()
+    verdicts[0] = 'no idea'
+    expect(await svc.triageRequest('a1', FIX)).toBeUndefined()
+    verdicts[0] = '{"action":"subtask","parent":"99","title":"Fix it on Safari"}'
+    expect(await svc.triageRequest('a1', FIX)).toBeUndefined()
+    const bare = createTodoService({ dir: mkdtempSync(join(tmpdir(), 'aw-todos-')), workspaceKey: (p) => p.split('/').pop()!, agent: () => ({ id: 'a1', name: 'ada', provider: 'claude', repoPath: '/work/shop' }), lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 1, onChange: () => undefined })
+    expect(await bare.triageRequest('a1', FIX)).toBeUndefined()
+    expect(svc.board('/work/shop').todos).toEqual([])
+  })
+
+  it('decides one message after another for an agent, so the second sees the task the first made', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts.splice(0, 1, '{"action":"new","title":"Fix the login bug"}', '{"action":"subtask","parent":"1","title":"Fix the login bug on Safari"}')
+    const [a, b] = await Promise.all([svc.triageRequest('a1', 'please fix the login bug on Chrome'), svc.triageRequest('a1', FIX)])
+    expect(a!.id).toBe('1')
+    expect(b).toMatchObject({ parent: '1' })
+    expect(triaged[1]).toContain('todo#1')
+  })
+
+  it('tells the model about a task the app closed when the agent\'s turn ended, so a follow-up can nest under it', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts.splice(0, 1, '{"action":"new","title":"Add a line to the README"}', '{"action":"subtask","parent":"1","title":"Make the README line two lines"}')
+    const first = await svc.triageRequest('a1', 'add a line to README.md saying this is a test repo')
+    svc.turnEnded('a1')
+    expect(svc.board('/work/shop').todos.find((x) => x.id === first!.id)).toMatchObject({ status: 'done' })
+    const second = await svc.triageRequest('a1', 'no, make it two lines instead')
+    expect(triaged[1]).toContain('todo#1 "Add a line to the README" (done)')
+    expect(second).toMatchObject({ parent: '1' })
+  })
+
+  it('puts a task made by another agent among the parents the model may name, and labels the task as the model said', async () => {
+    const { svc, verdicts, triaged, busyAgents } = make()
+    busyAgents.add('a1')
+    const theirs = svc.addByAgent('b1', { title: 'Fix the Safari login redirect', list: 'Library', labels: ['bug'] })
+    verdicts[0] = `{"action":"subtask","parent":"${theirs.id}","title":"Fix the Safari cookie too","label":"bug"}`
+    const t = await svc.triageRequest('a1', 'also fix the login redirect on Safari, the cookie too')
+    expect(triaged[0]).toContain(`todo#${theirs.id} "Fix the Safari login redirect"`)
+    expect(t).toMatchObject({ parent: theirs.id, labels: ['bug'] })
+  })
+
+  it('puts a task under the umbrella when the model names a part as its parent, instead of making none', async () => {
+    const { svc, verdicts, busyAgents } = make()
+    busyAgents.add('a1')
+    const umbrella = svc.addByAgent('a1', { title: 'Fix the login bug', list: 'Library', labels: ['bug'] })
+    const part = svc.addByAgent('a1', { title: 'Fix it on Safari', parent: umbrella.id, labels: ['bug'] })
+    verdicts[0] = `{"action":"subtask","parent":"${part.id}","title":"Fix it on Chrome too"}`
+    expect(await svc.triageRequest('a1', 'and fix the same login bug on Chrome too please')).toMatchObject({ parent: umbrella.id })
+  })
+
+  it('closes a task at once when the agent\'s turn ended before the decision came', async () => {
+    const { svc, verdicts } = make()
+    verdicts[0] = '{"action":"new","title":"Fix the login bug"}'
+    const t = await svc.triageRequest('a1', 'please fix the login bug on Safari')
+    expect(svc.board('/work/shop').todos.find((x) => x.id === t!.id)).toMatchObject({ status: 'done', closedAtTurnEnd: true })
+  })
+
+  it('records a request another agent sent as made by that agent', async () => {
+    const { svc, verdicts, busyAgents } = make()
+    busyAgents.add('a1')
+    verdicts[0] = '{"action":"new","title":"Add a health check endpoint"}'
+    const mail = '[Agent World] Message from bob: please add a health check endpoint to the server\n\nWhen you have an answer, reply using the agent-world send_message tool with to="bob" and expects_reply=false.'
+    expect((await svc.triageRequest('a1', mail))!.createdBy).toMatchObject({ kind: 'agent', name: 'bob', id: 'b1' })
+  })
+})
+
+describe('tidying the board', () => {
+  /** Three finished tasks the app made: two of one piece of work and a chore. */
+  const seeded = async () => {
+    const m = make()
+    m.busyAgents.add('a1')
+    for (const msg of ['please fix the login bug on Safari', 'also fix the login bug on Chrome now', 'start a test instance for the chip please']) {
+      m.svc.trackRequest('a1', msg)
+      m.svc.turnEnded('a1')
+    }
+    m.leanAnswers[0] = '[{"id":"2","family":"1","kind":"bug"},{"id":"1","kind":"bug"},{"id":"3","drop":"chore"}]'
+    return m
+  }
+
+  it('reads the titles in batches, reports progress, and gives a plan without changing anything', async () => {
+    const { svc, leaned } = await seeded()
+    const seen: string[] = []
+    const plan = await svc.tidyPlan('/work/shop', (done, total) => seen.push(`${done}/${total}`))
+    expect(leaned).toHaveLength(1)
+    expect(leaned[0]).toContain('1 | Inbox | done | fix the login bug on Safari')
+    expect(seen).toEqual(['0/1', '1/1'])
+    expect(plan).toMatchObject({ read: 3, remove: [{ id: '3', why: 'chore' }], nest: [{ id: '2', parent: '1' }], label: [{ id: '1', label: 'bug' }, { id: '2', label: 'bug' }], move: [] })
+    expect(svc.board('/work/shop').todos).toHaveLength(3)
+  })
+
+  it('stops asking the model once it is cancelled, so the rest of the board is not read for nothing', async () => {
+    const { svc, leaned } = make()
+    for (let i = 0; i < 130; i++) svc.addByPerson('/work/shop', { title: `Task number ${i}` })
+    const plan = svc.tidyPlan('/work/shop')
+    svc.cancelTidy('/work/shop')
+    await expect(plan).rejects.toThrow(/cancel/i)
+    expect(leaned).toHaveLength(1)
+    // a later tidy reads everything again
+    leaned.length = 0
+    await svc.tidyPlan('/work/shop')
+    expect(leaned).toHaveLength(3)
+  })
+
+  it('says why when no model can be asked', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'aw-todos-'))
+    const bare = createTodoService({ dir, workspaceKey: (p) => p.split('/').pop()!, agent: () => undefined, lastMessage: () => undefined, lastRequest: () => undefined, workSince: async () => ({ commits: [], files: [] }), remember: () => undefined, now: () => 1, onChange: () => undefined })
+    await expect(bare.tidyPlan('/work/shop')).rejects.toThrow(/no model|Claude/i)
+  })
+
+  it('applies the plan after copying the board aside, and says how many of each', async () => {
+    const { svc, dir } = await seeded()
+    const plan = await svc.tidyPlan('/work/shop')
+    const out = svc.applyTidy('/work/shop', plan)
+    expect(out).toMatchObject({ removed: 1, nested: 1, labelled: 2, moved: 0 })
+    const b = svc.board('/work/shop')
+    expect(b.todos.map((t) => t.id)).toEqual(['1', '2'])
+    expect(b.todos.find((t) => t.id === '2')).toMatchObject({ parent: '1', labels: ['bug'] })
+    expect(readdirSync(dir).some((f) => /before-tidy/.test(f))).toBe(true)
+    expect(svc.canUndoTidy('/work/shop')).toBe(true)
+  })
+
+  it('puts the old board back with one undo, and then has nothing to undo', async () => {
+    const { svc } = await seeded()
+    svc.applyTidy('/work/shop', await svc.tidyPlan('/work/shop'))
+    svc.undoTidy('/work/shop')
+    const b = svc.board('/work/shop')
+    expect(b.todos.map((t) => t.id)).toEqual(['1', '2', '3'])
+    expect(b.todos.every((t) => !t.parent && !t.labels?.length)).toBe(true)
+    expect(svc.canUndoTidy('/work/shop')).toBe(false)
+    expect(() => svc.undoTidy('/work/shop')).toThrow(/nothing to undo/i)
+  })
+
+  it('will not undo once the board has changed since, so the later edits are not lost', async () => {
+    const { svc } = await seeded()
+    svc.applyTidy('/work/shop', await svc.tidyPlan('/work/shop'))
+    svc.addByPerson('/work/shop', { title: 'Something added after' })
+    expect(svc.canUndoTidy('/work/shop')).toBe(false)
+    expect(() => svc.undoTidy('/work/shop')).toThrow(/changed since/i)
+  })
+
+  it('will not undo from a copy that is not in the board folder, whatever the note says', async () => {
+    const { svc, dir } = await seeded()
+    svc.applyTidy('/work/shop', await svc.tidyPlan('/work/shop'))
+    const elsewhere = join(mkdtempSync(join(tmpdir(), 'aw-else-')), 'board.json')
+    writeFileSync(elsewhere, '{"lists":[],"todos":[],"next":1}')
+    const note = join(dir, 'shop.json.last-tidy.json')
+    writeFileSync(note, JSON.stringify({ ...JSON.parse(readFileSync(note, 'utf8')), backup: elsewhere }))
+    expect(svc.canUndoTidy('/work/shop')).toBe(false)
+    expect(() => svc.undoTidy('/work/shop')).toThrow(/nothing to undo/i)
+  })
+
+  it('removes only what a tidy may remove, whatever the plan it is handed says', async () => {
+    const { svc } = await seeded()
+    const mine = svc.addByPerson('/work/shop', { title: 'Rebase my own branch' })
+    const open = svc.addByAgent('a1', { title: 'Push the release', labels: ['chore'] })
+    const plan = { read: 5, remove: [{ id: mine.id, title: '', why: 'chore' as const }, { id: open.id, title: '', why: 'chore' as const }, { id: '3', title: '', why: 'chore' as const }], nest: [], label: [], move: [] }
+    expect(svc.applyTidy('/work/shop', plan)).toMatchObject({ removed: 1 })
+    expect(svc.board('/work/shop').todos.map((t) => t.id)).toEqual(expect.arrayContaining([mine.id, open.id]))
+    expect(svc.board('/work/shop').todos.some((t) => t.id === '3')).toBe(false)
+  })
+
+  it('skips a step of the plan whose task is gone instead of failing the rest', async () => {
+    const { svc } = await seeded()
+    const plan = await svc.tidyPlan('/work/shop')
+    svc.removeByPerson('/work/shop', '2')
+    expect(svc.applyTidy('/work/shop', plan)).toMatchObject({ removed: 1, nested: 0, labelled: 1 })
   })
 })

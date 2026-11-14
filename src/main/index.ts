@@ -14,6 +14,7 @@ import { syncVisuals } from './library/visuals'
 import { createTodoService } from './todos/service'
 import { mayCallIdle } from './idleLook'
 import { reminderLine, similarLine, trackingHint } from '../shared/todoTracking'
+import type { TidyPlan } from '../shared/todoCleanup'
 import { commitsSince, uncommittedFiles } from './gitops'
 import { editedFiles } from './todos/edited'
 import { excerptOf, type LabelColor } from '../shared/todos'
@@ -772,6 +773,12 @@ try {
 // The todo board of each project: the person adds in the window, agents through the office tools, and each task points back at the message it came from.
 // When each agent was last stopped by the person, so a turn that ends then is not counted as a request answered.
 const stoppedAt = new Map<string, number>()
+const askHaiku = async (a: ReturnType<typeof byId>, prompt: string, timeoutMs: number): Promise<string> => {
+  const p = providers().find((x) => x.id === 'claude')
+  if (!p || !(await readyAskers()).includes('claude')) throw new Error('No Claude is ready to ask.')
+  const env = { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor('claude', a && providerOf(a).id === 'claude' ? a.configDir : undefined) }
+  return (await askClaude(resolveCommand(binFor(p)), 'haiku', prompt, env, timeoutMs)).text
+}
 const todoService = createTodoService({
   dir: join(HOME, 'todos'),
   workspaceKey: repoSlug,
@@ -818,11 +825,15 @@ const todoService = createTodoService({
       execFile(binFor(p), ['-p', '--model', 'haiku', prompt], { env: p.env(process.env), cwd: tmpdir(), timeout: 60_000, maxBuffer: 1024 * 1024 }, (err, stdout) => resolve(err ? '' : stdout))
     )
   },
+  // What a small model is asked for the todo board (whether a message is a task, what a tidy would do) goes to Haiku through the lean call (no tools, skills or saved session), on the agent's own account when it is Claude's; with no Claude to ask nothing is made or changed.
+  triage: (id, prompt) => askHaiku(byId(id), prompt, 30_000),
+  lean: (repoPath, prompt) => askHaiku(agents.find((x) => x.repoPath === repoPath), prompt, 90_000),
+  run: (id) => workflows.runs().find((r) => r.agent === id && r.status === 'open')?.title,
   // A finished task is also a line in the project's shared memory, where "recall" finds it.
   remember: (repoPath, text, by) => void remember(memoryFile(repoPath), text, by),
   onChange: (workspace) => send('todos-changed', workspace)
 })
-// What is added to each message for the todo board: in fully tracked mode the app makes a task for the request first (not for a subagent, whose work its parent already tracks).
+// What is added to each message for the todo board: in fully tracked mode a small model decides in the background whether the message is a task (not for a subagent, whose work its parent already tracks); the agent is not held for it.
 const todoRemind = (id: string, prompt: string): string => {
   try {
     const a = byId(id)
@@ -830,10 +841,8 @@ const todoRemind = (id: string, prompt: string): string => {
     if (!a || a.parent || a.builder) return ''
     // A finished task that looks like this request is pointed at, whichever mode: it costs a line only when one matches.
     const similar = similarLine(todoService.similarDone(id, prompt))
-    if (prefs.todoTracking !== 'full') return [reminderLine('deferred', prompt), similar].filter(Boolean).join('\n')
-    const made = todoService.trackRequest(id, prompt)
-    const last = todoService.lastTaskOf(id, made?.id)
-    return [reminderLine('full', prompt, made && { id: made.id, list: made.list }, todoService.listsOf(id), last && { id: last.id, title: last.title }), similar].filter(Boolean).join('\n')
+    if (prefs.todoTracking === 'full') void todoService.triageRequest(id, prompt)
+    return [reminderLine(prompt), similar].filter(Boolean).join('\n')
   } catch {
     return ''
   }
@@ -2335,6 +2344,21 @@ async function main() {
   ipcMain.handle('todos:update', (_, folder: string, id: string, p: object) => todoService.updateByPerson(String(folder), String(id), p))
   ipcMain.handle('todos:ask', (_, folder: string, id: string, agentId: string, mode: 'ask' | 'work', words: string) => todoService.askAgent(String(folder), String(id), String(agentId), mode === 'work' ? 'work' : 'ask', String(words ?? '').slice(0, 2000)))
   ipcMain.handle('todos:tidy-inbox', (_, folder: string) => todoService.tidyInbox(String(folder)))
+  ipcMain.handle('todos:tidy-plan', (_, folder: string) => todoService.tidyPlan(String(folder), (done, total) => send('todos-tidy-progress', { folder: String(folder), done, total })))
+  ipcMain.handle('todos:tidy-apply', (_, folder: string, plan: TidyPlan) => {
+    const rows = <T>(x: unknown, f: (o: Record<string, unknown>) => T): T[] => (Array.isArray(x) ? x.slice(0, 5000).map((o) => f((o ?? {}) as Record<string, unknown>)) : [])
+    const str = (v: unknown, n = 200) => String(v ?? '').slice(0, n)
+    return todoService.applyTidy(String(folder), {
+      read: Number(plan?.read) || 0,
+      remove: rows(plan?.remove, (o) => ({ id: str(o.id, 20), title: str(o.title), why: o.why === 'echo' ? ('echo' as const) : ('chore' as const) })),
+      nest: rows(plan?.nest, (o) => ({ id: str(o.id, 20), title: str(o.title), parent: str(o.parent, 20), parentTitle: str(o.parentTitle) })),
+      label: rows(plan?.label, (o) => ({ id: str(o.id, 20), title: str(o.title), label: str(o.label, 30) })),
+      move: rows(plan?.move, (o) => ({ id: str(o.id, 20), title: str(o.title), from: str(o.from, 60), to: str(o.to, 60) }))
+    })
+  })
+  ipcMain.handle('todos:tidy-cancel', (_, folder: string) => todoService.cancelTidy(String(folder)))
+  ipcMain.handle('todos:tidy-can-undo', (_, folder: string) => todoService.canUndoTidy(String(folder)))
+  ipcMain.handle('todos:tidy-undo', (_, folder: string) => todoService.undoTidy(String(folder)))
   ipcMain.handle('todos:remove', (_, folder: string, id: string) => todoService.removeByPerson(String(folder), String(id)))
   ipcMain.handle('todos:done', (_, folder: string, id: string) => todoService.doneByPerson(String(folder), String(id)))
   ipcMain.handle('todos:reopen', (_, folder: string, id: string) => todoService.reopenByPerson(String(folder), String(id)))

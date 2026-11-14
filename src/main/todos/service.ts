@@ -1,6 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { isAppLine, isSystemMessage, isWork, requestTitle } from '../../shared/todoTracking'
+import { parseTriage, triagePrompt } from '../../shared/todoTriage'
+import { cleanupPrompt, parseCleanup, planTidy, removable, type CleanupAnswer, type TidyPlan } from '../../shared/todoCleanup'
 import { areaOfFiles } from '../../shared/todoAreas'
 import { noReplyTail, parseAgentMail } from '../../shared/mail'
 import { padPlan } from '../../shared/todoPad'
@@ -9,7 +12,7 @@ import { parseTidy, tidyPrompt } from '../../shared/todoTidy'
 import { searchTodos, type TodoHit } from '../../shared/todoSearch'
 import { matchItems } from '../library/match'
 import {
-  INBOX, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, lastTaskOf, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
+  INBOX, currentTodoOf, addLabel, recolorLabel, removeLabel, renameLabel, type LabelColor, addList, addTodo, askedTodo, assignTodo, attachWork, claimTodo, doneTodo, emptyBoard, excerptOf, isGenericList, knowledgeLine, markStale, resolveList, moveTodo, needsYou, removeList, removeTodo, renameList, reopenTodo, updateTodo,
   type Actor, type MessageLink, type Todo, type TodoBoard, type TodoStatus
 } from '../../shared/todos'
 
@@ -33,6 +36,12 @@ export interface TodoDeps {
   busy?: (agentId: string) => boolean
   /** A small model asked to name and sort a task: its answer as text, or '' when it cannot be asked. Not set when there is none to ask. */
   ask?: (prompt: string) => Promise<string>
+  /** A small model asked whether a message of the person's is a task: its answer as text, or throws when it cannot be asked. Not set when there is none to ask. */
+  triage?: (agentId: string, prompt: string) => Promise<string>
+  /** A small model asked, for a project, about a batch of tasks of its board: its answer as text, or throws when it cannot be asked. Not set when there is none to ask. */
+  lean?: (repoPath: string, prompt: string) => Promise<string>
+  /** The task and step of an agent's open workflow run, in a line, if it has one. */
+  run?: (agentId: string) => string | undefined
   /** Writes a line into the project's shared memory. */
   remember: (repoPath: string, text: string, by: string) => void
   /** Waits (ms); tests give one that does not. */
@@ -164,7 +173,9 @@ export function createTodoService(d: TodoDeps) {
       if (here.auto && here.closedAtTurnEnd && !here.named && !work.commits.length && !work.files.length) return void save(key, removeTodo(cur, id))
       if (work.commits.length || work.files.length) save(key, attachWork(cur, id, work))
       await tidyOne(a.repoPath, id)
-      const line = knowledgeLine(load(key).todos.find((x) => x.id === id)!)
+      // The task may have been removed (by the person, or by a tidy) while it was being named.
+      const kept = load(key).todos.find((x) => x.id === id)
+      const line = kept && knowledgeLine(kept)
       if (line) {
         try {
           d.remember(a.repoPath, line, a.name)
@@ -209,6 +220,84 @@ export function createTodoService(d: TodoDeps) {
       return { board: updateTodo(b, id, { title: answer.title, ...(list && { list }) }, APP, now()), out: undefined }
     })
     return true
+  }
+  /** Open tasks of a board (not parts) that look like a text, best first. */
+  function alikeOpen(b: TodoBoard, text: string): { id: string; title: string }[] {
+    const entries = b.todos.filter((t) => t.status !== 'done' && !t.parent).map((t) => ({ id: t.id, name: t.title, description: '', when: t.title }))
+    return matchItems(text, entries, 2).map((m) => ({ id: m.id, title: m.name }))
+  }
+  /** The words of a message that may be a request, or undefined for what never is. */
+  function requestText(prompt: string) {
+    if (isSystemMessage(prompt)) return undefined
+    // Another agent's message is a request from that agent, not from the person; its reply to a message of this agent's is no request at all.
+    const mail = parseAgentMail(prompt)
+    if (mail && prompt.includes(noReplyTail)) return undefined
+    if (!mail && isAppLine(prompt)) return undefined
+    const text = mail ? mail.body : prompt
+    return isWork(text) ? { text, mail } : undefined
+  }
+  function track(agentId: string, prompt: string, how: { title?: string; list?: string; parent?: string; label?: string; link?: MessageLink } = {}): Todo | undefined {
+    const a = agentOf(agentId)
+    const r = requestText(prompt)
+    if (!r) return undefined
+    const { text, mail } = r
+    const title = how.title ?? requestTitle(text)
+    const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
+    if (same) return same
+    const from = mail ? d.agentNamed?.(a.repoPath, mail.from) : undefined
+    const creator: Actor = mail ? { kind: 'agent', name: mail.from, ...(from && { id: from.id, provider: from.provider }) } : YOU
+    return change(a.repoPath, (b) => {
+      // The list a model named is used as the board allows (a catch-all, or one past the limit, leaves it in the Inbox).
+      let list = INBOX
+      try {
+        if (how.list) list = listFor(b, how.list)
+      } catch {
+        /* stays in the Inbox */
+      }
+      const made = addTodo(b, { title, list, ...(how.parent && { parent: how.parent }), ...(how.label && { labels: [how.label] }), notes: text.trim().length > 120 ? text.trim().slice(0, 1000) : '', auto: true }, creator, now(), how.link ?? d.lastRequest(a.id, prompt))
+      const board = claimTodo(made.board, made.todo.id, actor(a), now())
+      return { board, out: lastTodo(board, made.todo.id) }
+    })
+  }
+  const TIDY_BATCH = 60
+  // Boards whose reading for a tidy was cancelled: the loop stops before its next batch.
+  const tidyCancelled = new Set<string>()
+  const tidyNote = (key: string) => `${fileOf(key)}.last-tidy.json`
+  const hashOf = (b: TodoBoard) => createHash('sha1').update(JSON.stringify(b)).digest('hex')
+  const lastTidy = (key: string): { backup: string; after: string } | undefined => {
+    try {
+      const j = JSON.parse(readFileSync(tidyNote(key), 'utf8')) as { backup?: unknown; after?: unknown }
+      // The copy is one this service made, in the board folder: the note is data on disk and says nothing more than where to look.
+      return typeof j.backup === 'string' && typeof j.after === 'string' && dirname(j.backup) === d.dir && existsSync(j.backup) ? { backup: j.backup, after: j.after } : undefined
+    } catch {
+      return undefined
+    }
+  }
+  // The decisions in hand, one line of them for each agent.
+  const lane = new Map<string, Promise<unknown>>()
+  async function triage(agentId: string, prompt: string, link?: MessageLink): Promise<Todo | undefined> {
+    const a = d.agent(agentId)
+    const r = requestText(prompt)
+    if (!a || !r || !d.triage) return undefined
+    const b = load(keyOf(a.repoPath))
+    // The tasks it is on and those it finished (a task the app closed at turn end is its own no longer claimed, but a follow-up still belongs to it).
+    const mine = b.todos.filter((t) => t.claimedBy?.id === a.id || t.doneBy?.id === a.id).sort((x, y) => x.updatedAt - y.updatedAt || Number(x.id) - Number(y.id))
+    const cur = currentTodoOf(b, a.id)
+    try {
+      const out = parseTriage(await d.triage(agentId, triagePrompt({ message: r.text, current: cur && { id: cur.id, title: cur.title }, recent: mine.slice(-5).map((t) => ({ id: t.id, title: t.title, status: t.status })), said: d.lastMessage(agentId)?.excerpt, alike: alikeOpen(b, r.text).filter((x) => !mine.some((m) => m.id === x.id)), run: d.run?.(agentId), lists: b.lists.filter((l) => l !== INBOX) })), load(keyOf(a.repoPath)).todos.map((t) => t.id))
+      if (out.action === 'none') return undefined
+      const made = track(agentId, prompt, { title: out.title, ...(out.list && { list: out.list }), ...(out.action === 'subtask' && { parent: load(keyOf(a.repoPath)).todos.find((t) => t.id === out.parent)?.parent ?? out.parent }), ...(out.label && { label: out.label }), ...(link && { link }) })
+      // Its turn may have ended while the model was deciding: the request was answered, as `sweep` finds it.
+      if (!made || d.busy?.(agentId) !== false) return made
+      return change(a.repoPath, (board) => {
+        const done = doneTodo(board, made.id, actor(a), 'Closed: its turn had ended', now())
+        const next = { ...done, todos: done.todos.map((x) => (x.id === made.id ? { ...x, closedAtTurnEnd: true, closedBy: 'stopped' as const } : x)) }
+        return { board: next, out: lastTodo(next, made.id) }
+      })
+    } catch {
+      /* no answer, or the board changed under it: no task is better than a wrong one */
+      return undefined
+    }
   }
   // Finished tasks pointed at an agent, and when, so the same one is not pointed at again at once.
   const asks = new Map<string, number>()
@@ -335,6 +424,14 @@ export function createTodoService(d: TodoDeps) {
       while (inflight.size) await Promise.all([...inflight])
     },
     /** The lists by area on an agent's board (not the Inbox), for telling it which exist. */
+    /** The names of the labels the board has. */
+    labelsOf(agentId: string): string[] {
+      return (load(keyOf(agentOf(agentId).repoPath)).labels ?? []).map((l) => l.name)
+    },
+    /** Open tasks of the agent's board that look like a title, best first: what a new task may be a part of. */
+    similarOpen(agentId: string, title: string): { id: string; title: string }[] {
+      return alikeOpen(load(keyOf(agentOf(agentId).repoPath)), title)
+    },
     listsOf(agentId: string): string[] {
       return load(keyOf(agentOf(agentId).repoPath)).lists.filter((l) => l !== INBOX)
     },
@@ -357,25 +454,90 @@ export function createTodoService(d: TodoDeps) {
           return { id: m.id, title: m.name, by: done.find((t) => t.id === m.id)?.doneBy?.name ?? 'someone' }
         })
     },
-    /** Fully tracked mode: a message the person sent becomes a task, in "Requests", that the agent is on. Small talk makes none. */
-    trackRequest(agentId: string, prompt: string): Todo | undefined {
-      const a = agentOf(agentId)
-      if (isSystemMessage(prompt)) return undefined
-      // Another agent's message is a request from that agent, not from the person; its reply to a message of this agent's is no request at all.
-      const mail = parseAgentMail(prompt)
-      if (mail && prompt.includes(noReplyTail)) return undefined
-      const text = mail ? mail.body : prompt
-      if (!isWork(text)) return undefined
-      const title = requestTitle(text)
-      const same = load(keyOf(a.repoPath)).todos.find((t) => t.auto && t.status !== 'done' && t.title === title && t.claimedBy?.id === a.id)
-      if (same) return same
-      const from = mail ? d.agentNamed?.(a.repoPath, mail.from) : undefined
-      const creator: Actor = mail ? { kind: 'agent', name: mail.from, ...(from && { id: from.id, provider: from.provider }) } : YOU
-      return change(a.repoPath, (b) => {
-        const made = addTodo(b, { title, list: INBOX, notes: text.trim().length > 120 ? text.trim().slice(0, 1000) : '', auto: true }, creator, now(), d.lastRequest(a.id, prompt))
-        const board = claimTodo(made.board, made.todo.id, actor(a), now())
-        return { board, out: lastTodo(board, made.todo.id) }
+    /** Makes the task for a message the person sent (or another agent did): claimed by the agent. Small talk, an approval, a git order and the app's own lines make none. `how` is a decision already made: its title, its list, the task it is part of. */
+    trackRequest: track,
+    /** Fully tracked mode: whether a message is a task is decided by a small model, after the rules have let it through; none, a part of a task on the board or a new one. Asked in turn for each agent, so a message sees the task the one before made. */
+    triageRequest(agentId: string, prompt: string): Promise<Todo | undefined> {
+      if (!d.triage || !requestText(prompt)) return Promise.resolve(undefined)
+      // The message the task will point at is taken now: the answer comes later, and the agent's next message may be the last one then.
+      const link = d.lastRequest(agentId, prompt)
+      const run = (lane.get(agentId) ?? Promise.resolve()).then(() => triage(agentId, prompt, link))
+      lane.set(agentId, run.catch(() => undefined))
+      return run
+    },
+    /** What a tidy of the board would do (nothing is changed): the titles are read by a small model in batches, and the plan is the four groups. */
+    async tidyPlan(repoPath: string, progress?: (done: number, total: number) => void): Promise<TidyPlan> {
+      if (!d.lean) throw new Error('No model is ready to ask: connect Claude.')
+      const b = load(keyOf(repoPath))
+      const count = new Map<string, number>()
+      for (const t of b.todos) count.set(t.list, (count.get(t.list) ?? 0) + 1)
+      const areas = [...count].filter(([l, n]) => l !== INBOX && n >= 5).map(([l]) => l)
+      const rows = b.todos.map((t) => ({ id: t.id, list: t.list, status: t.status, title: t.title }))
+      const batches = Array.from({ length: Math.ceil(rows.length / TIDY_BATCH) }, (_, i) => rows.slice(i * TIDY_BATCH, (i + 1) * TIDY_BATCH))
+      const answers: CleanupAnswer[] = []
+      let failed = 0
+      const key = keyOf(repoPath)
+      tidyCancelled.delete(key)
+      progress?.(0, batches.length)
+      for (const [i, batch] of batches.entries()) {
+        if (tidyCancelled.delete(key)) throw new Error('Cancelled.')
+        try {
+          answers.push(...parseCleanup(await d.lean(repoPath, cleanupPrompt(batch, areas)), batch.map((r) => r.id)))
+        } catch {
+          failed++
+        }
+        progress?.(i + 1, batches.length)
+      }
+      if (batches.length && failed === batches.length) throw new Error('The model did not answer.')
+      return planTidy(b.todos, answers)
+    },
+    /** Stops the reading of the titles for a tidy before its next batch. */
+    cancelTidy(repoPath: string): void {
+      tidyCancelled.add(keyOf(repoPath))
+    },
+    /** Does the plan, after copying the board aside; a step whose task has gone or changed is skipped. How many of each, and where the copy is. */
+    applyTidy(repoPath: string, plan: TidyPlan): { removed: number; nested: number; labelled: number; moved: number; backup: string } {
+      const key = keyOf(repoPath)
+      const backup = fileOf(key).replace(/\.json$/, `.before-tidy-${new Date(now()).toISOString().replace(/[:.]/g, '-')}.json`)
+      if (existsSync(fileOf(key))) copyFileSync(fileOf(key), backup)
+      else writeFileSync(backup, JSON.stringify(load(key)))
+      const n = { removed: 0, nested: 0, labelled: 0, moved: 0 }
+      change(repoPath, (b) => {
+        let board = b
+        const step = (k: keyof typeof n, f: (x: TodoBoard) => TodoBoard) => {
+          try {
+            board = f(board)
+            n[k]++
+          } catch {
+            /* its task is gone, or no longer fits */
+          }
+        }
+        for (const l of plan.label) step('labelled', (x) => updateTodo(x, l.id, { labels: [l.label] }, APP, now()))
+        for (const m of plan.move) step('moved', (x) => moveTodo(x, m.id, m.to, 1e9, APP, now()))
+        for (const e of plan.nest) step('nested', (x) => updateTodo(x, e.id, { parent: e.parent }, APP, now()))
+        // What may be removed is checked here again, not trusted from the plan: it is the one step that cannot be redone by hand.
+        for (const r of plan.remove) step('removed', (x) => { const t = x.todos.find((y) => y.id === r.id); if (!t || !removable(t, x.todos)) throw new Error('not removable'); return removeTodo(x, r.id) })
+        return { board, out: undefined }
       })
+      writeFileSync(tidyNote(key), JSON.stringify({ backup, after: hashOf(load(key)) }))
+      return { ...n, backup }
+    },
+    /** Whether the last tidy can be undone: its copy is there and nothing has changed the board since. */
+    canUndoTidy(repoPath: string): boolean {
+      const key = keyOf(repoPath)
+      const last = lastTidy(key)
+      return !!last && hashOf(load(key)) === last.after
+    },
+    /** Puts the board back as it was before the last tidy, unless it has been changed since. */
+    undoTidy(repoPath: string): void {
+      const key = keyOf(repoPath)
+      const last = lastTidy(key)
+      if (!last) throw new Error('There is nothing to undo.')
+      if (hashOf(load(key)) !== last.after) throw new Error('The board has changed since the tidy, so undoing it would lose those changes.')
+      copyFileSync(last.backup, fileOf(key))
+      cache.delete(key)
+      rmSync(tidyNote(key), { force: true })
+      d.onChange(key)
     },
     /** An agent's turn ended. What the app made for its requests and it is still on is finished (the request was answered), unless the turn was cut off: then it is flagged, so the board does not claim work is in hand. */
     turnEnded(agentId: string, o: { interrupted?: boolean } = {}) {
@@ -460,11 +622,6 @@ export function createTodoService(d: TodoDeps) {
     currentOf(agentId: string): string | undefined {
       const a = d.agent(agentId)
       return a ? currentTodoOf(load(keyOf(a.repoPath)), agentId)?.id : undefined
-    },
-    /** The task an agent was on last, the one a follow-up of its work belongs under; not the task given (the follow-up itself). */
-    lastTaskOf(agentId: string, except?: string): Todo | undefined {
-      const a = d.agent(agentId)
-      return a ? lastTaskOf(load(keyOf(a.repoPath)), agentId, except) : undefined
     },
     /** A workflow run ended: the tasks it belongs to that are still the agent's and in hand are finished with it, so the agent need not say so twice. Others are left as they are. */
     finishLinked(agentId: string, ids: string[], summary: string) {

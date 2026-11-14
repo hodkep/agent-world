@@ -5,6 +5,7 @@ import { useConfirm } from '../panel/ConfirmDialog'
 import { TodoDetail, type AskAgent, type TodoRun } from './TodoDetail'
 import { Modal } from '../panel/Modal'
 import { TodoPad } from './TodoPad'
+import { TidyDialog } from './TidyDialog'
 import { actorTag, agoLabel, autoClosed, filterBoard, listGroups, makers, pickList, pickRange, progressOf, splitList } from './todoView'
 
 const clean = (e: unknown) => (e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e))
@@ -77,6 +78,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
   const names = useMemo(() => makers(board), [board])
   const unsorted = board.todos.filter((t) => t.auto && !t.named).length
   const [sorting, setSorting] = useState(false)
+  const [tidying, setTidying] = useState(false)
   const sortInbox = () => {
     setSorting(true)
     void window.aw.todos.tidyInbox(folder).then(() => setError(''), (e) => setError(clean(e))).finally(() => setSorting(false))
@@ -145,6 +147,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
         <button className="td-chip" aria-pressed={tab === 'pad'} onClick={() => setTab('pad')}>Scratch pad</button>
         {tab === 'lists' && <LabelFilter board={board} folder={folder} active={label} onPick={setLabel} act={act} confirm={ask} />}
         {unsorted > 0 && tab === 'lists' && <button className="td-sort" onClick={sortInbox} disabled={sorting} title="A small model names each request-made task for what was done and puts it in a list by area; requests left open by agents that are not working are closed">{sorting ? 'Sorting…' : `Name and sort ${unsorted} task${unsorted === 1 ? '' : 's'}`}</button>}
+        {tab === 'lists' && <button className="td-tidy" onClick={() => setTidying(true)} title="Read the titles and show what could be removed, nested, labelled or moved; nothing changes until you press Apply">Tidy the board…</button>}
         {tab === 'lists' && <input className="td-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search todos…" aria-label="Search todos" />}
       </div>
       {error && <p className="error td-error" role="alert">{error}</p>}
@@ -213,6 +216,7 @@ export function TodoBoardModal({ folder, agents, focusId, runsOf, onOpenRun, onC
         {picked.size > 0 && <BulkBar ids={[...picked]} board={board} lists={board.lists.filter((l) => l !== INBOX || board.todos.some((t) => t.list === INBOX))} menu={moveMenu} setMenu={setMoveMenu} moveTo={moveTo} setMoveTo={setMoveTo} onClear={() => setPicked(new Set())} onDo={bulk} confirm={ask} />}
       </div>}
       {confirmNode}
+      {tidying && <TidyDialog folder={folder} onClose={() => setTidying(false)} />}
     </Modal>
   )
 }

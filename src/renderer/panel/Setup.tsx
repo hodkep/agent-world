@@ -259,9 +259,9 @@ export function Setup({ providers, prefs, onPrefs, workspaces, folder, onPick, o
                   <span><b>Library and playbook</b><small>The skills, instructions and prompts you keep once, and the playbook that says which an agent is told and when. Off: agents are told nothing from it, and the Library window says it is off.</small></span>
                 </button>
                 <LibraryCostBox />
-                <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track every request as a todo" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
+                <button className="su-toggle" role="switch" aria-checked={prefs.todoTracking === 'full'} aria-label="Track requests as todos" onClick={() => onPrefs({ todoTracking: prefs.todoTracking === 'full' ? 'deferred' : 'full' })}>
                   <i />
-                  <span><b>Track every request as a todo</b><small>Each message you send becomes a task on the project's Todos board, and the agent works on it and marks it done, so everything is recorded and can be found again. Off: agents record only what is put off. Adds a little text to each message.</small></span>
+                  <span><b>Track requests as todos</b><small>A small model reads each message you send and makes a task on the project's Todos board when it is new work, a correction or a bug fix; a question or chat makes none. The agent works on it and marks it done, so the work is recorded and can be found again. Off: agents record only what is put off. Adds a little text to the agent's opening.</small></span>
                 </button>
                 <TrackingCost full={prefs.todoTracking === 'full'} />
                 <button className="su-toggle" role="switch" aria-checked={prefs.workflows.enabled} aria-label="Workflows" onClick={() => onPrefs({ workflows: switchWorkflows(prefs.workflows, !prefs.workflows.enabled, Date.now()) })}>

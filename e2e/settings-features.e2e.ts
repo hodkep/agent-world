@@ -16,7 +16,7 @@ test('settings: a Features page lists each feature switch with what it adds in t
     const s = page.getByRole('dialog', { name: 'Settings' })
     await s.getByRole('tab', { name: /Features/ }).click()
     await expect(s.getByRole('checkbox', { name: /Check before acting/ })).toHaveCount(0)
-    const track = s.getByRole('checkbox', { name: /Track every request as a todo/ })
+    const track = s.getByRole('checkbox', { name: /Track requests as todos/ })
     await expect(track).not.toBeChecked()
     await expect(s.getByRole('table', { name: 'What fully tracked todos add, on these assumptions' })).toContainText('tokens')
     // Both are saved: they are still as set when Settings is opened again.
