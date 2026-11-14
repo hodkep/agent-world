@@ -4,10 +4,11 @@ import { workflowRuns } from '../../shared/runStats'
 import { type SkillState, goneSkills } from '../../shared/skills'
 import type { WorkflowEntry } from '../../shared/workflow'
 import { FlowCanvas } from './flow/FlowCanvas'
-import { NO_WORKFLOW, type WorkflowPrefs, allOffHere, isOffHere, withAllOff, withOff } from '../../shared/workflows'
+import { type WorkflowPrefs, allOffHere, isOffHere, withAllOff, withOff } from '../../shared/workflows'
 import { History } from './History'
 import { ImportMenu } from './ImportMenu'
 import { listButtons } from './listButtons'
+import { NameEdit } from './NameEdit'
 
 const SCOPE_LABEL = { 'built-in': 'Built in', global: 'Everything', project: 'This project' } as const
 const base = (p: string) => p.split(/[\\/]/).filter(Boolean).pop() ?? p
@@ -38,7 +39,6 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
   const [describe, setDescribe] = useState('')
   const [starting, setStarting] = useState(false)
   const [asking, setAsking] = useState(false)
-  const [removing, setRemoving] = useState(false)
   const [importing, setImporting] = useState(false)
   // Which small menu is open (the New workflow one above the list, or the More one under the workflow), and whether the top bar is taking a description for the builder.
   const [menu, setMenu] = useState<'new' | 'more' | null>(null)
@@ -59,7 +59,7 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
   const shown = list.find((e) => `${e.scope}:${e.id}` === picked) ?? list.find((e) => e.id === defaultId) ?? list[0]
   const run = (go: () => Promise<unknown>) => go().then(() => (setAsking(false), load()), (e: Error) => setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')))
   const wf = shown?.workflow
-  const lb = shown ? listButtons({ scope: shown.scope, isDefault: shown.id === defaultId, removedHere: defaultId === NO_WORKFLOW, hasFolder: !!folder }) : null
+  const lb = shown ? listButtons({ isDefault: shown.id === defaultId, hasFolder: !!folder }) : null
   const here = folder ? base(folder) : ''
   const allOff = allOffHere(prefs, folder)
   // The list is walked with the arrow keys, Home and End, and the one it rests on is the one shown.
@@ -123,14 +123,13 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
         {list.map((e) => {
           const key = `${e.scope}:${e.id}`
           return (
-            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={`${shown === e ? 'on' : ''}${isOffHere(prefs, folder, e.id) ? ' wfl-offrow' : ''}`} onClick={() => (setPicked(key), setAsking(false), setRemoving(false))}>
+            <li key={key} id={`wfl-${e.scope}-${e.id}`} role="option" aria-selected={shown === e} className={`${shown === e ? 'on' : ''}${isOffHere(prefs, folder, e.id) ? ' wfl-offrow' : ''}`} onClick={() => (setPicked(key), setAsking(false))}>
               <div className="wfl-line">
               <span className="wfl-name">
               <b>{e.workflow?.name ?? `${e.id}.json`}{isOffHere(prefs, folder, e.id) && !allOff && <span className="wfl-offtag">Disabled here</span>}</b>
               <span className="muted">
                 {e.problems ? 'Has problems' : SCOPE_LABEL[e.scope]}
                 {e.id === defaultId && !e.problems ? ' · default' : ''}
-                {e.scope === 'built-in' && defaultId === NO_WORKFLOW ? ' · removed for this project' : ''}
                 {e.skills && goneSkills(e.skills).length > 0 && <span className="sk-warn"> · {goneSkills(e.skills).length === 1 ? '1 warning' : `${goneSkills(e.skills).length} warnings`}</span>}
               </span>
               </span>
@@ -149,7 +148,7 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
       <div className="wfl-detail">
         {error && <p className="error" role="alert">{error}</p>}
         {!shown ? (
-          <p className="hint">Loading…</p>
+          <p className="hint">{entries ? 'There are no workflows. Press New workflow to make one.' : 'Loading…'}</p>
         ) : shown.problems ? (
           <>
             <div className="wfl-head"><b>{shown.id}.json</b><span className="wf-tag flag">Has problems</span></div>
@@ -164,10 +163,9 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
             <div className="wfl-cols">
               <div className="wfl-main">
               <div className="wfl-head">
-                <b>{wf.name}</b>
+                <NameEdit name={wf.name} stop={`${shown.scope}:${shown.id}`} onSave={(n) => window.aw.workflows.rename(folder, shown.id, shown.scope, n).then(() => load(), (e: Error) => (setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')), Promise.reject(e)))} />
                 <span className="wf-tag">{SCOPE_LABEL[shown.scope]}</span>
                 {shown.id === defaultId && <span className="wf-tag flag">Default{folder ? ` for ${here}` : ''}</span>}
-                {shown.scope === 'built-in' && defaultId === NO_WORKFLOW && <span className="wf-tag flag">Removed for {here || 'this project'}</span>}
               </div>
               {wf.when && <p className="muted">When: {wf.when}</p>}
               <p className="muted">{(() => { const n = workflowRuns(runs, shown.id, Date.now()); return n === 0 ? 'No runs this week.' : `${n} run${n === 1 ? '' : 's'} this week.` })()}</p>
@@ -181,22 +179,15 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
                 ) : null
               })()}
               {shown.file && <span className="mono muted" data-reveal={shown.file} title="Right-click to reveal this file">{shown.file}</span>}
-              {removing ? (
-                <div className="wfl-acts" role="alertdialog" aria-label={`Remove ${wf.name}`}>
-                  <span>Remove {wf.name} for {here}? Agents will then work with no workflow: no plan hold, no track, no gate. You can bring it back from the list.</span>
-                  <button className="primary" onClick={() => (setRemoving(false), onDefault(NO_WORKFLOW))}>Remove</button>
-                  <button onClick={() => setRemoving(false)}>Keep it</button>
-                </div>
-              ) : asking ? (
+              {asking ? (
                 <div className="wfl-acts" role="alertdialog" aria-label={`Delete ${wf.name}`}>
-                  <span>Delete {shown.id}.json? This cannot be undone.</span>
+                  <span>{shown.scope === 'built-in' ? `Delete ${wf.name}? It is built in, so it will not come back. Copy it first if you may want it again.` : `Delete ${shown.id}.json? This cannot be undone.`}</span>
                   <button className="primary" onClick={() => void run(() => window.aw.workflows.remove(folder, shown.id, shown.scope === 'project' ? 'project' : 'global'))}>Delete</button>
                   <button onClick={() => setAsking(false)}>Cancel</button>
                 </div>
               ) : (
                 <div className="wfl-acts">
-                  {lb!.restore && <button className="primary" onClick={() => onDefault(shown.id)}>Restore {wf.name}</button>}
-                  <button className={lb!.restore ? '' : 'primary'} disabled={!folder || starting} title={folder ? 'Open the builder on this workflow' : 'Open a project first'} onClick={() => start(undefined, { id: shown.id, name: wf.name })}>Edit with the builder</button>
+                  <button className="primary" disabled={!folder || starting} title={folder ? 'Open the builder on this workflow' : 'Open a project first'} onClick={() => start(undefined, { id: shown.id, name: wf.name })}>Edit with the builder</button>
                   {lb!.makeDefault && <button onClick={() => onDefault(shown.id)}>Make default for {here}</button>}
                   <span className="wfl-menu-wrap">
                     <button aria-haspopup="menu" aria-expanded={menu === 'more'} onClick={() => setMenu(menu === 'more' ? null : 'more')}>More ▾</button>
@@ -205,7 +196,6 @@ export function WorkflowList({ folder, runs, defaultId, onDefault, prefs, onPref
                         {lb!.more.includes('copyProject') && <button role="menuitem" disabled={!folder} title={folder ? '' : 'Open a project first'} onClick={() => (setMenu(null), void run(() => window.aw.workflows.duplicate(folder, shown.id, 'project')))}>Copy to {folder ? here : 'a project'}</button>}
                         {lb!.more.includes('copyGlobal') && <button role="menuitem" onClick={() => (setMenu(null), void run(() => window.aw.workflows.duplicate(folder, shown.id, 'global')))}>Copy for everything</button>}
                         {lb!.more.includes('delete') && <button role="menuitem" className="danger-text" onClick={() => (setMenu(null), setAsking(true))}>Delete</button>}
-                        {lb!.more.includes('remove') && <button role="menuitem" className="danger-text" onClick={() => (setMenu(null), setRemoving(true))}>Remove</button>}
                       </div>
                     )}
                   </span>

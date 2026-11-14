@@ -26,7 +26,7 @@ async function project(name: string, defaults: Record<string, string> = {}, env:
   return { page, repo, prefsFile, shutdown }
 }
 
-test('Remove on the built-in Standard says what follows, keeps the choice for this project, and Restore brings it back', async () => {
+test('the built-in Standard is renamed by hand and deleted like any workflow: it leaves the list for good and agents then work with no workflow', async () => {
   const p = await project('wfnone')
   try {
     await p.page.locator('header').getByRole('button', { name: 'Workflows' }).click()
@@ -34,23 +34,28 @@ test('Remove on the built-in Standard says what follows, keeps the choice for th
     await win.getByRole('tab', { name: 'Workflows' }).click()
     const list = win.getByRole('listbox', { name: 'Workflow list' })
     await list.getByRole('option', { name: /Standard/ }).click()
+    // Rename: Escape leaves the name, Save keeps the new one; the id and the steps stay.
+    await win.getByRole('button', { name: 'Rename Standard' }).click()
+    await win.getByRole('textbox', { name: 'Workflow name' }).press('Escape')
+    await expect(win.getByRole('textbox', { name: 'Workflow name' })).toHaveCount(0)
+    await win.getByRole('button', { name: 'Rename Standard' }).click()
+    await win.getByRole('textbox', { name: 'Workflow name' }).fill('Our flow')
+    await win.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(list.getByRole('option', { name: /Our flow/ })).toContainText('Everything')
+    expect(JSON.parse(readFileSync(join(p.repo, '..', 'home', 'workflows', 'standard.json'), 'utf8'))).toMatchObject({ id: 'standard', name: 'Our flow' })
+    // Delete: it says it will not come back; Cancel changes nothing.
     await win.getByRole('button', { name: 'More' }).click()
-    await win.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-    const ask = win.getByRole('alertdialog', { name: 'Remove Standard' })
-    await expect(ask).toContainText('Agents will then work with no workflow: no plan hold, no track, no gate.')
-    // Keeping it changes nothing.
-    await ask.getByRole('button', { name: 'Keep it' }).click()
-    await expect(ask).toHaveCount(0)
-    expect(readFileSync(p.prefsFile, 'utf8')).not.toContain('"none"')
+    await win.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+    const ask = win.getByRole('alertdialog', { name: 'Delete Our flow' })
+    await expect(ask).toContainText('Delete standard.json?')
+    await ask.getByRole('button', { name: 'Cancel' }).click()
+    await expect(list.getByRole('option')).toHaveCount(1)
+    // A fresh Standard, never renamed, is built in: deleting it says so and takes it away for good.
     await win.getByRole('button', { name: 'More' }).click()
-    await win.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-    await ask.getByRole('button', { name: 'Remove', exact: true }).click()
-    await expect(list.getByRole('option', { name: /Standard/ })).toContainText('removed for this project')
-    await expect(win.getByRole('button', { name: 'Restore Standard' })).toBeVisible()
-    await expect.poll(() => JSON.parse(readFileSync(p.prefsFile, 'utf8')).workflows.defaults).toEqual({ [p.repo]: 'none' })
-    await win.getByRole('button', { name: 'Restore Standard' }).click()
-    await expect(list.getByRole('option', { name: /Standard/ })).not.toContainText('removed')
-    await expect.poll(() => JSON.parse(readFileSync(p.prefsFile, 'utf8')).workflows.defaults).toEqual({})
+    await win.getByRole('menuitem', { name: 'Delete', exact: true }).click()
+    await ask.getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(list.getByRole('option')).toHaveCount(0)
+    await expect(win).toContainText('There are no workflows')
   } finally {
     await p.shutdown()
   }
