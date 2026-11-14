@@ -3959,6 +3959,8 @@ button.rtag:hover:not(:disabled) { background: color-mix(in srgb, var(--violet) 
 .plan-gate .pg-fold svg { transition: none; }
 .plan-gate .pg-fold[aria-expanded='true'] svg { transform: scaleY(-1); }
 .plan-gate .dialog-bar .pg-fold { margin-left: auto; }
+/* Folded, the card is only its summary and buttons: it keeps its height, so in a small window the chat gives way instead of the buttons being cut off. */
+.inline-need.dialog.plan-gate.folded { flex-shrink: 0; }
 .pg-sum { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 12px; }
 .pg-sumtext { flex: 1; min-width: 200px; }
 .pg-sumtext small { display: block; margin-top: 2px; color: var(--muted); }

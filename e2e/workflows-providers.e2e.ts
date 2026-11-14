@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, write
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { type Page, expect, test } from '@playwright/test'
+import { PLUGIN_VERSION } from '../src/main/providers/agy/plugin'
 import { chatTab, launchApp } from './launch'
 
 const fakeAgy = resolve(__dirname, 'fake-agy.mjs')
@@ -162,7 +163,7 @@ test('connected agy with an older plugin says so and updates it on approval, aft
     expect(JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version).toBe('0.1.1')
     await plan.getByRole('button', { name: 'Update' }).click()
     // Between agy's uninstall and its install the file is not there for a moment.
-    await expect.poll(() => { try { return JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version } catch { return 'none' } }, { timeout: 15_000 }).toBe('0.1.3')
+    await expect.poll(() => { try { return JSON.parse(readFileSync(join(plugins, 'aw-library', 'plugin.json'), 'utf8')).version } catch { return 'none' } }, { timeout: 15_000 }).toBe(PLUGIN_VERSION)
     await expect(note).toBeHidden({ timeout: 15_000 })
     expect(Object.keys(JSON.parse(readFileSync(config, 'utf8')).mcpServers)).toEqual(['agent-world'])
   } finally {
