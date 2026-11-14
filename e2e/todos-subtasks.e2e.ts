@@ -26,9 +26,9 @@ test('todos: subtasks sit in a checklist on their umbrella card, labels are made
     const call = (name: string, a: Record<string, unknown>) => client.callTool({ name, arguments: a })
 
     // An agent makes an umbrella, and two parts under it, one with labels.
-    await call('todo_add', { title: 'Diagrams in chat', list: 'Chat' })
+    await call('todo_add', { title: 'Diagrams in chat', list: 'Chat', labels: ['feature'] })
     await call('todo_add', { title: 'Pick boxes', parent: '1', labels: ['chat'] })
-    await call('todo_add', { title: 'Zoom the draw view', parent: '1' })
+    await call('todo_add', { title: 'Zoom the draw view', parent: '1', labels: ['feature'] })
     await page.locator('header').getByRole('button', { name: /Todos/ }).click()
     const board = page.getByRole('dialog', { name: 'Todos' })
 

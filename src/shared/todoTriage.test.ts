@@ -12,6 +12,12 @@ describe('parseTriage', () => {
     expect(parseTriage('Sure:\n```json\n{"action":"new","title":"Add a search box"}\n```', [])).toEqual({ action: 'new', title: 'Add a search box' })
   })
 
+  it('reads the kind label, lower case, and drops one that is not a plain word', () => {
+    expect(parseTriage('{"action":"new","title":"Add a search box","label":"Feature"}', [])).toEqual({ action: 'new', title: 'Add a search box', label: 'feature' })
+    expect(parseTriage('{"action":"subtask","parent":"4","title":"Fix the Safari bug","label":"bug"}', ['4'])).toEqual({ action: 'subtask', parent: '4', title: 'Fix the Safari bug', label: 'bug' })
+    expect(parseTriage('{"action":"new","title":"Add a search box","label":"a very long label with spaces in it"}', [])).toEqual({ action: 'new', title: 'Add a search box' })
+  })
+
   it('makes no task when the answer cannot be trusted', () => {
     expect(parseTriage('', ['4'])).toEqual({ action: 'none' })
     expect(parseTriage('no idea', ['4'])).toEqual({ action: 'none' })
@@ -50,6 +56,13 @@ describe('triagePrompt', () => {
     expect(p).toContain('The agent last said: I added the line to README.md.')
     expect(triagePrompt({ ...base, said: 'y'.repeat(2000) }).length).toBeLessThan(3000)
     expect(triagePrompt(base)).not.toContain('The agent last said')
+  })
+
+  it('names open tasks that look like the message, whoever made them, and asks for a kind label', () => {
+    const p = triagePrompt({ ...base, alike: [{ id: '9', title: 'Fix the Safari login redirect' }] })
+    expect(p).toContain('Open tasks that look like it: todo#9 "Fix the Safari login redirect"')
+    expect(p).toMatch(/label/)
+    expect(triagePrompt(base)).not.toContain('Open tasks that look like it')
   })
 
   it('says so when nothing is in hand', () => {

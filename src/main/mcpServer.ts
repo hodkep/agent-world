@@ -29,6 +29,10 @@ export interface TodoApi {
   updateByAgent: (callerId: string, id: string, p: { title?: string; notes?: string; needsYou?: boolean; status?: TodoStatus; blockedWhy?: string; list?: string; parent?: string; labels?: string[] }) => Todo
   /** The lists by area on the board (not the Inbox). */
   listsOf: (callerId: string) => string[]
+  /** The names of the labels the board has. */
+  labelsOf: (callerId: string) => string[]
+  /** Open tasks that look like a title: what a new task may be a part of. */
+  similarOpen: (callerId: string, title: string) => { id: string; title: string }[]
 }
 
 interface Options {
@@ -501,10 +505,20 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         notes: z.string().max(4000).optional().describe('Steps or detail'),
         needs_you: z.boolean().optional().describe('Only the person can do this'),
         parent: z.string().optional().describe('The number of a larger task this is a part of; it is shown under it and takes its list'),
-        labels: z.array(z.string().max(30)).max(6).optional().describe('Labels the board already has, if one fits')
+        labels: z.array(z.string().max(30)).max(6).optional().describe('Required: the kind of work (feature, bug, research, design, chore, test or release), and any other label that fits. Use one the board has when one fits; a label it does not have is made.')
       }
     },
-    async (a) => run(() => { const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, parent: a.parent, labels: a.labels }); return t.list === 'Inbox' ? `Added todo#${t.id} to Inbox. Name it and sort it into a list by area with todo_update (title, list).` : `Added todo#${t.id} to ${t.list}.` })
+    async (a) => run(() => {
+      if (!a.labels?.length) {
+        const have = todos.labelsOf(callerId)
+        throw new Error(`A task needs a label for the kind of work: feature, bug, research, design, chore, test, release.${have.length ? ` The board has: ${have.join(', ')}.` : ''} A label the board does not have is made. Call todo_add again with labels.`)
+      }
+      // Open tasks that look alike are found before the new one exists, so it is not one of them.
+      const alike = a.parent ? [] : todos.similarOpen(callerId, a.title)
+      const t = todos.addByAgent(callerId, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, parent: a.parent, labels: a.labels })
+      const said = t.list === 'Inbox' ? `Added todo#${t.id} to Inbox. Name it and sort it into a list by area with todo_update (title, list).` : `Added todo#${t.id} to ${t.list}.`
+      return alike.length ? `${said} Open tasks that look alike: ${alike.map((x) => `todo#${x.id} "${x.title.slice(0, 70)}"`).join('; ')}. If this is part of one, put it under it with todo_update (parent) instead of leaving it a task of its own.` : said
+    })
   )
   server.registerTool(
     'todo_claim',
@@ -540,7 +554,7 @@ function addTodoTools(server: McpServer, callerId: string, todos: TodoApi) {
         status: z.enum(['open', 'doing', 'blocked']).optional(),
         blocked_why: z.string().max(500).optional().describe('Why it is blocked'),
         parent: z.string().optional().describe('The number of a larger task to put this under, or an empty string to take it out'),
-        labels: z.array(z.string().max(30)).max(6).optional().describe('Replaces its labels; use ones the board already has')
+        labels: z.array(z.string().max(30)).max(6).optional().describe('Replaces its labels; a label the board does not have is made')
       }
     },
     async (a) => run(() => { const t = todos.updateByAgent(callerId, a.id, { title: a.title, list: a.list, notes: a.notes, needsYou: a.needs_you, status: a.status, blockedWhy: a.blocked_why, parent: a.parent, labels: a.labels }); return `Updated todo#${t.id}.` })

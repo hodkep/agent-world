@@ -7,6 +7,7 @@ describe('trackingHint', () => {
     expect(h).toMatch(/todo_add/)
     expect(h).toMatch(/put off|defer/i)
     expect(h).not.toMatch(/every request/i)
+    expect(h).toMatch(/label/)
   })
   it('tells an agent in full mode that the app makes a task for work, a correction or a fix, not for every message, and how to finish it', () => {
     const h = trackingHint('full')
@@ -16,6 +17,7 @@ describe('trackingHint', () => {
     expect(h).toMatch(/todo_done/)
     expect(h).not.toMatch(/every request|each request/i)
     expect(h).toMatch(/parent/)
+    expect(h).toMatch(/label/)
   })
   it('says a task is done when its change is pushed or tested, not when the code is written', () => {
     const h = trackingHint('full')
@@ -26,7 +28,7 @@ describe('trackingHint', () => {
   })
   it('stays short, because it is paid for in every session', () => {
     expect(trackingHint('deferred').length).toBeLessThan(820)
-    expect(trackingHint('full').length).toBeLessThan(1300)
+    expect(trackingHint('full').length).toBeLessThan(1500)
   })
 })
 

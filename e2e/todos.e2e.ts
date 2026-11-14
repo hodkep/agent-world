@@ -48,7 +48,7 @@ test('todos: a board of lists the person and an agent both fill, with a finished
     const mcp = JSON.parse(readFileSync(claudeLine[claudeLine.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: Record<string, string> }
     const client = new Client({ name: 'test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(mcp.url), { requestInit: { headers: mcp.headers } }))
-    expect(say(await client.callTool({ name: 'todo_add', arguments: { title: 'Log in to agy', list: 'Tools', needs_you: true } }))).toContain('Added todo#2 to Tools')
+    expect(say(await client.callTool({ name: 'todo_add', arguments: { title: 'Log in to agy', list: 'Tools', needs_you: true, labels: ['chore'] } }))).toContain('Added todo#2 to Tools')
     const theirs = board.getByRole('button', { name: 'Open Log in to agy' })
     await expect(theirs).toContainText('ada · Claude')
     await expect(theirs).toContainText('needs you')
