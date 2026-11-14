@@ -81,8 +81,10 @@ test('a long plan gate in a small window shrinks and scrolls inside itself: the 
     expect(m.header!.top).toBe(0)
     expect(m.panel!.bottom).toBeLessThanOrEqual(m.composer!.top)
     expect(m.log!.h).toBeGreaterThanOrEqual(96)
-    // Folded, the buttons are in view without scrolling the card.
+    // Folded, the buttons are wholly in view without scrolling the card: a folded card does not shrink below what it holds.
     await panel.getByRole('button', { name: 'Collapse the plan' }).click()
-    await expect(panel.getByRole('button', { name: 'Request changes' })).toBeInViewport()
+    for (const name of ['Approve plan', 'Request changes']) await expect(panel.getByRole('button', { name })).toBeInViewport({ ratio: 1 })
+    const folded = await page.evaluate(() => { const g = document.querySelector('.plan-gate') as HTMLElement; return { scrollH: g.scrollHeight, clientH: g.clientHeight } })
+    expect(folded.scrollH).toBeLessThanOrEqual(folded.clientH)
   } finally { await shutdown() }
 })
