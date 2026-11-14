@@ -4,6 +4,29 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-11-14
+
+![Agent World 0.14.0: Agent World comes to Linux, in beta](https://raw.githubusercontent.com/hodkep/agent-world/v0.14.0/docs/images/releases/0.14.0/poster.png)
+
+### Added
+
+- Linux (beta): an AppImage and a deb for x64 computers (Ubuntu 24.04 and similar), with the app's own `git` inside. macOS is the tested platform; the Linux build is a beta, so expect rough edges and tell us what you find. Install notes are in INSTALL.md.
+- Linux: the app tells you when a newer version exists and opens its page; it does not install updates over itself.
+- Settings: every look you keep is a numbered version, listed in Settings > Looks, to compare and to switch back to.
+- Todos: a small model decides which messages become tasks, and which task a follow-up belongs to; every task can carry labels, subtasks sit under the right parent, and Tidy sorts the board.
+
+### Changed
+
+- Playbook and tools: calmer Skills, MCP servers and Tools screens.
+- Workflows: a workflow can be renamed, the Standard workflow can be deleted, and the builder agents are hidden from the list.
+- Security: the open dependency alerts are cleared, and the dependencies are brought up to date.
+
+### Fixed
+
+- Chat: a click anywhere inside a diagram box picks it, not only on the painted strokes of a hand-drawn shape.
+- Chat: a folded plan gate keeps its buttons whole in a small window.
+- Workflows: an open run keeps its run bar once every step is met, until the run ends, and a new request then starts a run of its own instead of joining the finished one.
+
 ## [0.13.3] - 2026-11-12
 
 ### Changed
