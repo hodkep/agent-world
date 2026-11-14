@@ -38,7 +38,7 @@ test('a run belongs to the task its agent is on: the ledger shows the task, the 
     const call = async (name: string, args: Record<string, unknown> = {}) => say(await client.callTool({ name, arguments: args }))
 
     // The agent is on a task of the board, and begins a run.
-    expect(await call('todo_add', { title: 'Add a dark-mode toggle', list: 'Workflows' })).toContain('todo#1')
+    expect(await call('todo_add', { title: 'Add a dark-mode toggle', list: 'Workflows', labels: ['feature'] })).toContain('todo#1')
     await call('todo_claim', { id: '1' })
     await call('task_begin', { title: 'Add a dark-mode toggle' })
     // Standard asks for the plan to be approved; this test is about the todo link, so the person lifts the hold.

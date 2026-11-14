@@ -109,4 +109,19 @@ By default an agent may add as many lists as it likes (it still has to name the 
 
 By default agents record only what is put off. To track requests, go to **Settings** > **Features** and turn on **Track requests as todos**. A small model (Haiku) then reads each message you send, in the background, and decides: no task for a question, an approval, chat, a chore (commit, push, rebase) or a step of the workflow the agent is already following; a subtask of a task on the board for a correction or a bug fix in its work; a new task for a change of direction or new work. A task made this way appears in the **Inbox** (or its list) a few seconds after you send the message, and the agent works on it. Click **Name and sort N tasks** to name the ones left in the Inbox. With no Claude to ask, no task is made for a message; agents can still add one.
 
+## Labels and subtasks
+
+An agent that adds a task must give it a label for the kind of work (feature, bug, research, design, chore, test or release), and may add any other label: one the board does not have is made. When an agent adds a task that looks like an open one, it is told which, and is asked to put the new task under it as a subtask.
+
+## Tidy the board
+
+Click **Tidy the board…** in the bar of the Todos screen. A small model (Haiku) reads the titles, about sixty at a time, and the dialog shows what it would do in four groups, each with a count and a few examples:
+
+- **Remove echoes and chores:** messages the app wrote (a Run press, an approval) and chores (a rebase, a test instance), finished ones the app made.
+- **Nest the same work under one parent:** tasks that repeat or split one piece of work go under the first of them.
+- **Label each task with its kind:** on tasks that have no label.
+- **Move out of one-off lists:** from the Inbox or a list of fewer than five tasks into a list that is an area.
+
+There are no switches: **Apply** does all four. Nothing changes before Apply. Apply copies the board aside first (a file named like `<project>.before-tidy-<time>.json` beside the board), and **Undo** puts it back, as long as nothing has changed the board since. Todos you wrote yourself, and tasks an agent is working on, are left alone. It needs Claude signed in.
+
 Next: [Settings and updates](settings-and-updates.md)

@@ -3136,6 +3136,46 @@ aside:not(.drawer) { flex: none; }
 
 .td-sort { margin-left: auto; background: var(--selected); box-shadow: inset 0 -2px 0 var(--accent); }
 .td-sort + .td-search { margin-left: 8px; }
+.td-tidy { margin-left: auto; }
+.td-sort + .td-tidy, .td-tidy + .td-search { margin-left: 8px; }
+
+/* ---- Tidy the board ---- */
+.tidy-dialog.settings { width: min(560px, 94vw); height: fit-content; max-height: 90vh; }
+.tidy { display: flex; flex-direction: column; max-height: 90vh; }
+.tidy-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-2); border-bottom: 2px solid var(--ink); flex: none; }
+.tidy-head .m { color: var(--muted); font: 11px/1.5 Menlo, Consolas, monospace; }
+.tidy-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow: auto; min-height: 0; }
+.tidy-body p { margin: 0; }
+.tidy-body .m { color: var(--muted); font-size: 12px; }
+.tidy-bar { height: 10px; background: var(--well); box-shadow: 0 0 0 1px var(--line); position: relative; }
+.tidy-bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.tidy-group { background: var(--panel-3); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 1px var(--line); padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.tidy-top { display: flex; align-items: center; gap: 10px; }
+.tidy-t { flex: 1; min-width: 0; }
+.tidy-t b { font-size: 13px; }
+.tidy-t small { display: block; color: var(--muted); font-size: 12px; }
+.tidy-top .n { font: 700 18px Menlo, Consolas, monospace; }
+.tidy-tile { width: 22px; height: 22px; display: grid; place-items: center; flex: none; color: var(--ink); box-shadow: 0 0 0 1px var(--ink); font: 700 12px Menlo, monospace; font-style: normal; background: var(--hint, var(--muted)); }
+.tidy-tile.rm { background: var(--danger); }
+.tidy-tile.nest { background: var(--think); }
+.tidy-tile.lab { background: var(--accent); }
+.tidy-tile.mv { background: #b08be0; }
+.tidy-more > summary { list-style: none; cursor: pointer; color: var(--accent); font-size: 12px; margin-top: 6px; }
+.tidy-more > summary::-webkit-details-marker { display: none; }
+.tidy-more[open] > summary { color: var(--muted); }
+.tidy-more ul { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.tidy-more li { display: flex; gap: 7px; min-width: 0; align-items: flex-start; }
+.tidy-more li span:last-child { overflow-wrap: anywhere; }
+.tidy-more .id { color: var(--dim); font: 11px Menlo, Consolas, monospace; flex: none; }
+.tidy-more .more { color: var(--muted); }
+.tidy-note { font-size: 12px; color: var(--muted); padding: 7px 9px; background: var(--well); box-shadow: 0 0 0 1px var(--line); }
+.tidy-foot { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--panel-3); border-top: 2px solid var(--ink); flex-wrap: wrap; flex: none; }
+.tidy-foot .sum { flex: 1; min-width: 160px; font-size: 12px; color: var(--muted); }
+.tidy-foot button:first-child:not(.go) { margin-left: auto; }
+.tidy-foot .sum + button { margin-left: 0; }
+.tidy-foot .go { background: var(--accent); color: var(--ink); font-weight: 600; box-shadow: none; }
+.tidy-foot .go:hover:not(:disabled) { background: var(--accent-hot); }
+
 
 /* The library switched off */
 .lib-off { padding: 28px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; max-width: 560px; }
