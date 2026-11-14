@@ -587,7 +587,7 @@ if (process.env.FAKE_CHAT) {
     // FAKE_TODO=1: calls to the todo tools, as an agent keeping the board would make them, and a reply that names a task.
     if (process.env.FAKE_TODO) {
       const t = 'mcp__agent-world__'
-      const a = use(`${t}todo_add`, { title: 'Write the docs page', list: 'Manual setup', needs_you: true })
+      const a = use(`${t}todo_add`, { title: 'Write the docs page', list: 'Manual setup', needs_you: true, labels: ['chore'] })
       done(a, 'Added todo#14 to Manual setup.')
       const l = use(`${t}todo_list`, {})
       done(l, 'todo#14 [Manual setup] Write the docs page — open, needs you; created by ada (claude) just now, updated just now\ntodo#9 [Tools] Slow — thing — doing, bob (agy) is on it; created by you 2 h ago, updated 3 min ago')
