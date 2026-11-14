@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { STANDARD, type Scope, type Workflow, type WorkflowEntry as Entry, isWorkflowId, parseWorkflow } from '../../shared/workflow'
 
 const FILE_MAX = 100_000
+const DELETED = '.built-in-standard-deleted'
 const projectDir = (project: string) => join(project, '.agent-world', 'workflows')
 
 /** Workflow files in two folders: the app's own (global) and one per project, a project's winning on the same id. */
@@ -47,9 +48,9 @@ export class WorkflowStore {
     }
     const std = found.get('standard')
     if (std) std.overrides = 'built-in'
-    const standard: Entry = std ?? { id: 'standard', scope: 'built-in', workflow: STANDARD }
+    const standard: Entry | undefined = std ?? (this.deletedBuiltIn() ? undefined : { id: 'standard', scope: 'built-in', workflow: STANDARD })
     found.delete('standard')
-    return [standard, ...[...found.values()].sort((a, b) => a.workflow!.name.localeCompare(b.workflow!.name)), ...broken.sort((a, b) => a.id.localeCompare(b.id))]
+    return [...(standard ? [standard] : []), ...[...found.values()].sort((a, b) => a.workflow!.name.localeCompare(b.workflow!.name)), ...broken.sort((a, b) => a.id.localeCompare(b.id))]
   }
 
   /** When the file behind this id (the project's, else the app's) last changed, in milliseconds; 0 for the built-in Standard or an id that has no file. */
@@ -125,11 +126,35 @@ export class WorkflowStore {
     return this.entryOf(dir, name, to)
   }
 
-  /** Deletes the workflow's file from the chosen place. */
+  /** The built-in Standard was deleted: it is no workflow of any project until the person makes one of that id. */
+  private deletedBuiltIn(): boolean {
+    return existsSync(join(this.globalDir, DELETED))
+  }
+
+  /** Deletes the workflow's file from the chosen place. Standard also has no file to lose when it is the built-in one: deleting it leaves a mark that it is gone. */
   remove(project: string | null, id: string, scope: 'global' | 'project') {
     if (!isWorkflowId(id)) throw new Error('Not a valid workflow id.')
     const file = join(this.dirFor(project, scope), `${id}.json`)
-    if (!existsSync(file)) throw new Error(id === 'standard' ? 'The built-in Standard cannot be deleted. Copy it to change it.' : 'No such workflow.')
+    if (id === 'standard') {
+      mkdirSync(this.globalDir, { recursive: true })
+      writeFileSync(join(this.globalDir, DELETED), '')
+      if (existsSync(file)) unlinkSync(file)
+      return
+    }
+    if (!existsSync(file)) throw new Error('No such workflow.')
     unlinkSync(file)
+  }
+
+  /** Gives a saved workflow another name; its id and file stay, as runs and defaults refer to the id. The built-in Standard has no file, so a file of its id for everything takes its place. */
+  rename(project: string | null, id: string, scope: 'global' | 'project' | 'built-in', name: string): Entry {
+    const next = name.trim()
+    if (!next) throw new Error('Give the workflow a name.')
+    if (next.length > 60) throw new Error('A name is up to 60 characters.')
+    if (!isWorkflowId(id)) throw new Error('Not a valid workflow id.')
+    const to = scope === 'project' ? 'project' : 'global'
+    const dir = this.dirFor(project, to)
+    const from = existsSync(join(dir, `${id}.json`)) ? this.entryOf(dir, `${id}.json`, to).workflow : scope === 'built-in' && id === 'standard' ? STANDARD : undefined
+    if (!from) throw new Error('No such workflow.')
+    return this.save(project, { ...from, name: next }, to, { replace: true })
   }
 }

@@ -97,7 +97,7 @@ describe('copying and deleting', () => {
     expect(s.store.duplicate(s.project, 'long', 'global').workflow!.name).toHaveLength(60)
   })
 
-  it('deleting removes the file from the chosen place only, and the built-in Standard cannot be deleted', () => {
+  it('deleting removes the file from the chosen place only', () => {
     const s = setup()
     s.put(s.globalDir, 'quick-change.json', wf('quick-change', 'Global one'))
     s.put(s.projectDir, 'quick-change.json', wf('quick-change', 'Project one'))
@@ -106,8 +106,24 @@ describe('copying and deleting', () => {
     expect(left).toMatchObject({ scope: 'global', workflow: { name: 'Global one' } })
     s.store.remove(s.project, 'quick-change', 'global')
     expect(s.store.list(s.project).map((e) => e.id)).toEqual(['standard'])
-    expect(() => s.store.remove(s.project, 'standard', 'global')).toThrow('The built-in Standard cannot be deleted. Copy it to change it.')
     expect(() => s.store.remove(s.project, 'quick-change', 'project')).toThrow('No such workflow.')
+  })
+
+  it('the built-in Standard can be deleted like any other: it is gone from the list for good, and a file of the same id is the person\'s own and still shows', () => {
+    const s = setup()
+    s.put(s.globalDir, 'quick-change.json', wf('quick-change'))
+    s.store.remove(s.project, 'standard', 'global')
+    expect(s.store.list(s.project).map((e) => e.id)).toEqual(['quick-change'])
+    expect(new WorkflowStore(s.globalDir).list(null).map((e) => e.id)).toEqual(['quick-change'])
+    s.put(s.globalDir, 'standard.json', wf('standard', 'Mine'))
+    expect(s.store.list(s.project).map((e) => [e.id, e.scope])).toEqual([['standard', 'global'], ['quick-change', 'global']])
+  })
+
+  it('deleting a Standard that is replaced by a file takes the file and the built-in with it', () => {
+    const s = setup()
+    s.put(s.globalDir, 'standard.json', wf('standard', 'Mine'))
+    s.store.remove(s.project, 'standard', 'global')
+    expect(s.store.list(s.project)).toEqual([])
   })
 
   it('never touches a path outside the two folders: an id that is not plain is refused', () => {
@@ -116,6 +132,30 @@ describe('copying and deleting', () => {
       expect(() => s.store.remove(s.project, id, 'global')).toThrow('Not a valid workflow id.')
       expect(() => s.store.duplicate(s.project, id, 'global')).toThrow('Not a valid workflow id.')
     }
+  })
+})
+
+describe('renaming', () => {
+  it('changes the name in the file and nothing else: the id and the file stay', () => {
+    const s = setup()
+    s.put(s.projectDir, 'bug-fix.json', wf('bug-fix', 'Bug fix', { when: 'a bug' }))
+    s.store.rename(s.project, 'bug-fix', 'project', '  Fix a bug  ')
+    expect(readdirSync(s.projectDir)).toEqual(['bug-fix.json'])
+    expect(s.store.list(s.project).find((e) => e.id === 'bug-fix')).toMatchObject({ scope: 'project', workflow: { id: 'bug-fix', name: 'Fix a bug', when: 'a bug' } })
+  })
+
+  it('the built-in Standard is renamed by a file of the same id for everything', () => {
+    const s = setup()
+    s.store.rename(s.project, 'standard', 'built-in', 'Our flow')
+    expect(s.store.list(s.project)[0]).toMatchObject({ id: 'standard', scope: 'global', workflow: { name: 'Our flow', steps: STANDARD.steps } })
+  })
+
+  it('refuses an empty name, one over 60 characters and a workflow that is not there', () => {
+    const s = setup()
+    s.put(s.projectDir, 'bug-fix.json', wf('bug-fix'))
+    expect(() => s.store.rename(s.project, 'bug-fix', 'project', '   ')).toThrow('Give the workflow a name')
+    expect(() => s.store.rename(s.project, 'bug-fix', 'project', 'x'.repeat(61))).toThrow('up to 60 characters')
+    expect(() => s.store.rename(s.project, 'nope', 'project', 'A')).toThrow('No such workflow.')
   })
 })
 

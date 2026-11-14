@@ -2398,6 +2398,7 @@ async function main() {
     if (!knownProjects(e.sender.id).includes(source)) throw new Error('That workspace is not one this app knows.')
     return workflowStore.importFrom(source, String(id), projectOf(project), to === 'project' ? 'project' : 'global')
   })
+  ipcMain.handle('workflows:rename', (_, project: unknown, id: string, scope: string, name: unknown) => workflowStore.rename(projectOf(project), String(id), scope === 'project' ? 'project' : scope === 'built-in' ? 'built-in' : 'global', String(name ?? '')))
   ipcMain.handle('workflows:remove', (_, project: unknown, id: string, scope: 'global' | 'project') => workflowStore.remove(projectOf(project), String(id), scope === 'project' ? 'project' : 'global'))
   // The builder: made on first use, one per project; what the person typed first is sent for them once it can take it.
   // The saved workflow each builder's conversation is about, while it is about one: a new workflow is never started in that conversation.

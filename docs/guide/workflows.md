@@ -28,9 +28,13 @@ While a run is open, a new request the agent announces is an **item** of that ru
 
 A commit with no announced task gets a run marked **from a commit**, in the **Not announced** group, with no workflow, plan hold or track. It joins the agent's todo.
 
-## Use no workflow in a project
+## Delete a workflow, Standard too
 
-In the **Workflows** window, select **Standard** and click **Remove**. Agents in that project then work as if workflows were off: no task is recorded, nothing is held (no plan hold, no track, no gate), no reminder is added and no run starts from a commit. Its agents keep the task tools: starting a task there just says no workflow applies, and nothing is recorded. It is a choice for that project only; **Restore Standard** undoes it, and making another workflow the default also ends it. Runs already open finish as they were.
+Select a workflow in the **Workflows** window, open **More** and click **Delete**. A file you made is deleted from its folder. **Standard** is built in and is deleted like the others, for every project: it is gone from the list and does not come back, so copy it first (**More**, then **Copy**) if you may want it again. With no default workflow in a project, agents there work as if workflows were off: no task is recorded, nothing is held (no plan hold, no track, no gate), no reminder is added and no run starts from a commit. Their agents keep the task tools: starting a task there just says no workflow applies. Runs already open finish as they were. To stop workflows in one project without deleting anything, use the switch below.
+
+## Rename a workflow
+
+Select it in the list and click **Rename** beside its name, type the new name (up to 60 characters) and press Enter or **Save**. In the builder page the same **Rename** button is beside the draft's name; it changes the draft, which is saved with the others. Only the name changes: its id, its file and its runs stay.
 
 ## Switch workflows off in one workspace
 

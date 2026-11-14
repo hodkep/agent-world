@@ -1,19 +1,12 @@
 export interface ListButtons {
-  /** A built-in workflow removed for this project: the one way back. */
-  restore: boolean
   makeDefault: boolean
   /** What goes in the More menu, in order. */
-  more: ('copyProject' | 'copyGlobal' | 'delete' | 'remove')[]
+  more: ('copyProject' | 'copyGlobal' | 'delete')[]
 }
 
-/** Which buttons the selected workflow gets besides Edit: the file's own actions, none of which makes a new workflow out of nothing. */
-export function listButtons(o: { scope: 'built-in' | 'project' | 'global'; isDefault: boolean; removedHere: boolean; hasFolder: boolean }): ListButtons {
-  const builtIn = o.scope === 'built-in'
-  return {
-    restore: o.hasFolder && builtIn && o.removedHere,
-    makeDefault: o.hasFolder && !o.isDefault && !(builtIn && o.removedHere),
-    more: ['copyProject', 'copyGlobal', ...(builtIn ? (o.hasFolder && !o.removedHere ? (['remove'] as const) : []) : (['delete'] as const))]
-  }
+/** Which buttons the selected workflow gets besides Edit and Rename: the built-in Standard is deleted like any other. */
+export function listButtons(o: { isDefault: boolean; hasFolder: boolean }): ListButtons {
+  return { makeDefault: o.hasFolder && !o.isDefault, more: ['copyProject', 'copyGlobal', 'delete'] }
 }
 
 /** The builder page's title, and how far its draft has got: a new workflow, or the one being edited. */
