@@ -1,9 +1,10 @@
 import { Fragment } from 'react'
-import type { LibraryItem } from '../../shared/library'
+import type { LibraryItem, SkillUse } from '../../shared/library'
 import { sizeText } from '../../shared/size'
 import { PixelIcon, type IconName } from '../chat/PixelIcon'
 import { spineLook } from './libraryShelf'
 import type { ShelfGroup } from './skillGroups'
+import { DayStrip } from './SkillBits'
 
 const KIND_ICON: Record<LibraryItem['kind'], IconName> = { skill: 'book', instruction: 'flag', prompt: 'pencil' }
 const size = (bytes: number | undefined, measured = true) => (bytes === undefined ? '…' : `${sizeText(bytes)}${measured ? '' : '+'}`)
@@ -12,7 +13,7 @@ const size = (bytes: number | undefined, measured = true) => (bytes === undefine
  * The skills as panels, one for each place they live in: a heading with the place and what it takes, then a calm row for each skill (its name, one line about it, its size).
  * What was found but is not in the library is dimmed at the end. Instructions and prompts follow in a panel of their own.
  */
-export function SkillShelf({ groups, others, open, live, onOpen }: { groups: ShelfGroup[]; others: LibraryItem[]; open: string | null; live: Set<string>; onOpen: (key: string) => void }) {
+export function SkillShelf({ groups, others, open, live, onOpen, uses }: { groups: ShelfGroup[]; others: LibraryItem[]; open: string | null; live: Set<string>; onOpen: (key: string) => void; /** For the skills in use or resting: each one's use and what it is for, shown in place of its size. */ uses?: Record<string, { use?: SkillUse; description: string }> }) {
   return (
     <section className="drawer sk2" aria-label="Items">
       <div className="sk2-list lib-scrollbar">
@@ -30,8 +31,20 @@ export function SkillShelf({ groups, others, open, live, onOpen }: { groups: She
               )}
               <button className={`sk2-row${r.logo ? ' lg' : ''}${open === r.key ? ' sel' : ''}${r.found ? ' found' : ''}${live.has(r.key) ? ' live' : ''}`} aria-label={`Open ${r.name}`} aria-pressed={open === r.key} onClick={() => onOpen(r.key)}>
                 {r.logo ? <img className="sk2-logo" src={r.logo} alt="" style={{ '--c': spineLook({ name: r.name, tokens: { description: 0, body: 0 } }, true).colour } as React.CSSProperties} /> : <span className="sk2-spine" style={{ background: spineLook({ name: r.name, tokens: { description: 0, body: 0 } }, true).colour }} aria-hidden />}
-                <span className="sk2-main"><b>{r.name}</b>{(r.warn || !r.creator) && <small className={r.warn ? 'bad' : ''}>{r.warn ?? r.fact}</small>}</span>
-                <span className={`sk2-size${(r.bytes ?? 0) >= 1024 ** 3 ? ' big' : ''}`}>{r.found ? '' : size(r.bytes)}</span>
+                {uses ? (() => {
+                  const u = uses[r.key]
+                  return (
+                    <>
+                      <span className="sk2-main"><b>{r.name}</b><small className={r.warn ? 'bad' : ''} title={u?.description}>{r.warn ?? u?.description}</small></span>
+                      <span className="sk2-usage">{!!u?.use?.used && <DayStrip days={u.use.days} />}<span className={`sk2-n${u?.use?.used ? '' : ' none'}`}>{u?.use?.used ? `${u.use.used}×` : '—'}</span></span>
+                    </>
+                  )
+                })() : (
+                  <>
+                    <span className="sk2-main"><b>{r.name}</b>{(r.warn || !r.creator) && <small className={r.warn ? 'bad' : ''}>{r.warn ?? r.fact}</small>}</span>
+                    <span className={`sk2-size${(r.bytes ?? 0) >= 1024 ** 3 ? ' big' : ''}`}>{r.found ? '' : size(r.bytes)}</span>
+                  </>
+                )}
                 {live.has(r.key) && <span className="sk2-plus" aria-hidden>+1</span>}
               </button>
               </Fragment>

@@ -13,6 +13,7 @@ export function SkillUsage({ items, usage, claudeOff, named, projects, busy, onC
   const top = used[0]?.use.used ?? 1
   const loads = used.reduce((n, r) => n + r.use.used, 0)
   const cost = [...used, ...unused].filter((r) => r.on).reduce((n, r) => n + r.item.tokens.description, 0)
+  const idle = unused.filter((r) => r.on).reduce((n, r) => n + r.item.tokens.description, 0)
   // Who reached for what: each agent with the skills it used, most active first.
   const agents = new Map<string, { name: string; skills: LibraryItem[] }>()
   for (const { item, use } of used) for (const w of use.who) {
@@ -28,7 +29,7 @@ export function SkillUsage({ items, usage, claudeOff, named, projects, busy, onC
         <b>Last 30 days</b>
         <span className="hint">{loads} {loads === 1 ? 'load' : 'loads'} · {used.length} of {used.length + unused.length} skills used</span>
         <span className="lib-sp" />
-        <span className="hint">start-of-session cost</span>
+        <span className="hint">{cost.toLocaleString()} tok at the start of every Claude session{idle ? `, ${idle.toLocaleString()} from skills nobody used` : ''}</span>
         <CostMeter tokens={cost} unused={dust.saves} />
       </div>
       <div className="sku-grid">

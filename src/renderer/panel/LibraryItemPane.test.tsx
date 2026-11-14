@@ -12,31 +12,35 @@ import { LibraryItemPane } from './LibraryItemPane'
 
 const item: LibraryItem = { id: 'pdf', kind: 'skill', name: 'pdf', description: 'Work with PDFs.', body: 'Use it.', source: 'new', files: ['split.sh'], dir: '/lib/skills/pdf', tokens: { description: 4, body: 2 } }
 
-describe('the tabs of an item', () => {
+describe('an open item, read as a page', () => {
   afterEach(() => void (document.body.innerHTML = ''))
 
-  it('move with the arrow keys, Home and End, and each names the panel it shows', async () => {
+  it('opens on its details (where it works, its files) and moves to its own words with the arrow keys', async () => {
     const host = document.body.appendChild(document.createElement('div'))
-    await act(async () => createRoot(host).render(<LibraryItemPane item={item} where={<div>where</div>} onEdit={() => undefined} onRemove={() => undefined} />))
+    await act(async () => createRoot(host).render(<LibraryItemPane item={item} where={<div>where it works</div>} onEdit={() => undefined} onRemove={() => undefined} />))
     const tabs = () => [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-    const selected = () => tabs().find((t) => t.getAttribute('aria-selected') === 'true')!.textContent
-    const key = (k: string) => act(async () => void document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })))
+    const panel = () => host.querySelector(`#${tabs().find((t) => t.getAttribute('aria-selected') === 'true')!.getAttribute('aria-controls')}`)!
+    expect(tabs().map((t) => t.textContent)).toEqual(['Details', 'Skill content'])
+    expect(panel().getAttribute('role')).toBe('tabpanel')
+    expect(panel().textContent).toContain('where it works')
+    expect(panel().textContent).toContain('split.sh')
+    expect(host.textContent).not.toContain('Use it.')
     tabs()[0]!.focus()
-    expect(selected()).toBe('Overview')
-    await key('ArrowRight')
-    expect(selected()).toBe('What an agent reads')
-    expect(document.activeElement?.textContent).toBe('What an agent reads')
-    await key('End')
-    expect(selected()).toBe('Files (1)')
-    await key('ArrowRight')
-    expect(selected()).toBe('Overview')
-    await key('ArrowLeft')
-    expect(selected()).toBe('Files (1)')
-    await key('Home')
-    expect(selected()).toBe('Overview')
-    const panel = host.querySelector(`#${tabs()[0]!.getAttribute('aria-controls')}`)
-    expect(panel?.getAttribute('role')).toBe('tabpanel')
-    // Only the picked tab is in the Tab order.
-    expect(tabs().map((t) => t.tabIndex)).toEqual([0, -1, -1])
+    await act(async () => void document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })))
+    expect(document.activeElement?.textContent).toBe('Skill content')
+    expect(panel().querySelector('[aria-label="The item\'s text, scrolls"]')?.textContent).toContain('Use it.')
+    expect(tabs().map((t) => t.tabIndex)).toEqual([-1, 0])
+  })
+
+  it('calls the text tab Content for an instruction or a prompt', async () => {
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<LibraryItemPane item={{ ...item, kind: 'instruction' }} onEdit={() => undefined} onRemove={() => undefined} />))
+    expect([...host.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(['Details', 'Content'])
+  })
+
+  it('names where it came from above its name', async () => {
+    const host = document.body.appendChild(document.createElement('div'))
+    await act(async () => createRoot(host).render(<LibraryItemPane item={{ ...item, source: 'mattpocock-skills 1.3.1' }} onEdit={() => undefined} onRemove={() => undefined} />))
+    expect(host.querySelector('nav[aria-label="Where it is"]')?.textContent).toBe('Skills›mattpocock-skills 1.3.1›pdf')
   })
 })

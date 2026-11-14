@@ -7,7 +7,7 @@ import type { HeaderIconName } from './IconButton'
 import { toast } from '../toasts'
 import { ActionRow, RemoveFrom, type RemovePlan } from './RemoveFrom'
 
-/** The skill's reader, as one calm column: where it lives, where it works, and where it is used. */
+/** What is known about a skill, as boxes on its Details tab: where it works, where it is used, where it lives, and how to take it out. */
 export function SkillOverview({ item, use, places, where, original, busy, folder, onChanged, footer, onUseOriginal }: { folder?: string; onChanged?: () => void; /** What is done to the library entry itself (remove it, delete its files): rows in the same section. */ footer?: ReactNode; item: LibraryItem; use?: SkillUse; places: SkillPlaces; where: ReactNode; original?: string; busy: boolean; onUseOriginal: (dir: string, at: DOMRect) => void }) {
   const p = item.place
   const projects = Object.entries(use?.projects ?? {}).sort((a, b) => b[1] - a[1])
@@ -16,6 +16,17 @@ export function SkillOverview({ item, use, places, where, original, busy, folder
   const act = (v: Promise<unknown>) => void v.catch(toast)
   return (
     <div className="sk2-over">
+      {!item.missing && <section><h5>Where it works</h5>{where}</section>}
+      {projects.length > 0 && (
+        <section>
+          <h5>Where it is used</h5>
+          <div className="sk2-used">
+            {projects.map(([key, n]) => (
+              <div key={key} className="sk2-u"><span title={key}>{nameOf(key)}</span><i style={{ width: `${Math.max(6, Math.round((n / top) * 100))}%` }} aria-hidden /><b>{n}×</b></div>
+            ))}
+          </div>
+        </section>
+      )}
       <section>
         <h5>Where it lives</h5>
         <dl className="sk2-kv">
@@ -38,21 +49,10 @@ export function SkillOverview({ item, use, places, where, original, busy, folder
           </div>
         )}
       </section>
-      {!item.missing && <section><h5>Where it works</h5>{where}</section>}
       <section>
         <h5>Take it out of</h5>
         {!item.missing && item.place?.kind !== 'plugin' && <SkillRemoveFrom id={item.id} name={item.name} folder={folder} onChanged={onChanged ?? (() => undefined)} />}
         {footer}
-      </section>
-      <section>
-        <h5>Used in 30 days</h5>
-        {projects.length === 0 ? <p className="hint">Not used in the last 30 days.</p> : (
-          <div className="sk2-used">
-            {projects.map(([key, n]) => (
-              <div key={key} className="sk2-u"><span title={key}>{nameOf(key)}</span><i style={{ width: `${Math.max(6, Math.round((n / top) * 100))}%` }} aria-hidden /><b>{n}×</b></div>
-            ))}
-          </div>
-        )}
       </section>
     </div>
   )

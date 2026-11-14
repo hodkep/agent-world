@@ -70,17 +70,17 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     await pane.getByLabel('Item text').fill('Talk short and plain.')
     await pane.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(pane.getByRole('button', { name: 'Open Terse' })).toBeVisible()
-    // A skill opens to its overview: where it lives (a link to its real folder, the library holds no copy), and where it works: on for Claude by default. Its text and its other files are the next tabs.
+    // A skill opens on its details: where it works (on for Claude by default), where it lives (a link to its real folder, the library holds no copy) and its other files. Its own words are the next tab.
     await pane.getByRole('button', { name: 'Open pdf' }).click()
     const detail = pane.getByRole('group', { name: 'pdf in detail' })
-    await expect(detail.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
-    await expect(detail).toContainText('Where it lives')
-    await expect(detail).toContainText(join(user, '.agents', 'skills', 'pdf'))
-    await expect(detail.getByRole('switch', { name: 'On for every Claude account in the app' })).toBeChecked()
-    await detail.getByRole('tab', { name: 'What an agent reads' }).click()
-    await expect(detail).toContainText('Use the helper script')
-    await detail.getByRole('tab', { name: 'Files' }).click()
-    await expect(detail).toContainText('scripts/split.sh')
+    const details = detail.getByRole('tabpanel')
+    await expect(detail.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true')
+    await expect(details).toContainText('Where it lives')
+    await expect(details).toContainText(join(user, '.agents', 'skills', 'pdf'))
+    await expect(details.getByRole('switch', { name: 'On for every Claude account in the app' })).toBeChecked()
+    await expect(details).toContainText('scripts/')
+    await detail.getByRole('tab', { name: 'Skill content' }).click()
+    await expect(detail.getByLabel("The item's text, scrolls")).toContainText('Use the helper script')
     // The files were not copied: the library holds a link to the folder.
     expect(lstatSync(join(home, 'aw', 'library', 'skills', 'pdf')).isSymbolicLink()).toBe(true)
 

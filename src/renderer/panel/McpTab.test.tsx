@@ -20,10 +20,12 @@ const report = (over: Partial<McpReport> = {}): McpReport => ({
 })
 const usage: ToolUsage = { tools: { Bash: cc(5, { web: 5 }), mcp__supabase__list_tables: cc(3, { web: 3 }) }, servers: { supabase: cc(3, { web: 3 }) } }
 
-async function mount(node: React.ReactNode, lib: Record<string, unknown>) {
+async function mount(node: React.ReactNode, lib: Record<string, unknown>, all = true) {
   ;(window as unknown as { aw: unknown }).aw = { library: { mcp: vi.fn(async () => report()), toolUsage: vi.fn(async () => usage), setMcp: vi.fn(async () => undefined), setToolPolicy: vi.fn(async () => undefined), connectMcp: vi.fn(async () => ({ status: 'failed', tools: [], ms: 1, at: 1 })), testMcp: vi.fn(async () => ({ status: 'failed', tools: [], ms: 1, at: 1 })), saveMcp: vi.fn(async () => ({ id: '' })), removeMcp: vi.fn(async () => undefined), mcpEntry: vi.fn(async () => ({ json: '{}', file: '/f', name: 'x', editable: true })), ...lib } }
   const host = document.body.appendChild(document.createElement('div'))
   await act(async () => createRoot(host).render(node))
+  // The MCP list opens on the servers called in 30 days; these tests look at every server.
+  if (all) await act(async () => void [...host.querySelectorAll<HTMLButtonElement>('.lib-views button')].find((b) => b.textContent?.startsWith('All'))?.click())
   return { host, lib: (window as unknown as { aw: { library: Record<string, ReturnType<typeof vi.fn>> } }).aw.library }
 }
 const click = (el: Element | null | undefined) => act(async () => void (el as HTMLElement).click())
@@ -72,6 +74,37 @@ describe('the MCP servers tab', () => {
     expect(r).toContain('Claude Code, in the app')
     await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent?.startsWith('Tools')))
     expect(host.querySelector('.lip')!.textContent).toContain('list_tables')
+  })
+
+  it('shows the servers called in 30 days, those not called, or all, and a search looks through all', async () => {
+    const { host } = await mount(<McpTab />, {}, false)
+    const names = () => [...host.querySelectorAll('.mt-pick')].map((b) => b.getAttribute('aria-label'))
+    const view = (label: RegExp) => click([...host.querySelectorAll('.lib-views button')].find((b) => label.test(b.textContent ?? '')))
+    expect([...host.querySelectorAll('.lib-views button')].map((b) => b.textContent)).toEqual(['Called in 30 days 1', 'Not called 2', 'All 4'])
+    expect(host.querySelector('.lib-views [aria-pressed="true"]')!.textContent).toBe('Called in 30 days 1')
+    expect(names()).toEqual(['Open supabase'])
+    await view(/^Not called/)
+    // agy's own lists are left out: their calls are not counted, so nothing says they were not called.
+    expect(names()).toEqual(['Open agent-world', 'Open idle'])
+    await view(/^All/)
+    expect(names()).toEqual(['Open agent-world', 'Open idle', 'Open supabase', 'Open stripe'])
+    await view(/^Called/)
+    const input = host.querySelector('input[aria-label="Find a server"]') as HTMLInputElement
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'idle')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(names()).toEqual(['Open idle'])
+  })
+
+  it('opens a server as a page: where it sits, then its details, its tools and its entry as tabs', async () => {
+    const { host } = await mount(<McpTab />, {})
+    await click(host.querySelector('[aria-label="Open supabase"]'))
+    const page = host.querySelector('.lip')!
+    expect(page.querySelector('nav[aria-label="Where it is"]')!.textContent).toBe('MCP servers›Claude Code›supabase')
+    expect([...page.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(['Details', 'Tools', 'Entry (JSON)'])
+    expect(page.querySelector('[role="tabpanel"]')!.textContent).toContain('Where it works')
+    expect(page.querySelector('[aria-label="Connect supabase"]')).not.toBeNull()
   })
 
   it('narrows by what is typed and says when nothing matches', async () => {
@@ -139,6 +172,7 @@ describe('a server that comes with a project', () => {
 
   it('asks first, showing what runs as the office worked it out: each argument, each variable with its value, the folder, and a warning for a variable that changes how programs load', async () => {
     const { host, lib: l } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Open theirs"]'))
     await click(host.querySelector('[aria-label="Connect theirs"]'))
     expect(l.connectMcp).not.toHaveBeenCalled()
     expect(l.mcpDescribe).toHaveBeenCalledWith({ id: 'project:theirs' })
@@ -157,6 +191,7 @@ describe('a server that comes with a project', () => {
     const l: Record<string, unknown> = lib()
     l.mcpDescribe = vi.fn(async () => ({ url: 'https://a.b/mcp', args: [], env: [], headers: [{ name: 'Authorization', value: 'Bearer x' }], risky: [], digest: 'd2' }))
     const { host } = await mount(<McpTab />, l)
+    await click(host.querySelector('[aria-label="Open theirs"]'))
     await click(host.querySelector('[aria-label="Connect theirs"]'))
     const ask = host.querySelector('[role="alertdialog"]')!
     expect(ask.textContent).toContain('https://a.b/mcp')
@@ -166,6 +201,7 @@ describe('a server that comes with a project', () => {
 
   it('starts nothing when the person says Cancel', async () => {
     const { host, lib: l } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Open theirs"]'))
     await click(host.querySelector('[aria-label="Connect theirs"]'))
     await click([...host.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent === 'Cancel'))
     expect(l.connectMcp).not.toHaveBeenCalled()
@@ -175,6 +211,7 @@ describe('a server that comes with a project', () => {
   it('says in words when the entry changed after it was shown, and starts nothing', async () => {
     const l = { ...lib(), connectMcp: vi.fn(async () => Promise.reject(new Error("Error invoking remote method 'library:mcp-connect': Error: It is not that now: look at it again."))) }
     const { host } = await mount(<McpTab />, l)
+    await click(host.querySelector('[aria-label="Open theirs"]'))
     await click(host.querySelector('[aria-label="Connect theirs"]'))
     await click([...host.querySelectorAll('[role="alertdialog"] button')].find((b) => b.textContent === 'Run it'))
     expect(host.querySelector('[role="alert"]')!.textContent).toBe('It is not that now: look at it again.')
@@ -182,6 +219,7 @@ describe('a server that comes with a project', () => {
 
   it('does not ask for a server in the person\'s own file', async () => {
     const { host, lib: l } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Open mine"]'))
     await click(host.querySelector('[aria-label="Connect mine"]'))
     expect(host.querySelector('[role="alertdialog"]')).toBeNull()
     expect(l.connectMcp).toHaveBeenCalledWith('global:mine')
@@ -207,7 +245,9 @@ describe('connecting to a server', () => {
   it('starts nothing until Connect is pressed, then shows the status on the row and the tools it found', async () => {
     const { host, lib } = await mount(<McpTab />, { connectMcp: vi.fn(async () => ok()) })
     expect(lib.connectMcp).not.toHaveBeenCalled()
-    expect(host.textContent).toContain('Not connected')
+    // Nothing is said about a server until it was connected: no status word on its row.
+    expect(host.textContent).not.toContain('Not connected')
+    await click(host.querySelector('[aria-label="Open supabase"]'))
     await click(host.querySelector('[aria-label="Connect supabase"]'))
     expect(lib.connectMcp).toHaveBeenCalledWith('global:supabase')
     expect(host.querySelector('[aria-label="Open supabase"]')!.closest('.sk2-row')!.textContent).toContain('Connected · 2 tools')
@@ -224,7 +264,9 @@ describe('connecting to a server', () => {
 
   it('says why in words when it failed, and when it needs a sign-in', async () => {
     const { host } = await mount(<McpTab />, { connectMcp: vi.fn(async (id: string) => (id === 'global:supabase' ? { status: 'failed', message: 'connect ECONNREFUSED 127.0.0.1:4401', tools: [], ms: 90, at: 1 } : { status: 'signin', message: 'The server wants a sign-in.', tools: [], ms: 90, at: 1 })) })
+    await click(host.querySelector('[aria-label="Open supabase"]'))
     await click(host.querySelector('[aria-label="Connect supabase"]'))
+    await click(host.querySelector('[aria-label="Open idle"]'))
     await click(host.querySelector('[aria-label="Connect idle"]'))
     const row = (n: string) => host.querySelector(`[aria-label="Open ${n}"]`)!.closest('.sk2-row')!.textContent
     expect(row('supabase')).toContain('Failed')
@@ -357,6 +399,25 @@ describe('the Tools tab', () => {
     expect([...host.querySelectorAll('[role="group"].sk2-pnl')].map((p) => p.getAttribute('aria-label'))).toEqual(['Claude Code', 'agy', 'supabase'])
     expect(host.querySelector('[aria-label="Open list tables"]')).not.toBeNull()
   })
+  it('opens on the tools called in 30 days, with those not called and all a click away', async () => {
+    const { host } = await mount(<ToolsTab />, {}, false)
+    const names = () => [...host.querySelectorAll('.mt-pick')].map((b) => b.getAttribute('aria-label'))
+    const views = [...host.querySelectorAll('.lib-views button')].map((b) => b.textContent!)
+    expect(views[0]).toBe('Called in 30 days 2')
+    expect(views[1]).toMatch(/^Not called \d+$/)
+    expect(host.querySelector('.lib-views [aria-pressed="true"]')!.textContent).toBe('Called in 30 days 2')
+    expect(names()).toEqual(['Open Bash', 'Open list tables'])
+  })
+
+  it('opens a tool as a page: where it sits, what it is, and what the app does when an agent calls it', async () => {
+    const { host } = await mount(<ToolsTab />, {})
+    await click(host.querySelector('[aria-label="Open Bash"]'))
+    const page = host.querySelector('.lip')!
+    expect(page.querySelector('nav[aria-label="Where it is"]')!.textContent).toBe('Tools›Claude Code›Bash')
+    expect(page.querySelectorAll('[role="tab"]')).toHaveLength(0)
+    expect(page.textContent).toContain('What the app does when an agent calls it')
+    expect(page.textContent).toContain('Calls in 30 days · 5')
+  })
 })
 
 describe('the MCP and tools usage', () => {
@@ -426,19 +487,19 @@ describe('a server that is set up the same in several places', () => {
     const { host } = await mount(<McpTab />, lib())
     expect(host.querySelectorAll('[aria-label="Open supabase"]')).toHaveLength(1)
     expect(host.querySelector('.sk2-row')!.textContent).toContain('3 places')
-    expect(host.querySelector('.lib-sum')!.textContent).toContain('1 server')
+    expect(host.querySelector('.lib-views')!.textContent).toContain('All 1')
   })
 
   it('connects the one in Claude\'s own file, not the one that comes with a project', async () => {
     const { host, lib: l } = await mount(<McpTab />, lib())
+    await click(host.querySelector('[aria-label="Open supabase"]'))
     await click(host.querySelector('[aria-label="Connect supabase"]'))
     expect(l.connectMcp).toHaveBeenCalledWith('global:supabase')
   })
 
-  it('lists its places in a tab, by project, and says which one comes with the repo', async () => {
+  it('lists its places in its details, by project, and says which one comes with the repo', async () => {
     const { host } = await mount(<McpTab />, lib())
     await click(host.querySelector('[aria-label="Open supabase"]'))
-    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
     const r = host.querySelector('.lip')!
     expect([...r.querySelectorAll('.mt-pg b')].map((b) => b.textContent)).toEqual(['Everywhere', 'app', 'sip'])
     expect(r.textContent).toContain('/w/sip/.mcp.json')
@@ -466,7 +527,6 @@ describe('a server that is set up the same in several places', () => {
     const mcpRemoval = vi.fn(async () => undefined)
     const { host } = await mount(<McpTab />, { ...lib(), mcpRemovalPlan, mcpRemoval })
     await click(host.querySelector('[aria-label="Open supabase"]'))
-    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
     const cards = [...host.querySelectorAll('.mt-place')]
     const card = cards.find((c) => c.textContent?.includes('/w/sip/.mcp.json'))!
     await click([...card.querySelectorAll('button')].find((b) => b.textContent === 'Remove from here'))
@@ -481,7 +541,6 @@ describe('a server that is set up the same in several places', () => {
     const mcpRemovalPlan = vi.fn(async () => ({ steps: [] }))
     const { host } = await mount(<McpTab />, { ...lib(), mcpRemovalPlan })
     await click(host.querySelector('[aria-label="Open supabase"]'))
-    await click([...host.querySelectorAll('[role="tab"]')].find((t) => t.textContent === 'Places'))
     const bulk = host.querySelector('section .mt-rm')!
     expect([...bulk.querySelectorAll('button b')].map((b) => b.textContent)).toEqual(['Every project', 'Every place', 'Keep one global, remove the project ones'])
     await click([...bulk.querySelectorAll('button')].find((b) => b.querySelector('b')?.textContent?.startsWith('Keep one')))

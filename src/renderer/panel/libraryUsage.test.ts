@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { byProject, dustOf, meterCells, splitUsage } from './libraryUsage'
+import { byProject, dustOf, keepGroups, meterCells, skillView, splitUsage } from './libraryUsage'
+import type { ShelfGroup } from './skillGroups'
 
 const skill = (id: string, description: number) => ({ id, name: id, kind: 'skill' as const, tokens: { description, body: 0 } })
 
@@ -38,5 +39,34 @@ describe('where skills are used, by project', () => {
     const use = (projects: Record<string, number>) => ({ used: 0, last: 0, agents: [], accounts: [], days: [], who: [], projects })
     const r = byProject({ pdf: use({ shop: 5, api: 1 }), memo: use({ shop: 2 }), tdd: use({ api: 4, gone: 1 }) }, [{ key: 'shop', path: '/w/shop', name: 'shop-app' }, { key: 'api', path: '/w/api', name: 'api' }])
     expect(r.map((x) => [x.name, x.uses, x.top])).toEqual([['shop-app', 7, ['pdf', 'memo']], ['api', 5, ['tdd', 'pdf']], ['gone', 1, ['tdd']]])
+  })
+})
+
+describe('which skills the list shows', () => {
+  it('opens on the skills in use when any were used, else on all of them', () => {
+    expect(skillView(null, '', 3)).toBe('use')
+    expect(skillView(null, '', 0)).toBe('all')
+  })
+  it('keeps what was picked, and searches everything while something is typed', () => {
+    expect(skillView('rest', '', 3)).toBe('rest')
+    expect(skillView('use', 'pdf', 3)).toBe('all')
+    expect(skillView('others', '  ', 3)).toBe('others')
+  })
+})
+
+describe('the skills in use, or resting, in their groups', () => {
+  const u = (used: number) => ({ used, last: 0, agents: [], accounts: [], days: [], who: [], projects: {} })
+  const row = (key: string, creator?: string) => ({ key, name: key, fact: '', bytes: 10, ...(creator && { creator: { name: creator, detail: '' } }) })
+  const groups: ShelfGroup[] = [
+    { key: 'global', kind: 'global', title: 'Global', path: '~', bytes: 0, measured: true, rows: [row('pptx', 'anthropics'), row('a', 'matt'), row('b', 'matt'), row('c', 'matt')] },
+    { key: 'plugin', kind: 'plugin', title: 'Plugins', path: '', bytes: 0, measured: true, rows: [row('old', 'figma')] },
+    { key: 'found', kind: 'found', title: 'Found', path: '', bytes: 0, measured: true, rows: [row('x')] }
+  ]
+  it('keeps only the skills asked for, each group and source in its place, the most used first inside a source, and drops a group left empty', () => {
+    const kept = keepGroups(groups, { a: u(1), b: u(9), pptx: u(2) }, new Set(['a', 'b', 'pptx']))
+    expect(kept.map((g) => [g.title, g.rows.map((r) => r.key), g.bytes])).toEqual([['Global', ['pptx', 'b', 'a'], 30]])
+  })
+  it('never keeps what was found but is not in the library', () => {
+    expect(keepGroups(groups, {}, new Set(['x', 'old'])).map((g) => g.key)).toEqual(['plugin'])
   })
 })
