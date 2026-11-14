@@ -126,7 +126,7 @@ import { WorkflowHistory } from './workflows/history'
 import { WaitNotices } from './workflows/waitNotice'
 import { blockText, branchHead, currentBranch, foreignMove, gitEnv, holdsBranch, isInside, movesBase, originalHooks, pushGate, refHead, stagedFiles, writeGitHooks } from './workflows/commitGate'
 import { type SkillSource, skillStates } from '../shared/skills'
-import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, builderAgent, builderIntro, builderName, builderOptions, builderProgram, planBuilderStart } from '../shared/builder'
+import { BUILDER_ALLOWED as BUILDER_ALLOWED_NAMES, type SaveHow, withoutBuilders, builderAgent, builderIntro, builderName, builderOptions, builderProgram, planBuilderStart } from '../shared/builder'
 import { checkEnv, runCheck } from './workflows/runCheck'
 import { requestOf } from '../shared/intent'
 import { auditSettled } from '../shared/mergeCheck'
@@ -2847,7 +2847,7 @@ async function main() {
     return libraryService.compileFor(folder, m === 'yes' || m === 'connected')
   })
   // The program under each login says who is signed in (read only); the service does the rest, whichever program it is.
-  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => (signedInAccounts.clear(), accountsSvc.list(agents, binFor, env)))
+  ipcMain.handle('accounts:list', (): Promise<AccountInfo[]> => (signedInAccounts.clear(), accountsSvc.list(withoutBuilders(agents), binFor, env)))
   // How many logins (a program's own and each account) are waiting for a sign-in: the dot on Settings and on Accounts.
   ipcMain.handle('accounts:needing-sign-in', async (): Promise<number> => (signedInAccounts.clear(), signInsNeeded(await accountsSvc.list(agents, binFor, env))))
   // Adding makes the folder and links your own instructions and skills into it; the sign-in comes next, in a terminal the user sees.
@@ -3358,7 +3358,7 @@ async function main() {
   ipcMain.handle('agent-set-account', (_, id: string, account: string) => moveAgentAccount(id, account))
   // Every agent as the "switch all agents to an account" dialog sees it.
   const switchAgents = (): SwitchAgent[] =>
-    agents.map((a) => ({ id: a.id, name: a.name, provider: providerOf(a).id, account: a.account ?? '', project: a.repoPath, online: sessions.has(a.id), activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : null }))
+    withoutBuilders(agents).map((a) => ({ id: a.id, name: a.name, provider: providerOf(a).id, account: a.account ?? '', project: a.repoPath, online: sessions.has(a.id), activity: sessions.has(a.id) ? (lastActivity.get(a.id) ?? 'idle') : null }))
   const waitStopped = async (id: string, ms = 12_000) => {
     for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 250))) if (!sessions.has(id) || ['idle', 'waiting', undefined].includes(lastActivity.get(id))) return true
     return false
@@ -3531,7 +3531,7 @@ async function main() {
     overview(ledger, Math.min(Math.max(Math.round(days) || 30, 1), 365), Date.now(), Object.fromEntries(agents.map((a) => [a.id, a.name]))))
   ipcMain.handle('ledger:share', (_, year: number, month: number, kind: 'five_hour' | 'weekly') => shareReport(ledger, Math.min(Math.max(Math.round(year) || new Date().getFullYear(), 2000), 2100), Math.min(Math.max(Math.round(month) || 0, 0), 11), kind === 'five_hour' ? 'five_hour' : 'weekly', Date.now()))
   // Measured only when the Storage tab asks, in the background; the screen is told as each folder is done.
-  const storage = new StorageService({ file: join(HOME, 'storage.json'), home: HOME, worktrees: join(HOME, 'worktrees'), slug: repoSlug, agents: () => agents.map((a) => ({ id: a.id, name: a.name, cwd: a.cwd, repoPath: a.repoPath, ...(a.parent && { parent: a.parent }), ...(a.activeAt && { activeAt: a.activeAt }) })), workspaces: () => workspacePaths(workspaces, null, agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir) })
+  const storage = new StorageService({ file: join(HOME, 'storage.json'), home: HOME, worktrees: join(HOME, 'worktrees'), slug: repoSlug, agents: () => withoutBuilders(agents).map((a) => ({ id: a.id, name: a.name, cwd: a.cwd, repoPath: a.repoPath, ...(a.parent && { parent: a.parent }), ...(a.activeAt && { activeAt: a.activeAt }) })), workspaces: () => workspacePaths(workspaces, null, agents.filter((a) => !a.parent).map((a) => a.repoPath)).filter(isDir) })
   storage.onChange(() => send('storage'))
   ipcMain.handle('storage:report', (e) => ({ ...storage.report(), active: windowWorkspaces.get(e.sender.id) }))
   ipcMain.handle('storage:measure', () => void storage.measure().catch((err) => console.error('storage measure failed:', err)))

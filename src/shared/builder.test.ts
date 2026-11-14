@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderIntro, builderOptions, builderProgram, diffSummary, planBuilderStart, workflowDiff } from './builder'
+import { BUILDER_ALLOWED, BUILDER_NAME, BUILDER_ROLE, BUILDER_TOOLS, builderAgent, builderInstructions, builderName, builderIntro, builderOptions, builderProgram, diffSummary, withoutBuilders, planBuilderStart, workflowDiff } from './builder'
 import type { AgentRecord } from './types'
 import { STEPS_MAX, STEP_KINDS, GATES, parseWorkflow, type Workflow } from './workflow'
 
@@ -15,6 +15,14 @@ const bugFix: Workflow = {
     { id: 'land', kind: 'merge' }
   ]
 }
+
+describe('the agents a person counts', () => {
+  it('leave out the builder, which is the office\'s own', () => {
+    const list = [{ id: 'a' }, { id: 'b', builder: true }, { id: 'c', builder: false }]
+    expect(withoutBuilders(list).map((a) => a.id)).toEqual(['a', 'c'])
+    expect(withoutBuilders([])).toEqual([])
+  })
+})
 
 describe('workflowDiff', () => {
   it('calls every step added and every command new when nothing was saved', () => {
