@@ -84,11 +84,13 @@ test('a task that needs no commit, push or pull request: the agent asks once, on
     await card.getByRole('button', { name: 'Skip all three' }).click()
     await expect(card).toHaveCount(0)
 
-    // Skipped, with the reason on each step, and with all of them met or skipped the strip has nothing left to show.
+    // Skipped, with the reason on each step, and with all of them met or skipped the open run keeps its strip (it waits for task_done) and goes with it.
     const skippedSteps = async () => (await page.evaluate(() => window.aw.workflows.summary().then((s) => s.runs[0]!.rounds[0]!.steps.filter((x) => x.state === 'skipped').map((x) => `${x.step}: ${x.note}`))))
     await expect.poll(skippedSteps).toEqual(['commit', 'push', 'pr'].map((id) => `${id}: Everything went out as merged PRs; the branch has nothing to commit.`))
-    await expect(page.getByRole('region', { name: 'Release follow-ups: where ada is' })).toHaveCount(0)
+    const strip = page.getByRole('region', { name: 'Release follow-ups: where ada is' })
+    await expect(strip).toHaveCount(1)
     expect((await call('task_done', { summary: 'Nothing to ship.' })).error).toBe(false)
+    await expect(strip).toHaveCount(0)
     const [run] = await page.evaluate(() => window.aw.workflows.summary().then((s) => s.runs))
     expect(run!.status).toBe('done')
     await client.close()
