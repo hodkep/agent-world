@@ -5406,3 +5406,7 @@ main.term-side .stage-wrap.off { z-index: auto; }
 .mt-opt.mt-danger .mt-opt-ic, .mt-opt.mt-danger b { color: var(--danger-text); }
 .mt-opt-inline { display: inline-flex; align-items: center; gap: 6px; }
 .mt-lib { margin: 0; }
+.wfl-rename { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; min-width: 0; flex: 1 1 260px; max-width: 460px; }
+.wfl-rename input { min-width: 0; flex: 1 1 120px; }
+.wfl-rename button { flex: none; }
+.wfl-rn { font-size: 12px; padding: 2px 8px; }

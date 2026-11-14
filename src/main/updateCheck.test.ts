@@ -218,7 +218,7 @@ describe('when GitHub says its limit is spent', () => {
     const asked: string[] = []
     const get = async (url: string) => {
       asked.push(url)
-      if (url.startsWith(mirror)) {
+      if (new URL(url).origin === new URL(mirror).origin) {
         if (file instanceof Error) throw file
         return { ok: true, status: 200, json: async () => ({}), text: async () => file }
       }

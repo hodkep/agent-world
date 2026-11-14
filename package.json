@@ -35,6 +35,7 @@
       "dompurify": "^3.4.17",
       "katex": "^0.18.10",
       "lodash-es": "^4.18.1",
+      "minimatch@>=7 <11": "^11.0.1",
       "source-map-js": "^1.2.2"
     }
   },

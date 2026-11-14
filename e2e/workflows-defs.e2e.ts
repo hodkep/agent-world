@@ -72,10 +72,10 @@ test('the Workflows tab lists the built-in, global and project workflows, shows 
     await list.getByRole('option', { name: /broken\.json/ }).click()
     await expect(win.getByRole('list', { name: 'Problems' })).toContainText('Not valid JSON')
 
-    // The built-in cannot be deleted, but can be chosen as the default again, and copied.
+    // The built-in can be deleted like the others (not done here), and renamed.
     await list.getByRole('option', { name: /Standard/ }).click()
     await win.getByRole('button', { name: 'More' }).click()
-    await expect(win.getByRole('menuitem', { name: 'Delete' })).toHaveCount(0)
+    await expect(win.getByRole('menuitem', { name: 'Delete' })).toHaveCount(1)
     await win.getByRole('button', { name: 'More' }).click()
 
     // Make a workflow this project's default: it is remembered in the preferences, by project.

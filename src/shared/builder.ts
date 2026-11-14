@@ -181,6 +181,9 @@ export type SaveHow = 'project' | 'global' | 'replace' | 'copy'
 /** The project's builder, if the office has made one. */
 export const builderAgent = (agents: AgentRecord[], repoPath: string): AgentRecord | undefined => agents.find((a) => a.builder && a.repoPath === repoPath)
 
+/** The agents a person counts as theirs: the builder is the office's own and is in no list of agents (a switch of account, a restart, a count). */
+export const withoutBuilders = <T extends { builder?: boolean }>(agents: T[]): T[] => agents.filter((a) => !a.builder)
+
 /** How the builder is launched: on the program chosen, in the folder itself, read-only, with its instructions. */
 export const builderOptions = (provider: 'claude' | 'agy'): AgentOptions => ({ provider, role: BUILDER_ROLE, inPlace: true, permissionMode: 'plan', instructions: builderInstructions() })
 

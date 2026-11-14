@@ -1,21 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { builderHeading, listButtons, savedEntry } from './listButtons'
 
-const base = { scope: 'project' as const, isDefault: false, removedHere: false, hasFolder: true }
+const base = { isDefault: false, hasFolder: true }
 
 describe('the buttons under the selected workflow', () => {
-  it('make default is offered for one that is not the default, and delete for one that is not built in', () => {
-    expect(listButtons(base)).toEqual({ restore: false, makeDefault: true, more: ['copyProject', 'copyGlobal', 'delete'] })
+  it('make default is offered for one that is not the default, and every workflow can be copied and deleted', () => {
+    expect(listButtons(base)).toEqual({ makeDefault: true, more: ['copyProject', 'copyGlobal', 'delete'] })
     expect(listButtons({ ...base, isDefault: true }).makeDefault).toBe(false)
   })
-  it('the built-in one can be removed for the project, not deleted', () => {
-    expect(listButtons({ ...base, scope: 'built-in' }).more).toEqual(['copyProject', 'copyGlobal', 'remove'])
-  })
-  it('a built-in one removed for this project is restored, and cannot be made the default or removed again', () => {
-    expect(listButtons({ ...base, scope: 'built-in', removedHere: true })).toEqual({ restore: true, makeDefault: false, more: ['copyProject', 'copyGlobal'] })
-  })
-  it('with no project open there is nothing to make default, restore or remove', () => {
-    expect(listButtons({ ...base, scope: 'built-in', hasFolder: false })).toEqual({ restore: false, makeDefault: false, more: ['copyProject', 'copyGlobal'] })
+  it('with no project open there is nothing to make default, and the file actions stay', () => {
+    expect(listButtons({ ...base, hasFolder: false })).toEqual({ makeDefault: false, more: ['copyProject', 'copyGlobal', 'delete'] })
   })
 })
 

@@ -4,6 +4,7 @@ import { History } from './History'
 import type { ProposalView, SaveHow } from '../../shared/builder'
 import type { Step, WorkflowEntry } from '../../shared/workflow'
 import { previewOf, stopsLine } from '../../shared/workflowPreview'
+import { NameEdit } from './NameEdit'
 import { StepEditor } from './StepEditor'
 import { SkillChips } from './WorkflowList'
 
@@ -102,7 +103,7 @@ export function Proposal({ agentId, folder, view, onSaved, onGone, onChanged }: 
     <section className="bs-draft fills" aria-label="Workflow proposal">
       <div className="bs-top">
         <div className="wfl-head">
-          <b>{wf.name}</b>
+          <NameEdit name={wf.name} stop={agentId} disabled={problem || busy} onSave={(name) => window.aw.workflows.editProposal(agentId, folder, { ...wf, name }).then(() => onChanged(), (e: Error) => (setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')), Promise.reject(e)))} />
           <span className="wf-tag draft">Draft</span>
           <span className="muted">{!view.saved ? 'new · not saved' : replaces ? `replaces ${SCOPE_WORDS[view.saved.scope]}` : 'replaces the built-in Standard'}</span>
           <span className="bs-actions">
