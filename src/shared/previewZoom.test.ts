@@ -25,21 +25,22 @@ describe('which key press zooms the page', () => {
 })
 
 describe('the zoom a key goes to', () => {
-  const base = 1.2 // the app opens at 120%: that is the page's 100%
-  it('steps up and down from where the page is, in fixed steps', () => {
-    expect(zoomTo('in', base, base)).toBeCloseTo(1.2 * 1.1)
-    expect(zoomTo('out', base, base)).toBeCloseTo(1.2 * 0.9)
-    expect(zoomTo('in', 1.2 * 1.1, base)).toBeCloseTo(1.2 * 1.25)
+  // A page's 100% is the browser's own, whatever the app's zoom (the app opens at 120%).
+  it('steps up and down from where the page is, in fixed steps from 100%', () => {
+    expect(zoomTo('in', 1)).toBeCloseTo(1.1)
+    expect(zoomTo('out', 1)).toBeCloseTo(0.9)
+    expect(zoomTo('in', 1.1)).toBeCloseTo(1.25)
   })
   it('goes to the next step when the page is between two', () => {
-    expect(zoomTo('in', 1.2 * 1.05, base)).toBeCloseTo(1.2 * 1.1)
-    expect(zoomTo('out', 1.2 * 1.05, base)).toBeCloseTo(1.2)
+    expect(zoomTo('in', 1.05)).toBeCloseTo(1.1)
+    expect(zoomTo('out', 1.05)).toBeCloseTo(1)
   })
   it('stops at the smallest and the largest', () => {
-    expect(zoomTo('in', 1.2 * 3, base)).toBeCloseTo(1.2 * 3)
-    expect(zoomTo('out', 1.2 * 0.25, base)).toBeCloseTo(1.2 * 0.25)
+    expect(zoomTo('in', 3)).toBeCloseTo(3)
+    expect(zoomTo('out', 0.25)).toBeCloseTo(0.25)
   })
-  it('goes back to the app size on reset', () => {
-    expect(zoomTo('reset', 1.2 * 2, base)).toBe(base)
+  it('goes back to 100% on reset, not to the app’s 120%', () => {
+    expect(zoomTo('reset', 2)).toBe(1)
+    expect(zoomTo('reset', 1.2)).toBe(1)
   })
 })

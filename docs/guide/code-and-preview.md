@@ -67,7 +67,7 @@ The first time a site on the internet opens, Preview asks **Open here** or **In 
 
 The toolbar has **Back**, **Forward**, **Reload**, **Site data** (the cookies the Preview keeps for each site, with a **Clear** for one site and for all), **Screen size** (**Desktop**, **Tablet**, **Mobile**), **Select element** (click something on the page to send it to the agent as words and a picture) and **Open in browser**.
 
-To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back, and the rest of the app keeps its size.
+A page opens at 100%, the size it has in a browser, whatever the zoom of the app around it. To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back to 100%, and the rest of the app keeps its size. A page that loads another address starts again at 100%.
 
 ## Using the Preview as a browser (for agents)
 

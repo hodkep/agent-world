@@ -3766,6 +3766,8 @@ async function main() {
     rightClick(contents)
     // Pinch zooms the page (Electron has it off), and Cmd+ / Cmd- / Cmd+0 over the page zoom it, not the app: the key is taken here, before the menu's own zoom shortcuts.
     void contents.setVisualZoomLevelLimits(1, 4).catch(() => {})
+    // A Preview page opens at the browser's 100%: it would otherwise take the app's own zoom (120%) and every site would look too big.
+    if (contents.session === preview) contents.on('did-navigate', () => contents.setZoomFactor(1))
     contents.on('before-input-event', (e, input) => {
       // A page clicked in Preview is a window of its own and takes every key: the app's own shortcuts are taken here and handed to the window that holds it.
       if (appKey(input)) {
@@ -3777,7 +3779,7 @@ async function main() {
       const to = zoomKey(input, process.platform === 'darwin')
       if (!to) return
       e.preventDefault()
-      contents.setZoomFactor(zoomTo(to, contents.getZoomFactor(), contents.hostWebContents?.getZoomFactor() || 1))
+      contents.setZoomFactor(zoomTo(to, contents.getZoomFactor()))
     })
     // A link that asks for a new window is followed in the same pane; the pane never opens windows of its own.
     contents.setWindowOpenHandler(({ url }) => (isWebUrl(url) && void contents.loadURL(url).catch(() => {}), { action: 'deny' }))
