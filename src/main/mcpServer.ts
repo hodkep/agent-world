@@ -94,6 +94,7 @@ interface Options {
      */
     begin: (callerId: string, title: string, followUp: boolean, workflow?: string) => { planFirst: boolean; brief?: string; /** The project uses no workflow: nothing was recorded. */ none?: boolean; /** The request became an item of the task in progress. */ added?: boolean }
     done: (callerId: string, summary?: string) => void
+    end: (callerId: string, why: string, asked: boolean) => Promise<{ outcome: 'dropped' | 'ended'; title: string }>
     /** The agent reports a step it does as done; says which step, and the one that now waits for the person if any. */
     stepDone: (callerId: string, step?: string, o?: { skipped?: boolean; why?: string; item?: number }) => { done: string; waiting?: string; checking?: boolean; skipped?: boolean; hint?: string; next?: { id: string; name: string; optional: boolean; start: boolean; by?: 'agent' | 'person'; brief?: string } }
     /** The agent puts a step back to open (one it reported, or one the person refused, once it is the right time to ask again); says its name. */
@@ -638,6 +639,21 @@ function addWorkflowTools(server: McpServer, callerId: string, wf: WorkflowApi) 
       try {
         const names = wf.askSkip(callerId, steps, why)
         return { content: [{ type: 'text' as const, text: `Asked the person to skip ${names.join(', ')}. Their answer arrives as your next message; change nothing meanwhile.${wf.hint?.(callerId) ?? ''}` }] }
+      } catch (err) {
+        return fail(err)
+      }
+    }
+  )
+  server.registerTool(
+    'task_end',
+    {
+      description: 'End your open run before its steps are done: when the request needed no change after all (a question, an answer only), or when the person asked you to stop. A run with nothing changed since it began is dropped; one with changed work is ended only when the person asked (pass asked). Say why: the person sees it.',
+      inputSchema: { why: z.string().min(1).max(200).describe('Why the run ends, in a sentence; the person reads it'), asked: z.boolean().optional().describe('true when the person asked you to end it') }
+    },
+    async ({ why, asked }) => {
+      try {
+        const r = await wf.end(callerId, why, asked ?? false)
+        return { content: [{ type: 'text' as const, text: r.outcome === 'dropped' ? `Run dropped: "${r.title}" changed nothing, so it needed no workflow.` : `Run ended: "${r.title}". What was left is set aside with your reason; nothing about it is asked again.` }] }
       } catch (err) {
         return fail(err)
       }

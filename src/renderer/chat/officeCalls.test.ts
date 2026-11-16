@@ -203,6 +203,10 @@ describe('reopening a step and asking to skip steps are workflow calls that stay
   it('say their own line, with the reason as the small text', () => {
     expect(whisperOf(call('a', 'step_reopen', { step: 'verify', why: 'new treemap' }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Reopened step', rest: 'verify', why: 'new treemap' })
     expect(whisperOf(call('b', 'skip_steps', { steps, why: 'nothing to ship' }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Asked to skip', rest: 'build, walkthrough', why: 'nothing to ship' })
+    // Ending a run stays in the chat with its reason, so a run never ends silently.
+    expect(runCall('mcp__agent-world__task_end')).toBe(false)
+    expect(whisperOf(call('c', 'task_end', { why: 'only a question', asked: false }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Ended run', why: 'only a question' })
+    expect(whisperOf(call('d', 'task_end', { why: 'stop here', asked: true }, 'ok').run)).toMatchObject({ kind: 'workflow', bold: 'Ended run', rest: 'as you asked', why: 'stop here' })
   })
 
   it('are not hidden as run calls, since the run bar does not show them, and keep a stamp of their own', () => {
@@ -211,6 +215,7 @@ describe('reopening a step and asking to skip steps are workflow calls that stay
     const stamp = (tool: string, input: Record<string, unknown>) => stampOf(call('a', tool, input, 'ok').run, false)
     expect(stamp('step_reopen', { step: 'verify' })).toMatchObject({ kind: 'flag', label: 'reopen verify' })
     expect(stamp('skip_steps', { steps })).toMatchObject({ kind: 'flag', label: 'skip ask' })
+    expect(stamp('task_end', { why: 'x' })).toMatchObject({ kind: 'flag', label: 'run ended' })
   })
 
   it('are in the folded summary under Workflow', () => {

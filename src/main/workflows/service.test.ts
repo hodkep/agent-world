@@ -1418,6 +1418,36 @@ describe('steps are reported in order, and finishing a task never claims a step 
     expect(() => second.wf.dropRun(id2)).toThrow('work')
   })
 
+  it('the agent drops its own run when nothing was changed, even after reporting steps: an answer-only request never needed a workflow', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    const title = wf.runs()[0]!.title
+    expect(wf.endByAgent('a1', 'The person only asked a question.', { asked: false, changed: false })).toEqual({ outcome: 'dropped', title })
+    expect(wf.runs()).toEqual([])
+  })
+
+  it('the agent ends its run at the person\'s word, though work was changed: what is left is set aside with its reason, and the run stays as ended', () => {
+    const { wf } = started()
+    wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })
+    const r = wf.endByAgent('a1', 'The person said to stop here.', { asked: true, changed: true })
+    expect(r.outcome).toBe('ended')
+    const run = wf.runs()[0]!
+    expect(run.status).toBe('stopped')
+    const build = run.rounds.at(-1)!.steps.findLast((l) => l.step === 'build')
+    expect(build?.state).toBe('skipped')
+    expect(build?.note).toBe('Ended by the agent: The person said to stop here.')
+  })
+
+  it('the agent cannot end a run with changed work that the person did not ask to end, nor one that is not open', () => {
+    const { wf } = started()
+    expect(() => wf.endByAgent('a1', 'Done enough.', { asked: false, changed: true })).toThrow(/finish its steps|ask the person/)
+    expect(wf.runs()[0]!.status).toBe('open')
+    expect(() => wf.endByAgent('a1', '  ', { asked: true, changed: true })).toThrow(/why/)
+    wf.endByAgent('a1', 'The person said stop.', { asked: true, changed: true })
+    expect(() => wf.endByAgent('a1', 'Again.', { asked: true, changed: false })).toThrow('No task is open.')
+    expect(() => wf.endByAgent('nobody', 'x', { asked: true, changed: false })).toThrow('No task is open.')
+  })
+
   it('a refused step asks what next: skipping it lets the steps after it go on, and later leaves it refused without asking again', () => {
     const { wf } = started()
     wf.stepDone('a1', 'designs', { skipped: true, why: 'No UI.' })

@@ -345,8 +345,23 @@ describe('workflow tools', () => {
       calls.push(`${caller} plan ${path}`)
       return { questions: 2 }
     },
-    done: (caller: string, summary?: string) => void calls.push(`${caller} done ${summary ?? ''}`)
+    done: (caller: string, summary?: string) => void calls.push(`${caller} done ${summary ?? ''}`),
+    end: async (caller: string, why: string, asked: boolean) => {
+      if (why === 'changed') throw new Error('This run has changed work: finish its steps, or ask the person whether to end it.')
+      calls.push(`${caller} end ${asked}: ${why}`)
+      return { outcome: asked ? ('ended' as const) : ('dropped' as const), title: 'Fix the login redirect' }
+    }
   }
+  it('task_end reaches the office with the caller, the reason and whether the person asked, and says what became of the run', async () => {
+    calls.length = 0
+    const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')
+    expect(text(await c.callTool({ name: 'task_end', arguments: { why: 'Only a question.' } }))).toContain('Run dropped')
+    expect(text(await c.callTool({ name: 'task_end', arguments: { why: 'The person said stop.', asked: true } }))).toContain('Run ended')
+    const refused = await c.callTool({ name: 'task_end', arguments: { why: 'changed' } })
+    expect((refused as { isError?: boolean }).isError).toBe(true)
+    expect(text(refused)).toContain('ask the person')
+    expect(calls).toEqual(['a1 end false: Only a question.', 'a1 end true: The person said stop.'])
+  })
   it('task_begin and task_done reach the recorder with the caller and what was said', async () => {
     calls.length = 0
     const c = await connect((await setup(undefined, undefined, undefined, wf)).url, 'a1')

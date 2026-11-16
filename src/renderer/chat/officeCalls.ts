@@ -11,7 +11,7 @@ const OWN_CARD = new Set(['send_message', 'broadcast_message', 'list_agents', 's
 /** The calls that move a run along: the track above the chat shows them, so the chat does not. */
 const RUN_TOOLS = new Set(['task_begin', 'task_done', 'step_done', 'plan_submit'])
 /** Workflow calls the run bar does not show, so they stay in the chat (not hidden like RUN_TOOLS) but belong with the workflow, not under Other. */
-const WORKFLOW_CALLS = new Set(['step_reopen', 'skip_steps'])
+const WORKFLOW_CALLS = new Set(['step_reopen', 'skip_steps', 'task_end'])
 
 /** The agent's broadcast to the whole project: it has a card of its own in the chat. */
 export function broadcastCall(name: string): boolean {
@@ -77,7 +77,7 @@ export interface Whisper {
 }
 
 /** What each call that moves a run says in a line: a run is the workflow's word, a task is a todo's. */
-const RUN_WORDS: Record<string, string> = { task_begin: 'began run', plan_submit: 'plan sent', step_done: 'step reported', task_done: 'run finished', step_reopen: 'step reopened', skip_steps: 'skip asked' }
+const RUN_WORDS: Record<string, string> = { task_begin: 'began run', plan_submit: 'plan sent', step_done: 'step reported', task_done: 'run finished', step_reopen: 'step reopened', skip_steps: 'skip asked', task_end: 'run ended' }
 const str = (v: unknown) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : v === undefined || v === null ? '' : String(v))
 const clip = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t)
 const lines = (t?: string) => (t && t.split('\n').length > 1 ? `${t.split('\n').length} lines` : '')
@@ -115,6 +115,7 @@ function said(run: ToolRun): Whisper {
     case 'step_reopen': return { kind: 'workflow', icon: '⚑', bold: 'Reopened step', rest: str(i.step), why: clip(str(i.why), 120) }
     case 'skip_steps': return { kind: 'workflow', icon: '⚑', bold: 'Asked to skip', rest: Array.isArray(i.steps) ? i.steps.map(str).join(', ') : '', why: clip(str(i.why), 120) }
     case 'task_done': return { kind: 'workflow', icon: '⚑', bold: 'Finished run', rest: '', why: clip(str(i.summary), 120) }
+    case 'task_end': return { kind: 'workflow', icon: '⚑', bold: 'Ended run', rest: i.asked === true ? 'as you asked' : '', why: clip(str(i.why), 120) }
     case 'workflow_list': return { kind: 'workflow', icon: '⚑', bold: 'Looked at', rest: 'workflows', why: '' }
     case 'workflow_get': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `workflow ${str(i.id)}`, why: '' }
     case 'workflow_history': return { kind: 'workflow', icon: '⚑', bold: 'Read', rest: `the history of workflow ${str(i.id)}`, why: '' }
@@ -168,7 +169,7 @@ export function stampOf(run: ToolRun, working = false): Stamp {
   if (isLook(tool)) return { kind: 'look', label: tool === 'app_ui_outline' ? 'layout' : tool === 'app_ui_screenshot' ? 'window' : tool === 'app_ui_readings' ? 'readings' : 'look', tip, state }
   if (tool === 'workflow_propose') return { kind: 'plan', label: 'proposed', tip, state }
   if (tool === 'plan_submit') return { kind: 'plan', label: 'plan', tip, state }
-  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step', step_reopen: str(i.step) ? `reopen ${str(i.step)}` : 'reopen', skip_steps: 'skip ask' }
+  const flagged: Record<string, string> = { workflow_list: 'workflows', workflow_get: id, workflow_history: id, task_begin: 'run', task_done: 'run done', step_done: str(i.step) ? `step ${str(i.step)}` : 'step', step_reopen: str(i.step) ? `reopen ${str(i.step)}` : 'reopen', skip_steps: 'skip ask', task_end: 'run ended' }
   return { kind: 'flag', label: flagged[tool] ?? clip(humanize(tool), 14), tip, state }
 }
 
