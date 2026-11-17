@@ -278,6 +278,8 @@ const buffers = new Map<string, { text: string; end: number }>()
 const trustOpen = new Set<string>()
 // Subagents whose trust question was answered for them.
 const trustAnswered = new Set<string>()
+// Folders of the app's own that an agent is being answered "Yes, add it" for right now.
+const addDirAnswering = new Set<string>()
 const planOpen = new Set<string>()
 // When the terminal last drew anything: Claude's spinner redraws constantly while it works.
 const lastOutput = new Map<string, number>()
@@ -1226,6 +1228,16 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
       } else if (!trust && trustOpen.delete(a.id)) {
         send('trust-prompt', a.id, null)
         refreshAttention()
+      }
+      // Claude Code asks about each --add-dir folder it has not worked in; the ones inside the app's own folder are the app's to answer.
+      const adding = ui(a.id).addDirPrompt?.(text)
+      const rel = adding?.path ? relative(HOME, resolve(adding.path)) : '..'
+      if (adding?.path && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)) {
+        const key = `${a.id}|${adding.path}`
+        if (!addDirAnswering.has(key)) {
+          addDirAnswering.add(key)
+          void ui(a.id).answerAddDir?.({ screen: () => screens.get(a.id)?.text() ?? '', write: (keys) => sessions.get(a.id)?.write(keys), sleep: (ms) => new Promise((r) => setTimeout(r, ms)) }, true).finally(() => addDirAnswering.delete(key))
+        }
       }
       const asking = !!ui(a.id).parseAsk(text)
       if (asking !== questionOpen.has(a.id)) {

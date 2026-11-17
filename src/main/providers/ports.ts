@@ -71,6 +71,9 @@ export interface ScreenAdapter {
   /** The "do you trust this folder?" menu of a first run. */
   trustPrompt(screen: string): TrustPrompt | null
   answerTrust(io: TerminalIO, trust: boolean): Promise<boolean>
+  /** "Adding a new directory": the question about a folder passed with --add-dir (Claude only). */
+  addDirPrompt?(screen: string): TrustPrompt | null
+  answerAddDir?(io: TerminalIO, yes: boolean): Promise<boolean>
   /** The input box is showing and ready for a message. */
   inputReady(screen: string): boolean
   /** A working indicator is on the screen. */

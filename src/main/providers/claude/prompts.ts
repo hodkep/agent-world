@@ -22,9 +22,28 @@ export function trustPrompt(screen: string): TrustPrompt | null {
   return { path, highlighted: line.includes('Yes') ? 'yes' : 'no' }
 }
 
+const ADD_YES = 'Yes, add it'
+
+/** Claude Code's "Adding a new directory" menu, asked for each folder passed with --add-dir that it has not worked in. */
+export function addDirPrompt(screen: string): TrustPrompt | null {
+  const text = stripVTControlCharacters(screen)
+  const yesAt = text.lastIndexOf(ADD_YES)
+  // Its hint line is either "Enter to confirm · Esc to cancel" or, with "No, exit" highlighted, "Esc to exit · To add it, press ↓ to Yes, then Enter".
+  const confirmAt = Math.max(text.lastIndexOf(CONFIRM), text.lastIndexOf('Esc to exit · To add it'))
+  if (yesAt < 0 || confirmAt < yesAt) return null
+  if (text.slice(confirmAt).split('\n').filter((l) => l.trim()).length > 1 || inputBoxAfter(text.split('\n'), text.slice(0, yesAt).split('\n').length - 1)) return null
+  const start = text.lastIndexOf('Adding a new directory:', yesAt)
+  const end = text.indexOf("This session hasn't worked here", start)
+  if (start < 0 || end < start) return null
+  const path = text.slice(start + 'Adding a new directory:'.length, end).split(/\r?\n/).map((l) => l.trim()).join('')
+  const cursor = text.lastIndexOf('❯', confirmAt)
+  const line = text.slice(cursor, text.indexOf('\n', cursor) >>> 0)
+  return { path, highlighted: line.includes('Yes') ? 'yes' : 'no' }
+}
+
 /** Claude's input box (a `❯` line between rules) is on screen and no menu is in the way. */
 export function inputReady(screen: string): boolean {
-  if (trustPrompt(screen) || firstRunScreen(screen)) return false
+  if (trustPrompt(screen) || addDirPrompt(screen) || firstRunScreen(screen)) return false
   const lines = screen.split('\n').map((l) => l.trimStart())
   return lines.some((l) => l.startsWith('───')) && lines.some((l) => /^❯([ \u00a0]|$)/.test(l))
 }
@@ -65,7 +84,7 @@ export function promptDialog(screen: string): { title: string; context: string; 
 
 /** Any of Claude's terminal menus is open (trust, plan, permission...): typing now would answer it. */
 export function anyMenu(screen: string): boolean {
-  if (trustPrompt(screen) || firstRunScreen(screen) || promptDialog(screen)) return true
+  if (trustPrompt(screen) || addDirPrompt(screen) || firstRunScreen(screen) || promptDialog(screen)) return true
   const lines = stripVTControlCharacters(screen).split('\n')
   const at = lines.findLastIndex((l) => /^\s*❯\s*\d+\.\s/.test(l))
   return at >= 0 && !inputBoxAfter(lines, at)
@@ -82,6 +101,16 @@ const trustMenu: Menu = (screen) => {
 /** "No, exit" is option 0 and "Yes, I trust this folder" option 1. */
 export function answerTrust(io: TerminalIO, trust: boolean) {
   return answerMenu(io, trustMenu, trust ? 1 : 0)
+}
+
+const addDirMenu: Menu = (screen) => {
+  const p = addDirPrompt(screen)
+  return p ? { highlighted: p.highlighted === 'yes' ? 1 : 0 } : null
+}
+
+/** "No, exit" is option 0 and "Yes, add it" option 1. */
+export function answerAddDir(io: TerminalIO, yes: boolean) {
+  return answerMenu(io, addDirMenu, yes ? 1 : 0)
 }
 
 /**
