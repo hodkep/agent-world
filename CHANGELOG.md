@@ -4,6 +4,12 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-18
+
+### Fixed
+
+- Agents: Claude Code no longer asks "Adding a new directory" at every start; the attachments and library folders reach it through its settings file.
+
 ## [0.15.0] - 2026-11-18
 
 ![Agent World 0.15.0: safer Preview pages, and agents that end runs](https://raw.githubusercontent.com/hodkep/agent-world/v0.15.0/docs/images/releases/0.15.0/poster.png)
