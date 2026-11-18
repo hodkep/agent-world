@@ -782,6 +782,14 @@ const askHaiku = async (a: ReturnType<typeof byId>, prompt: string, timeoutMs: n
   const env = { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor('claude', a && providerOf(a).id === 'claude' ? a.configDir : undefined) }
   return (await askClaude(resolveCommand(binFor(p)), 'haiku', prompt, env, timeoutMs)).text
 }
+// What the agent committed while it worked on a task, from git in its own checkout.
+const workSince = (id: string, since: number): Promise<{ commits: { sha: string; subject: string }[]; files: string[] }> => {
+  const a = byId(id)
+  if (!a) return Promise.resolve({ commits: [], files: [] })
+  // Work not yet committed counts too (files git shows changed, and files its own tools wrote): a task is dropped only when nothing at all was changed.
+  const edited = editedFiles([...(chats.get(id)?.items ?? []), ...(editLog.get(id) ?? [])], a.cwd, since)
+  return Promise.all([commitsSince(a.cwd, since), uncommittedFiles(a.cwd)]).then(([w, dirty]) => ({ commits: w.commits, files: [...new Set([...w.files, ...dirty, ...edited])] }))
+}
 const todoService = createTodoService({
   dir: join(HOME, 'todos'),
   workspaceKey: repoSlug,
@@ -811,14 +819,7 @@ const todoService = createTodoService({
     const said = items.findLast((i) => i.kind === 'user' && i.text.trim() === text.trim())
     return { agentId: id, itemId: said?.id ?? '', at: said?.at ?? Date.now(), excerpt: excerptOf(text) }
   },
-  // What the agent committed while it worked on a task, from git in its own checkout.
-  workSince: (id, since) => {
-    const a = byId(id)
-    if (!a) return Promise.resolve({ commits: [], files: [] })
-    // Work not yet committed counts too (files git shows changed, and files its own tools wrote): a task is dropped only when nothing at all was changed.
-    const edited = editedFiles([...(chats.get(id)?.items ?? []), ...(editLog.get(id) ?? [])], a.cwd, since)
-    return Promise.all([commitsSince(a.cwd, since), uncommittedFiles(a.cwd)]).then(([w, dirty]) => ({ commits: w.commits, files: [...new Set([...w.files, ...dirty, ...edited])] }))
-  },
+  workSince,
   // A small model names and sorts the tasks the app makes for requests, as a separate one-off call that adds nothing to an agent's context.
   busy: (id) => !['idle', 'waiting', 'asleep', undefined].includes(lastActivity.get(id)),
   ask: (prompt) => {
@@ -1754,6 +1755,15 @@ async function main() {
         todoService.finishLinked(caller, workflows.runs().findLast((r) => r.agent === caller)?.todos ?? [], summary ?? '')
         send('workflows')
         void kickChecks(caller)
+      },
+      end: async (caller, why, asked) => {
+        const run = workflows.runs().findLast((r) => r.agent === caller && r.status === 'open')
+        if (!run) throw new Error('No task is open.')
+        // Whether anything changed is read from git and the agent's own edits, not taken from its word.
+        const w = await workSince(caller, run.startedAt)
+        const r = workflows.endByAgent(caller, why, { asked, changed: w.commits.length > 0 || w.files.length > 0 })
+        send('workflows')
+        return r
       },
       reopenStep: (caller, step, why) => {
         const name = workflows.reopenStep(caller, step, why)

@@ -421,6 +421,25 @@ export class Workflows {
     return left.map((s) => s.name)
   }
 
+  /**
+   * The agent ends its own open run. With nothing changed since the run began (no commit, no file), it never needed a workflow and is dropped, as the
+   * person's drop; at the person's word it is ended, as their End run, with the agent's reason on what is set aside. Changed work the person did not
+   * ask to end is refused: the steps are finished, or the person is asked.
+   */
+  endByAgent(agentId: string, why: string, o: { asked: boolean; changed: boolean }): { outcome: 'dropped' | 'ended'; title: string } {
+    const run = this.openRun(agentId)
+    if (!run) throw new Error('No task is open.')
+    const reason = why.trim().slice(0, 200)
+    if (!reason) throw new Error('Say why in a few words: the person is told.')
+    if (!o.changed) {
+      this.append({ k: 'drop', t: this.deps.now(), run: run.id })
+      return { outcome: 'dropped', title: run.title }
+    }
+    if (!o.asked) throw new Error('This run has changed work: finish its steps, or ask the person whether to end it.')
+    this.endRun(run.id, `Ended by the agent: ${reason}`)
+    return { outcome: 'ended', title: run.title }
+  }
+
   /** The person marks the agent's step done by hand, for one the agent never reported (it stopped, or lost track): only the step the run stands on, and only one of the agent's own. Says its name and what comes next. */
   closeStep(runId: string, step: string): { name: string; next?: ReturnType<Workflows['nextAfter']> } {
     const run = this.runs().find((r) => r.id === runId)
