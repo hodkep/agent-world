@@ -3,7 +3,7 @@ import { GLYPHS } from '../src/renderer/world/pixelfont'
 // @ts-expect-error a plain .mjs script
 import { crewChars } from '../scripts/build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
-import { CREW, actionFor, armPixels, artWidth, castFor, helperFor, kindOf, nearestPart, nextPart, scene, SCENES, tankLevel, windowRects } from './office.js'
+import { CREW, DEFAULT_SPEED, THEN_ACTIONS, actionFor, armPixels, artWidth, castFor, helperFor, kindOf, nearestPart, nextPart, nextSpeed, scene, SCENES, speedLabel, tankLevel, thenFor, windowRects } from './office.js'
 
 const chars = crewChars()
 const bits = { GLYPHS, CHARS: chars }
@@ -116,5 +116,36 @@ describe('the leftovers of the review', () => {
     expect(artWidth(1152, 240)).toBe(960)
     expect(artWidth(1200, 240)).toBe(1200)
     expect(artWidth(100, 240)).toBe(240)
+  })
+})
+
+describe('the speed of the crew', () => {
+  it('starts at the pace that used to be 2x and calls it 1x; the slow pace, the old 1x, is 0.5x', () => {
+    expect(DEFAULT_SPEED).toBe(2)
+    expect(speedLabel(DEFAULT_SPEED)).toBe('1×')
+    expect(speedLabel(nextSpeed(DEFAULT_SPEED))).toBe('0.5×')
+  })
+
+  it('toggles between the two and nothing else', () => {
+    expect(nextSpeed(2)).toBe(1)
+    expect(nextSpeed(1)).toBe(2)
+    expect(nextSpeed(nextSpeed(DEFAULT_SPEED))).toBe(DEFAULT_SPEED)
+  })
+})
+
+describe('the crew\'s extra work on a part, after the part is built', () => {
+  it('knows three: a stamp to check or cross out a line, a barrier that holds a push, and pressing Run', () => {
+    expect(THEN_ACTIONS).toEqual(['check', 'barrier', 'press'])
+  })
+
+  it('reads the extra work from the part, and ignores what it does not know', () => {
+    expect(thenFor({ dataset: { then: 'check' } })).toBe('check')
+    expect(thenFor({ dataset: { then: 'press' } })).toBe('press')
+    expect(thenFor({ dataset: { then: 'dance' } })).toBeNull()
+    expect(thenFor({ dataset: {} })).toBeNull()
+  })
+
+  it('keeps the four kinds of work it had', () => {
+    expect(['text', 'box', 'pic', 'scene'].map(actionFor)).toEqual(['type', 'hammer', 'hang', 'paint'])
   })
 })

@@ -45,10 +45,29 @@ hr{border:0;border-top:2px solid var(--ink)}
 .hits{list-style:none;margin:8px 0 0;padding:0}.hits a{display:block;padding:7px 10px;color:var(--text);text-decoration:none;border-bottom:1px solid var(--line)}.hits a:hover{background:var(--panel)}.hits small{display:block;color:var(--muted);font-size:11px}.hits li{color:var(--muted);padding:6px 10px}
 /* Home: the street, then the rooms you walk through. */
 .street{width:100%;max-width:1200px;margin:0 auto;padding:56px 24px 0}
-.sky{max-width:720px}.sky h1{font-size:clamp(34px,5.2vw,60px);line-height:1.02;margin:0 0 18px;text-wrap:balance;text-shadow:4px 4px 0 var(--ink)}.sky h1 b{color:var(--accent)}
-.lede{font-size:18px;max-width:34em;margin:0 0 24px}.sky .row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.sky{max-width:900px}.sky h1{font-size:clamp(28px,3.4vw,46px);line-height:1.02;margin:0 0 18px;text-wrap:balance;text-shadow:4px 4px 0 var(--ink)}.sky h1 b{color:var(--accent)}
+.lede{font-size:18px;max-width:34em;margin:0 0 24px}.sky .lede{max-width:44em}.sky .row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
 .brew{margin:22px 0 8px;font-size:13px}.brew code{padding:4px 8px;line-height:2}.meta{margin:0;font-size:13px;color:var(--muted)}
 .facade{width:100%;max-width:1200px;margin:20px auto 0;aspect-ratio:240/120}
+/* The story under the headline: what goes wrong without the process, what Agent World does about it, and three real pictures. */
+.story{width:100%;max-width:1200px;margin:0 auto;padding:40px 24px 0}
+.vs{display:grid;grid-template-columns:1fr 1fr;box-shadow:var(--rim),0 0 0 3px var(--line)}.vs>div{padding:22px 24px;background:var(--panel)}.vs>div+div{background:var(--panel-2)}
+.vs h2{font-size:22px;margin:0 0 12px;text-shadow:none}.vs .no h2{color:var(--muted)}.vs .yes h2{color:var(--accent)}
+.vs ul{margin:0;padding-left:30px;list-style:none}.vs li{margin:7px 0;position:relative}.vs .no li{color:var(--muted)}
+/* The marks the crew stamps beside each line, drawn with borders and gradients; while the page is built they wait for the stamp, and a page that is not built shows them. */
+.vs li::before{content:'';position:absolute;left:-26px;top:.4em;width:14px;height:14px}
+.vs .yes li::before{width:7px;height:12px;left:-22px;top:.25em;border:solid var(--accent);border-width:0 3px 3px 0;transform:rotate(40deg)}
+.vs .no li::before{background:linear-gradient(45deg,transparent 40%,#d83a3a 40% 60%,transparent 60%),linear-gradient(-45deg,transparent 40%,#d83a3a 40% 60%,transparent 60%)}
+html.building .vs li:not(.checked)::before{opacity:0;transform:scale(.4) rotate(40deg)}.vs li::before{transition:opacity .12s steps(2),transform .16s steps(3)}
+/* The crew's barrier and the ring of the Run button. */
+.boom{position:absolute;width:64px;height:60px;pointer-events:none;z-index:3}.boom i{position:absolute;left:6px;bottom:6px;width:56px;height:8px;background:repeating-linear-gradient(90deg,#d83a3a 0 8px,#f6f6fa 8px 16px);box-shadow:0 0 0 2px var(--ink);transform-origin:0 50%;transform:rotate(-90deg)}
+.boom::before{content:'';position:absolute;left:0;bottom:0;width:10px;height:22px;background:var(--panel-2);box-shadow:0 0 0 2px var(--ink)}
+.boom b{position:absolute;left:12px;top:0;font:700 11px var(--mono);color:var(--ink);background:var(--accent);padding:1px 5px;opacity:0}.boom.down b{opacity:1}
+.ring{position:absolute;width:32px;height:32px;border:3px solid var(--accent);box-sizing:border-box;pointer-events:none;opacity:0;transform:scale(.5);transition:opacity .15s steps(2),transform .15s steps(3);z-index:3}.ring.on{opacity:1;transform:scale(1.5)}
+.pics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:start;margin-top:22px}.pics figure{margin:0}.pics img{width:100%}.pics figcaption{font-size:13px;color:var(--muted);margin-top:8px}
+abbr.plain{font-family:var(--body);text-decoration:none;font-weight:700}
+.limit{color:var(--muted);font-size:14px;max-width:46em;margin:18px 0 0}
+
 .legend{display:flex;flex-wrap:wrap;gap:10px 22px;margin:12px 0 0;font:13px var(--mono);color:var(--muted)}.legend span{display:inline-flex;align-items:center;gap:7px}.legend i{width:10px;height:10px;background:var(--c);box-shadow:0 0 0 2px var(--ink)}
 .rules{margin:36px 0 0;padding:24px;background:var(--panel-3);border-block:2px solid var(--ink)}.rules>div{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.rules p{margin:0;color:var(--muted);font-size:15px}.rules b{color:var(--text);display:block}
 .room{width:100%;max-width:1200px;margin:0 auto;padding:56px 24px 8px;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:40px;align-items:start}.room.flip{grid-template-columns:minmax(0,7fr) minmax(0,5fr)}.room.flip>canvas,.room.flip>img{order:2}
@@ -62,10 +81,10 @@ hr{border:0;border-top:2px solid var(--ink)}
 .hubs{display:grid;grid-template-columns:1fr 1fr;gap:28px}.hub{background:var(--panel);box-shadow:var(--drop);padding:20px 22px}.hub h3{font:700 20px var(--display);margin:0 0 6px}.hub p{margin:0;color:var(--muted)}.hub ul{margin:10px 0 16px;padding-left:18px;color:var(--muted)}
 @media(max-width:1080px){.page{grid-template-columns:260px minmax(0,1fr)}.toc{display:none}}
 @media(max-width:860px){.page,.page.solo{grid-template-columns:minmax(0,1fr)}.page>aside{border-right:0;border-bottom:2px solid var(--ink)}.side{position:static;max-height:none;padding:12px 16px}.reader{display:none}.menu summary{display:block}.page main{padding:22px 16px 36px}.top{flex-wrap:wrap;gap:10px 14px}.top nav{order:3;flex-basis:100%}.pn{flex-direction:column}
-.street{padding-top:32px}.rules>div,.room,.room.flip,.hubs{grid-template-columns:1fr}.room>canvas{position:static}.room.flip>canvas,.room.flip>img{order:0}.room{padding:40px 16px 0}.lobby,.rules{padding-inline:16px}}
+.street{padding-top:32px}.vs,.pics{grid-template-columns:1fr}.story{padding-inline:16px}.rules>div,.room,.room.flip,.hubs{grid-template-columns:1fr}.room>canvas{position:static}.room.flip>canvas,.room.flip>img{order:0}.room{padding:40px 16px 0}.lobby,.rules{padding-inline:16px}}
 /* The build: while html.building, the parts of the home page wait for the crew; each shows when its engineer is done with it. */
 /* The same list as PART_SELECTORS in office.js, so a part is hidden from the first paint, before the script marks it. */
-html.building :is(.street h1,.lede,.street .row,.brew,.meta,.legend,.rules p,.room h2,.room p:not(.links),.room .steps li,.room .links,.room canvas,.room img,.room video,.lobby h2,.hub):not(.in){opacity:0}.part{transition:opacity .3s steps(3)}
+html.building :is(.street h1,.lede,.street .row,.brew,.meta,.legend,.rules p,.room h2,.room p:not(.links),.room .steps li,.room .links,.room canvas,.room img,.room video,.lobby h2,.hub,.vs h2,.vs li,.pics img,.pics figcaption,.limit):not(.in){opacity:0}.part{transition:opacity .3s steps(3)}
 html.building .part.typing{opacity:1}
 #crew{position:absolute;left:0;top:0;width:100%;height:0;overflow:visible;pointer-events:none;z-index:4}
 .eng{position:absolute;left:0;top:0;width:48px;height:72px;will-change:transform}.eng canvas{position:absolute;left:0;top:0;width:48px;height:72px}.eng canvas.flip{transform:scaleX(-1)}

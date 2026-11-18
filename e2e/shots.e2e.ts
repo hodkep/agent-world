@@ -280,6 +280,27 @@ test('library: the shelf of skills and the playbook that says when to reach for 
   }
 })
 
+test('mcp: the servers the programs name, in a panel for each place, and the tools Claude Code has', async () => {
+  const o = await shotApp({ size: { width: 1400, height: 760 } })
+  try {
+    // Sample servers in the project's own .mcp.json; nothing of the person's own files is read (the user home is the test's).
+    writeFileSync(join(o.repo, '.mcp.json'), JSON.stringify({ mcpServers: { docs: { command: 'npx', args: ['-y', 'docs-mcp-server'] }, tickets: { type: 'http', url: 'https://tickets.example.com/mcp' }, database: { command: 'npx', args: ['-y', 'db-mcp', '--readonly'] } } }))
+    await o.page.reload()
+    await o.page.locator('header').getByRole('button', { name: 'Playbook and tools', exact: true }).click()
+    const lib = o.page.getByRole('dialog', { name: 'Playbook and tools' })
+    await lib.getByRole('tab', { name: 'MCP servers' }).click()
+    await lib.getByRole('button', { name: /^All/ }).click()
+    await expect(lib).toContainText('docs')
+    await o.page.waitForTimeout(800)
+    await shootElement(lib, 'mcp-servers')
+    await lib.getByRole('tab', { name: 'Tools' }).click()
+    await o.page.waitForTimeout(800)
+    await shootElement(lib, 'tools')
+  } finally {
+    await o.shutdown()
+  }
+})
+
 test('workflows: the Runs charts and the Insights tiles of a week', async () => {
   const o = await shotApp({ env: { FAKE_CHAT: '1' } })
   try {

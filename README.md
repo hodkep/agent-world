@@ -1,6 +1,4 @@
-<p align="center">
-  <img src="docs/images/banner.svg" alt="Agent World: a pixel-art office with five agents, each in a different state" width="880">
-</p>
+<h1 align="center">Agent World</h1>
 
 <p align="center">
   <img alt="latest release" src="https://img.shields.io/github/v/release/hodkep/agent-world?style=flat-square&labelColor=12101a&color=f2c230&label=release">
@@ -11,15 +9,20 @@
 
 <p align="center"><a href="https://agent-world.in/">Website</a> · <a href="https://agent-world.in/docs/getting-started/">User guide</a> · <a href="CHANGELOG.md">Changelog</a> · <a href="../../releases/latest">Latest release</a></p>
 
-<p align="center"><b>Run and steer your coding agents from one place, shown as characters working in a pixel-art IT office.</b></p>
+<p align="center"><b>Your agents skip the process. Agent World makes them follow it.</b></p>
 
-<img src="docs/images/hero.gif" alt="Hire an agent, watch it walk in and work, and approve its permission request from the office" width="800">
+Coding agents jump straight to editing, ignore the skills you wrote and commit to the wrong branch. Agent World runs your own Claude Code or Antigravity sessions through a process you write down: plan, build, checks, review, pull request. Git holds an agent's edits, commits and push until the plan and the review are settled, and nothing is pushed until you press **Run**. One playbook says which skills and instructions each agent is told, and when, and the app measures whether agents read them and flags the rules they ignore. A manager for skills, MCP servers and tools shows what is installed and what is used, and the built-in Preview lets agents open, click and screenshot the page they just built.
 
-<p align="center"><a href="docs/video/agent-world.mp4"><img src="docs/images/video-poster.jpg" alt="Play the 52-second film: every agent on its own branch, plans that wait for your word, the whole office at a glance" width="800"></a><br><sub>▶ The 52-second film (with a voiceover): every agent on its own branch, plans that wait for your word.</sub></p>
+The holds stop an agent that follows its instructions from getting ahead of you. They are a guard rail, not a lock against an agent set on getting round them ([what they stop and what they do not](docs/guide/workflows.md#enforced-and-only-asked)).
 
-Each project is an office floor. Each agent is a character with its own git worktree and a real, interactive `claude` (Claude Code) or `agy` (Antigravity) session that the app owns. You see at a glance who is thinking, running, waiting for you or asleep, and you step in without hunting through terminals.
+<p align="center">
+  <img src="docs/images/plan-gate.png" alt="The plan gate: what ada understood before the build starts, as a goal, what was given, what was guessed and what is out of scope" width="420">
+  <img src="docs/images/run-card.png" alt="Your turn to run: the pull request step waits, with Run, Send back, Not now and Skip" width="420">
+</p>
 
-- **Control over spectacle.** Every visual state maps to a real agent state you can act on.
+<p align="center"><sub>A real run: the plan to check before the build starts, and the card that waits for you before anything is pushed.</sub></p>
+
+- **Control over spectacle.** Every state in the app maps to something real you can act on.
 - **Own the session, don't scrape it.** The app launches and hooks the agents it shows. Your `claude` is unmodified, and nothing global in `~/.claude` is changed.
 - **Never lose work.** Uncommitted changes block removal. Nothing is deleted silently.
 
@@ -46,7 +49,55 @@ More in the [user guide](#user-guide).
 
 ## Features
 
-### <img src="docs/images/icons/office.svg" width="24" height="24" alt=""> The office
+### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and the push hold
+
+A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. Each agent works on its own branch (`aw/<name>`) in its own git worktree, and the Code tab shows what it changed. With workflows on, git itself holds an agent's edits until the plan is approved, and holds its commits and its push of its branch, before the pull request, until the plan, the review and its findings are settled; you release the push with **Run** on the card in the agent's chat.
+
+<img src="docs/images/plan-gate.png" alt="The plan gate: what ada understood before the build starts" width="560">
+
+<img src="docs/images/run-card.png" alt="Your turn to run: the pull request step waits for you, with Run, Send back, Not now and Skip" width="560">
+
+A run is drawn as a flow diagram in the agent's **Workflow** tab, each step a card with where it stands. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history. What the holds stop, and what they do not, is spelled out in [Enforced and only asked](docs/guide/workflows.md#enforced-and-only-asked).
+
+### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Library and playbook
+
+Skills, instructions and prompts kept once for every program, and a playbook that says which agent is told what, and when. The chat shows what the library did for each message.
+
+<img src="docs/images/playbook.png" alt="The playbook: two rules, each with when an agent should reach for it" width="720">
+
+<img src="docs/images/library.png" alt="The shelf of skills, with one open" width="720">
+
+The **Usage** tab judges each rule on the prompts that looked related to it: how often it was reminded, read and said no to, with a fix for the ones that are flagged (write a narrower "when", make it firm, make it a step).
+
+### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Skills, MCP servers and tools
+
+The **Playbook and tools** window lists every skill, MCP server and tool the programs know, in one place. **Skills**: add the ones you already have, install new ones from a GitHub repository, write instructions and prompts; each shows where it lives and who used it in the last 30 days. **MCP servers**: the servers the programs' own files name, in a panel for each place; connect one to see what it offers, test an entry before you save it, or take it out of one project or every place. **Tools**: Claude Code's own tools and those of each server, each set to Allow, Ask or Deny for the agents the app runs.
+
+<img src="docs/images/mcp-servers.png" alt="The MCP servers tab: the servers the programs name, in a panel for each place, each with an on and off switch" width="720">
+
+<img src="docs/images/tools.png" alt="The Tools tab: Claude Code's own tools, each with Allow, Ask and Deny" width="720">
+
+### <img src="docs/images/icons/terminals.svg" width="24" height="24" alt=""> Preview
+
+**Preview** shows a web page beside the chat: the dev server an agent started appears on its own, and so can a page file or a site. Resize it to Desktop, Tablet or Mobile, and use **Select element** to click something on the page and send it to the agent as words and a picture. Agents can drive their own Preview page with a browser tool: they open pages, read them, click, resize to a phone and take screenshots, in a frame that names the agent and has a cross to disconnect it. A site on the internet opens only once you allow it, and a page whose certificate fails shows a warning first.
+
+<img src="docs/images/preview-agent-page.png" alt="The Preview tab showing the settings page an agent built, with the address bar, Site data, screen size and Select element" width="720">
+
+### <img src="docs/images/icons/todos.svg" width="24" height="24" alt=""> Todos
+
+One board for you and your agents: lists, tasks that need you, tasks an agent has claimed or finished. A `todo#14` in an agent's reply is a link to the task. A task can have subtasks, shown as a checklist with a progress bar on its card, and labels you add, rename and recolour; a task opens in tabs.
+
+<img src="docs/images/todos.png" alt="The todo board with lists, a task that needs you, and two that agents are doing" width="720">
+
+<img src="docs/images/todos-subtasks.png" alt="A task with three subtasks as a checklist with a progress bar, and labels on the cards" width="720">
+
+### <img src="docs/images/icons/office.svg" width="24" height="24" alt=""> Also: the office
+
+<img src="docs/images/hero.gif" alt="Hire an agent, watch it walk in and work, and approve its permission request from the office" width="800">
+
+<p align="center"><a href="docs/video/agent-world.mp4"><img src="docs/images/video-poster.jpg" alt="Play the 52-second film: every agent on its own branch, plans that wait for your word, the whole office at a glance" width="800"></a><br><sub>▶ The 52-second film (with a voiceover): every agent on its own branch, plans that wait for your word.</sub></p>
+
+Each project is an office floor. Each agent is a character with its own git worktree and a real, interactive `claude` (Claude Code) or `agy` (Antigravity) session that the app owns. You see at a glance who is thinking, running, waiting for you or asleep, and you step in without hunting through terminals.
 
 Each agent works at a desk, and what the character does is what the agent does: thinking, researching, implementing, running, delegating or waiting for you. An agent that is asleep leaves the floor and stays in the agents panel. Click a character, or its tile in the panel, to open its chat.
 
@@ -93,34 +144,6 @@ The message box shows markdown as you type it, with the marks hidden on every li
 A request shows above the character and in the panel. Allow or deny it in one click, or answer in the agent's own terminal. After five minutes it falls back to Claude's own dialog.
 
 <img src="docs/images/permission.png" alt="A request to run a command, with Allow and Deny" width="720">
-
-### <img src="docs/images/icons/worktrees.svg" width="24" height="24" alt=""> Worktrees and the push hold
-
-Each agent works on its own branch (`aw/<name>`) in its own git worktree, and the Code tab shows what it changed. With workflows on, git itself holds an agent's push of its branch, before the pull request, until the plan, the review and its findings are settled; you release it from the agent's chat.
-
-<img src="docs/images/merge-held.png" alt="The run track with a held push and the card at the end of the conversation where it is answered" width="720">
-
-A run is drawn as a flow diagram in the agent's **Workflow** tab, each step a card with where it stands.
-
-### <img src="docs/images/icons/workflows.svg" width="24" height="24" alt=""> Workflows and Runs
-
-A workflow is a plan you approve (with a note for the agent if you want one), checks that run, a review of the branch against the plan, and the pull request. The Runs tab charts how often each workflow ran and how well each stage was followed, over a ledger of runs grouped by what there is to do about them. A run belongs to the todo its agent is on, and the todo shows how its run stands. To make a workflow, describe it to the builder, a read-only agent that proposes one; to change one, start the builder from it. Either way you can edit the draft step by step before you save it, and every save is kept in the workflow's history. What the holds stop, and what they do not, is spelled out in [Enforced and only asked](docs/guide/workflows.md#enforced-and-only-asked).
-
-### <img src="docs/images/icons/library.svg" width="24" height="24" alt=""> Library and playbook
-
-Skills, instructions and prompts kept once for every program, and a playbook that says which agent is told what, and when. The chat shows what the library did for each message.
-
-<img src="docs/images/playbook.png" alt="The playbook: two rules, each with when an agent should reach for it" width="720">
-
-<img src="docs/images/library.png" alt="The shelf of skills, with one open" width="720">
-
-### <img src="docs/images/icons/todos.svg" width="24" height="24" alt=""> Todos
-
-One board for you and your agents: lists, tasks that need you, tasks an agent has claimed or finished. A `todo#14` in an agent's reply is a link to the task. A task can have subtasks, shown as a checklist with a progress bar on its card, and labels you add, rename and recolour; a task opens in tabs.
-
-<img src="docs/images/todos.png" alt="The todo board with lists, a task that needs you, and two that agents are doing" width="720">
-
-<img src="docs/images/todos-subtasks.png" alt="A task with three subtasks as a checklist with a progress bar, and labels on the cards" width="720">
 
 ### <img src="docs/images/icons/notes.svg" width="24" height="24" alt=""> Notes
 
