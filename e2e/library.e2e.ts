@@ -142,7 +142,9 @@ test('the library: skills imported once, a playbook chooses them, and Claude and
     expect(JSON.parse(readFileSync(join(plugin, '.claude-plugin', 'plugin.json'), 'utf8')).name).toBe('agent-world-library')
     expect(existsSync(join(plugin, 'skills', 'pdf', 'scripts', 'split.sh'))).toBe(true)
     expect(existsSync(join(plugin, 'skills', 'caveman'))).toBe(false)
-    expect(claude).toContain(join(home, 'aw', 'library'))
+    // The folder reaches Claude through its settings file: --add-dir makes Claude Code ask "Adding a new directory" at every start.
+    expect(claude).not.toContain('--add-dir')
+    expect(JSON.parse(readFileSync(claude[claude.indexOf('--settings') + 1]!, 'utf8')).permissions.additionalDirectories).toContain(join(home, 'aw', 'library'))
 
     // Through the office's tools it can list and read only what the playbook allows, and every read is recorded.
     const mcp = JSON.parse(readFileSync(claude[claude.indexOf('--mcp-config') + 1]!, 'utf8')).mcpServers['agent-world'] as { url: string; headers: { Authorization: string } }
