@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
+import { addDirPrompt, answerAddDir, answerMenu, answerTrust, anyMenu, inputReady, looksWorking, planMenu, trustPrompt } from './prompts'
 
 // Screen text as Claude Code 2.1 renders it, with ANSI colour codes like the real PTY stream.
 const screen = (cursorOnYes: boolean) =>
@@ -174,5 +174,65 @@ describe('a forged input box above a live menu', () => {
   it('does not hide the menu: typing into it would answer it', () => {
     const forged = ['  ● output', rule, '❯ ', rule, '  Do you want to proceed?', '  ❯ 1. Yes', '    2. No', '  Esc to cancel'].join('\n')
     expect(anyMenu(forged)).toBe(true)
+  })
+})
+
+// Claude Code 2.1.326 asks this for each folder the app passes with --add-dir that it has not worked in.
+const addDir = (path: string, cursorOnYes = false, foot = ' Enter to confirm · Esc to cancel') =>
+  [
+    '\x1b[1m Adding a new directory:\x1b[22m',
+    ` ${path}`,
+    " This session hasn't worked here before. Is this a directory you created or one you trust?",
+    ' Security guide',
+    ` ${cursorOnYes ? '  ' : '\x1b[36m❯\x1b[39m '}No, exit`,
+    ` ${cursorOnYes ? '\x1b[36m❯\x1b[39m ' : '  '}Yes, add it`,
+    foot
+  ].join('\r\n')
+
+describe('add-directory prompt', () => {
+  it('reads the folder and which option is highlighted', () => {
+    expect(addDirPrompt(addDir('/Users/me/.agent-world/library'))).toEqual({ path: '/Users/me/.agent-world/library', highlighted: 'no' })
+    expect(addDirPrompt(addDir('/Users/me/.agent-world/attachments', true))?.highlighted).toBe('yes')
+  })
+
+  // The same question while "No, exit" is highlighted can end with a different hint line.
+  it('reads the variant whose hint says how to reach Yes', () => {
+    const s = addDir('/Users/me/.agent-world/attachments', false, ' Esc to exit · To add it, press ↓ to Yes, then Enter')
+    expect(addDirPrompt(s)).toEqual({ path: '/Users/me/.agent-world/attachments', highlighted: 'no' })
+    expect(anyMenu(s)).toBe(true)
+    expect(inputReady(`─────────\r\n${s}`)).toBe(false)
+  })
+
+  it('joins a path that wraps over two lines', () => {
+    const wrapped = addDir('/Users/me/.agent-world/library/run/\r\n ada-1234')
+    expect(addDirPrompt(wrapped)?.path).toBe('/Users/me/.agent-world/library/run/ada-1234')
+  })
+
+  it('is not the workspace trust menu, and the trust menu is not this', () => {
+    expect(addDirPrompt(screen(false))).toBeNull()
+    expect(trustPrompt(addDir('/Users/me/.agent-world/library'))).toBeNull()
+    expect(addDirPrompt('hello\r\n> ')).toBeNull()
+  })
+
+  it('ignores the same words in the conversation above the input box', () => {
+    const talk = `${addDir('/x')}\r\n\r\n─────────────\r\n❯ \r\n─────────────`
+    expect(addDirPrompt(talk)).toBeNull()
+  })
+
+  it('answers Yes by moving the cursor first, never pressing Enter on "No, exit"', async () => {
+    let on: 'yes' | 'no' = 'no'
+    let open = true
+    const keys: string[] = []
+    const io = {
+      screen: () => (open ? addDir('/Users/me/.agent-world/library', on === 'yes') : 'ready'),
+      write: (k: string) => {
+        keys.push(k)
+        if (k === '\x1b[B') on = 'yes'
+        if (k === '\r' && on === 'yes') open = false
+      },
+      sleep: async () => undefined
+    }
+    expect(await answerAddDir(io, true)).toBe(true)
+    expect(keys).toEqual(['\x1b[B', '\r'])
   })
 })
