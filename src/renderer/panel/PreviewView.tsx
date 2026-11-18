@@ -178,7 +178,9 @@ function Frame({ url, ua, viewRef, agentId }: { url: string; ua?: string; viewRe
       window.aw.previewPage(agentId, null)
     }
   }, [agentId, viewRef])
-  return <webview ref={viewRef as never} src={src} useragent={ua} className="preview-frame" partition="persist:preview" />
+  // allowpopups lets a link for a new tab reach the app, which opens it in this pane (it never opens a window). React drops a boolean true on an
+  // attribute it does not know, so it is passed as the string Electron reads.
+  return <webview ref={viewRef as never} src={src} useragent={ua} className="preview-frame" partition="persist:preview" allowpopups={"true" as never} />
 }
 
 /** The dev servers this agent has started, shown live. The page runs in a locked-down webview that can only reach local addresses. */
@@ -249,6 +251,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   const currentUrl = useRef('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // A page that asked for fullscreen (a video's F key) covers the whole window, as in a browser, until it leaves it (Esc).
+  const [full, setFull] = useState(false)
   // The sites on the internet this Preview was told it may show.
   const [sites, setSites] = useState(() => loadSites())
   // A browser tool's agent waits on the person's answer about a site: the app passes the allowed sites on, so allowing answers it.
@@ -357,7 +361,10 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       if (ev.errorCode !== -3) setError(ev.errorDescription ?? 'The page did not load.')
     }
     const ok = () => setError(null)
+    const enter = () => setFull(true)
+    const leave = () => setFull(false)
     ready.current = false
+    setFull(false)
     const look = () => {
       try {
         setNav({ back: el.canGoBack(), forward: el.canGoForward() })
@@ -395,6 +402,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
     el.addEventListener('did-navigate', visited)
     el.addEventListener('did-navigate-in-page', visited)
     el.addEventListener('page-title-updated', titled)
+    el.addEventListener('enter-html-full-screen', enter)
+    el.addEventListener('leave-html-full-screen', leave)
     return () => {
       el.removeEventListener('dom-ready', up)
       el.removeEventListener('did-fail-load', fail)
@@ -404,6 +413,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       el.removeEventListener('did-navigate', visited)
       el.removeEventListener('did-navigate-in-page', visited)
       el.removeEventListener('page-title-updated', titled)
+      el.removeEventListener('enter-html-full-screen', enter)
+      el.removeEventListener('leave-html-full-screen', leave)
     }
   }, [frameKey, current?.alive])
 
@@ -564,8 +575,8 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       )}
       {/* Keyed by address so each server gets a fresh, isolated page; it is only there while something answers. */}
       {!ask && current.alive && (
-        <div className="preview-holder" ref={holder} style={error ? { display: 'none' } : undefined}>
-          <div className={`device-frame is-${agentFrame.kind ?? dev.kind}`} style={frame}>
+        <div className={`preview-holder ${full ? 'full' : ''}`} ref={holder} style={error ? { display: 'none' } : undefined}>
+          <div className={`device-frame is-${full ? 'desktop' : (agentFrame.kind ?? dev.kind)}`} style={full ? undefined : frame}>
             <Frame key={frameKey} url={shown || current.url} ua={dev.kind === 'desktop' ? undefined : USER_AGENT[dev.kind]} viewRef={view} agentId={agentId} />
           </div>
           <BrowserFrame who={agentName} connections={browser?.connections ?? 0} at={browser?.at ?? 0} method={browser?.method} action={browser?.action} size={browser?.size} onDisconnect={() => window.aw.browserDisconnect(agentId)} />

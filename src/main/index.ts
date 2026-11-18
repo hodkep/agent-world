@@ -60,6 +60,7 @@ import { zoomKey, zoomTo } from '../shared/previewZoom'
 import { appKey, forwarded } from './appKeys'
 import { clearAllSites, clearSite, keepSessionCookies, listSites } from './siteData'
 import { createAccess } from './browserTool/access'
+import { previewAllows } from './previewPermission'
 import { browserEnv, startEndpoint, type Endpoint, type Guest } from './browserTool/endpoint'
 import { BROWSER_TOOLS, syncBrowserSkill } from './library/browserSkill'
 import * as pty from 'node-pty'
@@ -3770,8 +3771,29 @@ async function main() {
   ipcMain.handle('preview:sites', (_, current?: string) => listSites(preview, typeof current === 'string' ? current : undefined))
   ipcMain.handle('preview:clear-site', (_, site: string) => clearSite(preview, String(site)))
   ipcMain.handle('preview:clear-all', () => clearAllSites(preview))
-  preview.setPermissionRequestHandler((_wc, _permission, done) => done(false))
-  preview.setPermissionCheckHandler(() => false)
+  // A page's fullscreen (a video's F key) fills the screen. On macOS Electron would slide the window into a fullscreen Space of its own, and a leave
+  // asked during that slide (F then Esc at once) is lost: the page stays stuck in fullscreen. So the window takes the instant kind instead, and is put back as it was.
+  const pageFullscreen = (wc: Electron.WebContents) => {
+    const win = wc.hostWebContents && BrowserWindow.fromWebContents(wc.hostWebContents)
+    if (process.platform !== 'darwin' || !win || win.isFullScreen() || win.isSimpleFullScreen() || !win.isFullScreenable()) return
+    win.setFullScreenable(false)
+    // macOS moves the window's view when it switches, which takes the keys from the page: it gets them back, so a second F works without a click first.
+    const keys = () => setTimeout(() => !win.isDestroyed() && !wc.isDestroyed() && (win.webContents.focus(), wc.focus()), 100)
+    const back = () => {
+      wc.off('enter-html-full-screen', enter).off('leave-html-full-screen', back).off('destroyed', back)
+      if (win.isDestroyed()) return
+      win.setSimpleFullScreen(false)
+      win.setFullScreenable(true)
+      keys()
+    }
+    const enter = () => (win.setSimpleFullScreen(true), keys())
+    wc.once('enter-html-full-screen', enter).once('leave-html-full-screen', back).once('destroyed', back)
+  }
+  preview.setPermissionRequestHandler((wc, permission, done) => {
+    if (permission === 'fullscreen') pageFullscreen(wc)
+    done(previewAllows(permission))
+  })
+  preview.setPermissionCheckHandler((_wc, permission) => previewAllows(permission))
   preview.on('will-download', (e) => e.preventDefault())
   app.on('web-contents-created', (_, contents) => {
     if (contents.getType() !== 'webview') return

@@ -69,6 +69,8 @@ The toolbar has **Back**, **Forward**, **Reload**, **Site data** (the cookies th
 
 A page opens at 100%, the size it has in a browser, whatever the zoom of the app around it. To zoom the page, pinch on the trackpad (the page zooms like on a phone), or press ⌘+, ⌘− and ⌘0 (Ctrl elsewhere) while the page has the focus: the page zooms in steps and ⌘0 puts it back to 100%, and the rest of the app keeps its size. A page that loads another address starts again at 100%.
 
+A link that would open a new tab opens in the Preview itself; **Back** returns to the page you were on. A video's fullscreen (YouTube's F key or its fullscreen button) fills the screen, and Esc puts the app back as it was.
+
 ## Using the Preview as a browser (for agents)
 
 An agent can drive its own Preview page with a browser tool, on the logins the Preview keeps: it opens pages, reads them, clicks, types, takes screenshots. Every action is visible in that agent's Preview tab, inside a frame that names the agent and has a cross that disconnects the tool (it can connect again on its next command). Settings > General has a switch, **Agents can use the Preview as a browser** (on by default); off cuts every tool off at once, for good.

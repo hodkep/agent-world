@@ -2408,6 +2408,8 @@ dialog.handoff { width: min(640px, 94vw); }
 .device-frame.is-tablet { box-shadow: 0 0 0 12px var(--frame); border-radius: 10px; margin-top: 12px; }
 .device-frame.is-mobile { box-shadow: 0 0 0 10px var(--frame); border-radius: 22px; margin-top: 10px; }
 .device-frame .preview-frame { flex: 1; min-height: 0; }
+/* A page in fullscreen (a video's F key) covers the whole window, above everything, as it would in a browser. */
+.preview-holder.full { position: fixed; inset: 0; z-index: 10000; background: #000; }
 
 /* The Preview follows the width of its panel, which can be dragged narrow: the screen size button drops its name, the address
    gets a row of its own, and the caption trims itself, so nothing is cut off or runs past the edge. */
