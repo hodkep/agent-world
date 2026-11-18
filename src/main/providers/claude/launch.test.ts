@@ -28,10 +28,11 @@ describe('claude launch', () => {
     expect(launchArgs({ ...o, started: true })).toEqual(['--resume', 'new', '--settings', '/s.json'])
   })
 
-  it('lets the agent read the folder where attachments are kept without asking', () => {
-    expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', addDirs: ['/home/aw/attachments'] })).toEqual([
-      '--session-id', 'abc', '--name', 'ada', '--settings', '/s.json', '--add-dir', '/home/aw/attachments'
-    ])
+  // Claude Code asks "Adding a new directory" for each --add-dir folder at every start, so the folders go in the settings file instead (see hookSettings).
+  it('never passes a folder with --add-dir, even when it is handed one', () => {
+    const o = { sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', addDirs: ['/home/aw/attachments', '/home/aw/library'] }
+    expect(launchArgs(o)).toEqual(['--session-id', 'abc', '--name', 'ada', '--settings', '/s.json'])
+    expect(launchArgs({ ...o, started: true })).not.toContain('--add-dir')
   })
 
   it('passes an explicit permission mode through when one is set', () => {
@@ -111,6 +112,20 @@ describe('the rules in an agent\'s own settings', () => {
   it('has no permissions at all when there is no rule, so nothing changes for an agent without any', () => {
     expect('permissions' in hookSettings(base)).toBe(false)
     expect('permissions' in hookSettings({ ...base, rules: { allow: [], ask: [], deny: [] } })).toBe(false)
+    expect('permissions' in hookSettings({ ...base, addDirs: [] })).toBe(false)
+  })
+})
+
+describe('the folders an agent may read without asking', () => {
+  const base = { url: 'http://127.0.0.1:9/hook', token: 't', headerFile: '/h/curl.cfg', permissionTimeoutSec: 300, platform: 'darwin' as const }
+  const dirs = ['/home/aw/attachments', '/home/aw/library']
+  // Given with --add-dir, Claude Code asks about each of them at every start; given here it does not ask.
+  it('are written as additionalDirectories in the agent\'s settings, whether or not it has rules', () => {
+    expect((hookSettings({ ...base, addDirs: dirs }) as { permissions?: unknown }).permissions).toEqual({ additionalDirectories: dirs })
+  })
+  it('sit beside the rules, which stay as they were', () => {
+    const rules = { allow: ['Read'], ask: ['Bash'], deny: ['WebFetch'] }
+    expect((hookSettings({ ...base, rules, addDirs: dirs }) as { permissions?: unknown }).permissions).toEqual({ ...rules, additionalDirectories: dirs })
   })
 })
 
@@ -148,8 +163,8 @@ describe('house rules', () => {
   })
 
   it('loads each plugin folder for this session only', () => {
-    const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', addDirs: ['/lib'], pluginDirs: ['/lib/run/a1'] })
-    expect(args.slice(-4)).toEqual(['--add-dir', '/lib', '--plugin-dir', '/lib/run/a1'])
+    const args = launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json', pluginDirs: ['/lib/run/a1'] })
+    expect(args.slice(-2)).toEqual(['--plugin-dir', '/lib/run/a1'])
     expect(launchArgs({ sessionId: 'abc', name: 'ada', started: false, settingsFile: '/s.json' })).not.toContain('--plugin-dir')
   })
 

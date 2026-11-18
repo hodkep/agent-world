@@ -176,6 +176,8 @@ export interface PrepareInput {
   platform: NodeJS.Platform
   /** Permission rules from the person's choices in Playbook and tools, for a program that reads them from a settings file. */
   rules?: { allow: string[]; ask: string[]; deny: string[] }
+  /** Folders the agent may read without asking, for a program that reads them from a settings file (a launch flag for the same folders makes Claude Code ask at every start). */
+  addDirs?: string[]
 }
 
 /** A provider's way to look at and press keys on its agents' terminals, for providers that report nothing themselves. */
