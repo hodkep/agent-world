@@ -77,7 +77,7 @@
     <h2>The screening room</h2>
     <p>Fifty-two seconds: every agent on its own branch, plans that wait for your word, and the whole office at a glance. With a voiceover, so turn the sound up.</p>
   </div>
-  <video class="film" controls playsinline preload="metadata" poster="assets/docs/images/video-poster.jpg" aria-label="Agent World in 52 seconds: an animated film with a voiceover">
+  <video class="film" controls playsinline preload="none" poster="assets/docs/images/video-poster.jpg" aria-label="Agent World in 52 seconds: an animated film with a voiceover">
     <source src="assets/docs/video/agent-world.mp4" type="video/mp4">
     <a href="assets/docs/video/agent-world.mp4">Watch the 52-second film</a>
   </video>
@@ -94,10 +94,22 @@
 </section>
 
 <section class="room flip" id="look">
-  <img class="shot" src="assets/docs/images/releases/0.8.0/poster.png" alt="The same chat in the system look and restyled, with the Keep and Undo bar between them, and cards for themes, layouts, icons and widgets" width="720">
+  <div class="chatpanel" role="group" aria-label="Chat with an agent">
+    <div class="cp-head"><span class="dot"></span>ada <small>idle</small></div>
+    <div class="cp-log"><p class="cp-agent"><b>ada</b>Ready. Tell me how the page should look.</p></div>
+    <div class="cp-box">
+      <div class="cp-ideas" role="group" aria-label="Look ideas">
+        <button type="button" data-look="minimal" aria-pressed="true"><i class="sw" aria-hidden="true">Aa</i><span>a shadcn-style minimal, clean UI in dark</span></button>
+        <button type="button" data-look="paper" aria-pressed="false"><i class="sw" aria-hidden="true">Aa</i><span>warm paper with serif type</span></button>
+        <button type="button" data-look="maximal" aria-pressed="false"><i class="sw" aria-hidden="true">Aa</i><span>a maximalist look and design</span></button>
+      </div>
+      <textarea readonly aria-label="Message ada">Using the appearance tools, restyle the whole page, not only its colours, to look like a shadcn-style minimal, clean UI in dark.</textarea>
+      <div class="cp-row"><span>Appearance tools on</span><button class="cp-send" id="look-send" type="button">Send</button></div>
+    </div>
+  </div>
   <div class="copy">
     <h2>Make it yours</h2>
-    <p>Ask an agent to restyle the app: themes, layouts and icons, and little widgets that show live data such as a price or the weather. You keep it, or undo it.</p>
+    <p>Ask an agent to restyle the app with the appearance tools: themes, layouts and icons, and little widgets that show live data such as a price or the weather. The look is a draft until you press Keep, and Undo puts back the one you had. Try it here: pick a theme and press Send.</p>
     <p class="links"><a class="btn alt" href="docs/customize-the-look/">Customize the look</a></p>
   </div>
 </section>

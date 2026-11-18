@@ -3,7 +3,7 @@ import { GLYPHS } from '../src/renderer/world/pixelfont'
 // @ts-expect-error a plain .mjs script
 import { crewChars } from '../scripts/build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
-import { CREW, DEFAULT_SPEED, THEN_ACTIONS, actionFor, armPixels, artWidth, castFor, helperFor, kindOf, nearestPart, nextPart, nextSpeed, scene, SCENES, speedLabel, tankLevel, thenFor, windowRects } from './office.js'
+import { CREW, DEFAULT_SPEED, LOOKS, circlePoints, handBeat, inviteSpots, isSlowConnection, keepLabel, lookFor, requestText, whenLoaded, THEN_ACTIONS, actionFor, armPixels, artWidth, castFor, helperFor, kindOf, nearestPart, nextPart, nextSpeed, scene, SCENES, speedLabel, tankLevel, thenFor, windowRects } from './office.js'
 
 const chars = crewChars()
 const bits = { GLYPHS, CHARS: chars }
@@ -147,5 +147,103 @@ describe('the crew\'s extra work on a part, after the part is built', () => {
 
   it('keeps the four kinds of work it had', () => {
     expect(['text', 'box', 'pic', 'scene'].map(actionFor)).toEqual(['type', 'hammer', 'hang', 'paint'])
+  })
+})
+
+describe('the looks the page can take, asked for in the chat panel', () => {
+  it('offers three ideas, each with its own class and the words a visitor sends', () => {
+    expect(LOOKS.map((l: { id: string }) => l.id)).toEqual(['minimal', 'paper', 'maximal'])
+    for (const l of LOOKS as { id: string; cls: string; idea: string; why: string }[]) {
+      expect(l.cls).toBe(`look-${l.id}`)
+      expect(l.idea.length).toBeGreaterThan(10)
+      expect(l.why.length).toBeGreaterThan(20)
+    }
+    expect(LOOKS[0].idea).toMatch(/shadcn/i)
+    expect(LOOKS[2].idea).toMatch(/maximalist/i)
+  })
+
+  it('finds a look by its id and knows when there is none', () => {
+    expect(lookFor('paper')?.cls).toBe('look-paper')
+    expect(lookFor('terminal')).toBeNull()
+    expect(lookFor(undefined)).toBeNull()
+  })
+
+  it('words the request as the person would type it to the agent', () => {
+    expect(requestText('a maximalist look and design')).toBe('Using the appearance tools, restyle the whole page, not only its colours, to look like a maximalist look and design.')
+  })
+
+  it('numbers the version the Keep button names, as the app does', () => {
+    expect(keepLabel(1)).toBe('Keep as v1')
+    expect(keepLabel(5)).toBe('Keep as v5')
+  })
+
+  it('puts the crew evenly on a circle round the button, and turns them with time', () => {
+    const pts = circlePoints(500, 300, 80, 6, 0)
+    expect(pts).toHaveLength(6)
+    for (const p of pts) expect(Math.round(Math.hypot(p.x - 500, p.y - 300))).toBe(80)
+    const next = circlePoints(500, 300, 80, 6, 1000)
+    expect(next[0]).not.toEqual(pts[0])
+    // one whole turn later each is back where it started
+    const turn = circlePoints(500, 300, 80, 6, 6000)
+    expect(Math.round(turn[0].x)).toBe(Math.round(pts[0].x))
+    expect(Math.round(turn[0].y)).toBe(Math.round(pts[0].y))
+  })
+})
+
+describe('the ritual round the send button, and the invitation before it', () => {
+  it('stands two builders left of the panel, level with the theme options, one behind the other', () => {
+    const spots = inviteSpots({ x: 300, y: 1000, w: 470, h: 520 }, { x: 312, y: 1260, w: 440, h: 70 })
+    expect(spots).toHaveLength(2)
+    for (const s of spots) { expect(s.x).toBeLessThan(300); expect(Math.abs(s.y - 1260)).toBeLessThan(80) }
+    expect(spots[0].x).not.toBe(spots[1].x)
+  })
+
+  it('keeps the builders on the page when the panel is near its left edge', () => {
+    for (const s of inviteSpots({ x: 20, y: 1000, w: 470, h: 520 }, { x: 32, y: 1260, w: 440, h: 70 })) expect(s.x).toBeGreaterThanOrEqual(0)
+  })
+
+  it('raises and lowers the hands in turn, a beat about twice a second', () => {
+    expect(handBeat(0)).toBe(0)
+    expect(handBeat(200)).toBe(1)
+    expect(handBeat(400)).toBe(0)
+  })
+})
+
+describe('a slow connection, and waiting for a picture', () => {
+  it('knows a slow connection from what the browser says: save data, 2g or 3g, or under 1.5 Mbps', () => {
+    expect(isSlowConnection({ saveData: true })).toBe(true)
+    expect(isSlowConnection({ effectiveType: '2g' })).toBe(true)
+    expect(isSlowConnection({ effectiveType: 'slow-2g' })).toBe(true)
+    expect(isSlowConnection({ effectiveType: '3g' })).toBe(true)
+    expect(isSlowConnection({ effectiveType: '4g', downlink: 1.2 })).toBe(true)
+  })
+
+  it('is not slow when the browser says nothing, or says fast', () => {
+    expect(isSlowConnection(undefined)).toBe(false)
+    expect(isSlowConnection({})).toBe(false)
+    expect(isSlowConnection({ effectiveType: '4g', downlink: 10, saveData: false })).toBe(false)
+  })
+
+  it('does not wait for a picture that is here, or for a film', async () => {
+    await expect(whenLoaded({ tagName: 'IMG', complete: true }, 1000)).resolves.toBeUndefined()
+    await expect(whenLoaded({ tagName: 'VIDEO', complete: false }, 1000)).resolves.toBeUndefined()
+    await expect(whenLoaded(null, 1000)).resolves.toBeUndefined()
+  })
+
+  it('asks the picture to load now, and goes on once it is decoded', async () => {
+    const img = { tagName: 'IMG', complete: false, loading: 'lazy', decode: () => Promise.resolve() }
+    await whenLoaded(img, 1000)
+    expect(img.loading).toBe('eager')
+  })
+
+  it('goes on after the time given when the picture never comes', async () => {
+    const t0 = Date.now()
+    await whenLoaded({ tagName: 'IMG', complete: false, loading: 'lazy', decode: () => new Promise(() => {}) }, 40)
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(30)
+    expect(Date.now() - t0).toBeLessThan(1500)
+  })
+
+  it('goes on when the picture fails to decode', async () => {
+    await expect(whenLoaded({ tagName: 'IMG', complete: false, loading: 'lazy', decode: () => Promise.reject(new Error('broken')) }, 1000)).resolves.toBeUndefined()
   })
 })
