@@ -548,6 +548,8 @@ function touch(a: AgentRecord) {
 const byId = (id: string) => agents.find((a) => a.id === id)
 // The global library of skills and instructions, and the playbooks (global, and one per workspace) that say how agents use it.
 const LIBRARY_DIR = join(HOME, 'library')
+// Folders an agent may read without asking. Claude gets them in its settings file (a launch flag makes it ask about each at every start); the other program takes them as a flag.
+const readableDirs = () => [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])]
 // Where skills are looked for to import: the user's own folders (a test points it elsewhere).
 const userHome = () => process.env.AW_USER_HOME ?? homedir()
 const workflowStore = new WorkflowStore(join(HOME, 'workflows'))
@@ -927,7 +929,7 @@ function agentFiles(a: AgentRecord) {
   for (const [t, id] of agentTokens) if (id === a.id) agentTokens.delete(t)
   const agentToken = randomBytes(24).toString('hex')
   agentTokens.set(agentToken, a.id)
-  const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform, rules: claudeRules(toolPolicy.policies(), toolPolicy.get().off) })
+  const prepared = providerOf(a).prepare({ dir: join(HOME, 'agents', a.id), hookUrl: eventHandles.get(providerOf(a).id)?.url ?? '', mcpUrl: office.mcpUrl, agentToken, permissionTimeoutSec: PERMISSION_TIMEOUT_SEC, platform: process.platform, addDirs: readableDirs(), rules: claudeRules(toolPolicy.policies(), toolPolicy.get().off) })
   // Every program's agent can reach the office from its own processes (git's hook asks it whether a commit may go ahead), not only the ones that read it from here.
   return { ...prepared, env: { AW_MCP_URL: office.mcpUrl, AW_AGENT_TOKEN: agentToken, ...(browserEndpoint ? browserEnv(browserEndpoint.urlFor(a.id), a.id) : {}), ...prepared.env } }
 }
@@ -1172,7 +1174,7 @@ function spawn(a: AgentRecord, env: NodeJS.ProcessEnv) {
   } catch {
     /* the library is a convenience */
   }
-  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: [ATTACH_DIR, ...(existsSync(LIBRARY_DIR) ? [LIBRARY_DIR] : [])], pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(prefs.agentBrowser ? BROWSER_TOOLS : []), ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
+  const args = provider.args({ agent: a, files, permissionMode: PERMISSION_MODE, options: a.options, houseRules: [canFetch && MEMORY_HINT, canFetch && DESCRIBE_HINT, canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) && [WORKFLOW_HINT, workflowList(enabledHere(prefs.workflows, a.repoPath, workflowStore.list(a.repoPath)), defaultWorkflow(prefs.workflows, a.repoPath))].filter(Boolean).join('\n'), canFetch && !a.parent && trackingHint(prefs.todoTracking), okfHint(a.cwd), lib.core, prefs.houseRules].filter(Boolean).join('\n\n'), addDirs: readableDirs(), pluginDirs: lib.pluginDir ? [lib.pluginDir] : [], allowTools: [...(lib.core ? LIBRARY_TOOLS : []), ...TODO_TOOLS, ...(prefs.agentBrowser ? BROWSER_TOOLS : []), ...(canFetch && prefs.workflows.enabled && !a.builder && !usesNoWorkflow(prefs.workflows, a.repoPath) ? WORKFLOW_TOOLS : []), ...(canFetch && a.builder ? BUILDER_ALLOWED : [])] })
   const { cols, rows } = sizes.get(a.id) ?? { cols: COLS, rows: ROWS }
   const cmd = providerCmd(provider, args)
   spawnedAt.set(a.id, Date.now())

@@ -34,7 +34,7 @@ function statusLine(url: string, headerFile: string, platform: NodeJS.Platform) 
   }
 }
 
-export function hookSettings(o: { url: string; token: string; headerFile: string; permissionTimeoutSec: number; platform: NodeJS.Platform; /** What the person set in Playbook and tools: servers off and tools told Allow, Ask or Deny. */ rules?: { allow: string[]; ask: string[]; deny: string[] } }) {
+export function hookSettings(o: { url: string; token: string; headerFile: string; permissionTimeoutSec: number; platform: NodeJS.Platform; /** What the person set in Playbook and tools: servers off and tools told Allow, Ask or Deny. */ rules?: { allow: string[]; ask: string[]; deny: string[] }; /** Extra folders the agent may read without asking (where attached pictures and files are saved). Here and not as --add-dir, which Claude Code asks about at every start. */ addDirs?: string[] }) {
   const hook = (timeout: number) => [
     { hooks: [{ type: 'http', url: o.url, timeout, headers: { Authorization: `Bearer ${o.token}` } }] }
   ]
@@ -42,10 +42,11 @@ export function hookSettings(o: { url: string; token: string; headerFile: string
   for (const e of OBSERVED) hooks[e] = hook(OBSERVE_TIMEOUT_SEC)
   hooks.PermissionRequest = hook(o.permissionTimeoutSec + PERMISSION_GRACE_SEC)
   const rules = o.rules && (o.rules.allow.length || o.rules.ask.length || o.rules.deny.length) ? o.rules : undefined
+  const permissions = { ...(rules && { allow: rules.allow, ask: rules.ask, deny: rules.deny }), ...(o.addDirs?.length && { additionalDirectories: o.addDirs }) }
   return {
     hooks: hooks as Record<(typeof OBSERVED)[number] | 'PermissionRequest', ReturnType<typeof hook>>,
     statusLine: statusLine(o.url.replace(/\/hook$/, '/status'), o.headerFile, o.platform),
-    ...(rules && { permissions: { allow: rules.allow, ask: rules.ask, deny: rules.deny } })
+    ...(Object.keys(permissions).length > 0 && { permissions })
   }
 }
 
@@ -62,8 +63,6 @@ export function launchArgs(o: {
   options?: AgentOptions
   /** Settings' standing instructions for every agent. */
   houseRules?: string
-  /** Extra folders the agent may read without asking (where attached pictures and files are saved). */
-  addDirs?: string[]
   /** Plugins to load for this session only. */
   pluginDirs?: string[]
   /** Tools allowed without asking. */
@@ -86,7 +85,6 @@ export function launchArgs(o: {
   const instructions = [o.houseRules, opt.instructions].map((t) => t?.trim()).filter(Boolean).join('\n\n')
   if (instructions) args.push('--append-system-prompt', instructions)
   if (opt.chrome) args.push('--chrome')
-  for (const d of o.addDirs ?? []) args.push('--add-dir', d)
   for (const d of o.pluginDirs ?? []) args.push('--plugin-dir', d)
   // Last, because the flag takes every word after it as a tool name.
   if (o.allowTools?.length) args.push('--allowedTools', ...o.allowTools)
