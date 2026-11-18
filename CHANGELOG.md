@@ -4,6 +4,25 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-18
+
+![Agent World 0.15.0: safer Preview pages, and agents that end runs](https://raw.githubusercontent.com/hodkep/agent-world/v0.15.0/docs/images/releases/0.15.0/poster.png)
+
+### Added
+
+- Preview: a page whose certificate fails shows a warning with Continue anyway, and a page opened that way is marked Not secure; the choice lasts until the app closes.
+- Workflows: an agent can end its own run; a run is dropped when nothing changed and ended when the person asked for it.
+
+### Changed
+
+- Docs: the README, the install notes and the site link the Linux downloads on the mirror, and the user guide mentions the Linux beta.
+
+### Fixed
+
+- Preview: a page opens at 100%, not at the app's 120%, and Cmd+0 puts it back to 100%.
+- Preview: links meant for a new tab open in the pane, and a page can go fullscreen.
+- Agents: the app answers Claude Code's "Adding a new directory" question for the agent's own folders.
+
 ## [0.14.0] - 2026-11-14
 
 ![Agent World 0.14.0: Agent World comes to Linux, in beta](https://raw.githubusercontent.com/hodkep/agent-world/v0.14.0/docs/images/releases/0.14.0/poster.png)
