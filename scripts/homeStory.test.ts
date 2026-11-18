@@ -85,6 +85,42 @@ describe('the crew has extra work to do on the new parts of the page', () => {
   })
 })
 
+describe('the chat panel that restyles the page', () => {
+  const css = read('site/site.css')
+  const js = read('site/office.js')
+
+  it('is on the page with the request in its message box, a send button and one chip for each look', () => {
+    expect(home).toContain('class="chatpanel"')
+    expect(home).toContain('Using the appearance tools, restyle the whole page, not only its colours, to look like')
+    expect(home).toContain('id="look-send"')
+    for (const idea of ['a shadcn-style minimal, clean UI in dark', 'warm paper with serif type', 'a maximalist look and design']) expect(home).toContain(idea)
+  })
+
+  it('shows each theme option as a small card of that theme, and has a callout the crew can put over them', () => {
+    expect([...home.matchAll(/class="sw"/g)]).toHaveLength(3)
+    expect(css).toContain('.callout')
+    expect(js).toContain("'Try this!'")
+    expect(js).toContain("'Send!'")
+    expect(js).toContain("'Wohoo!'")
+  })
+
+  it.each(['minimal', 'paper', 'maximal'])('has a whole look for %s: its own type, shape and depth, not only colours', (id) => {
+    const block = css.match(new RegExp(`html\\.look-${id}\\{([^}]+)\\}`))?.[1] ?? ''
+    for (const token of ['--display', '--r', '--drop', '--bg', '--accent']) expect(block, `${id} ${token}`).toContain(token)
+  })
+
+  it('draws the Keep and Undo bar as the app does', () => {
+    expect(css).toContain('.keepbar')
+    expect(js).toContain('Undo')
+    expect(js).toContain('keepLabel')
+  })
+
+  it('has the panel built by the crew, as a box', () => {
+    expect(js.match(/const PART_SELECTORS = '([^']+)'/)?.[1]).toContain('.chatpanel')
+    expect(css).toMatch(/html\.building :is\(.+\.chatpanel\):not\(\.in\)/)
+  })
+})
+
 describe('every picture the README and the site show exists', () => {
   const readmeImages = [...readme.matchAll(/(?:src=|\]\()"?(docs\/images\/[^"')\s]+\.(?:png|gif|jpg|svg))/g)].map((m) => m[1]!)
   const homeImages = [...home.matchAll(/(?:src|poster)="assets\/(docs\/images\/[^"]+)"/g)].map((m) => m[1]!)

@@ -1,6 +1,6 @@
 // Builds the project site (agent-world.in) from the repository's own Markdown: the user guide from docs/guide and
 // the project documents under Documentation. Static files, no framework: `node scripts/build-site.mjs [outDir]` (default site-dist).
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, posix, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { GLYPHS } from '../src/renderer/world/pixelfont.ts'
@@ -9,6 +9,7 @@ import { CREW } from '../site/office.js'
 import { STEPS } from '../site/demo.js'
 import { Marked } from 'marked'
 import { gfmHeadingId, getHeadingList } from 'marked-gfm-heading-id'
+import { imageSize, lazyImages } from './siteImages.mjs'
 
 export const SITE = 'https://agent-world.in/'
 const GITHUB = 'https://github.com/hodkep/agent-world'
@@ -67,7 +68,11 @@ export const dressed = (k, role) => ({ pal: Object.fromEntries(Object.entries(pa
 export const crewChars = () => Object.fromEntries([...CREW, 'courier'].map((k) => [k, { own: dressed(k, 'senior'), boss: dressed(k, 'boss'), intern: dressed(k, 'intern') }]))
 const BITS = JSON.stringify({ GLYPHS, CHARS: crewChars() })
 // The home page starts hidden while the crew builds it, on a screen wider than the stacked layout's (site.css, 860px); if the script never runs (blocked, old browser) the page shows itself after a while.
-const BUILDING = "<script>if(!matchMedia('(prefers-reduced-motion: reduce)').matches&&innerWidth>860){document.documentElement.classList.add('building');setTimeout(function(){if(!window.awCrew)document.documentElement.classList.remove('building')},6000)}</script>"
+// Runs in the head, before anything is drawn. The crew builds the page on a wide screen with motion allowed; on a slow connection (save data, 2g or 3g, under 1.5 Mbps) the
+// headline, the words and the buttons show at once and the crew builds the rest. The same test as isSlowConnection in site/office.js. If the crew has not started in 6 s the page just shows.
+export const BUILDING = "<script>(function(d){if(matchMedia('(prefers-reduced-motion: reduce)').matches||innerWidth<=860)return;var c=navigator.connection,slow=!!c&&!!(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')||(c.downlink>0&&c.downlink<1.5));d.documentElement.classList.add('building');if(slow)d.documentElement.classList.add('slow');setTimeout(function(){if(!window.awCrew)d.documentElement.classList.remove('building')},6000)})(document)</script>"
+// What the first screen needs, asked for early: the script that starts the crew and the font of the headings.
+const PRELOAD = '<link rel="modulepreload" href="office.js"><link rel="preload" href="fonts/pixelify-sans.woff2" as="font" type="font/woff2" crossorigin>'
 
 function layout({ title, description, path, depth, body, active, side = '', toc = '', head = '', root = up(depth) }) {
   const nav = [['', 'Home'], ['demo/', 'Demo'], ['docs/getting-started/', 'Docs']].map(([p, t]) => `<a href="${root}${p}"${active === p ? ' class="on" aria-current="page"' : ''}>${t}</a>`).join('')
@@ -119,7 +124,16 @@ export async function build(root, out) {
   const pages = pagesOf(root)
   const assets = new Set()
   const index = []
-  const write = (path, text) => (mkdirSync(dirname(join(out, path)), { recursive: true }), writeFileSync(join(out, path), text))
+  // The size of a picture, from the file it comes from; every page's pictures are made lazy with it.
+  const sizes = new Map()
+  const sizeFor = (src) => {
+    // A picture the site carries (assets/...), or a release poster the changelog takes from GitHub: the same file is in the repository.
+    const m = src.match(/assets\/(.+)$/) ?? src.match(/\/(docs\/images\/.+)$/)
+    if (!m) return null
+    if (!sizes.has(m[1])) { const f = join(root, decodeURI(m[1])); sizes.set(m[1], existsSync(f) ? imageSize(readFileSync(f)) : null) }
+    return sizes.get(m[1])
+  }
+  const write = (path, text) => (mkdirSync(dirname(join(out, path)), { recursive: true }), writeFileSync(join(out, path), path.endsWith('.html') ? lazyImages(text, sizeFor) : text))
   const version = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version
 
   for (const page of pages) {
@@ -145,7 +159,7 @@ export async function build(root, out) {
 
   const home = readFileSync(join(root, 'site', 'home.html'), 'utf8').replace(/\{\{version\}\}/g, version).replace(/\{\{root\}\}/g, '')
   for (const m of home.matchAll(/(?:src|poster)="assets\/([^"]+)"/g)) assets.add(m[1])
-  write('index.html', layout({ title: 'Agent World: your agents skip the process, this makes them follow it', description: 'Run Claude Code and Antigravity agents through the plan, review and pull request steps you set, with a skills playbook, an MCP and tools manager and a Preview.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
+  write('index.html', layout({ title: 'Agent World: your agents skip the process, this makes them follow it', description: 'Run Claude Code and Antigravity agents through the plan, review and pull request steps you set, with a skills playbook, an MCP and tools manager and a Preview.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: PRELOAD + BUILDING }))
   // The demo tour: real screens of the app with the spot to click on each (site/demo.js).
   const demo = readFileSync(join(root, 'site', 'demo.html'), 'utf8').replace(/\{\{root\}\}/g, '../')
   for (const s of STEPS) for (const img of [s.img, s.before].filter(Boolean)) assets.add(`docs/images/demo/${img}.jpg`)

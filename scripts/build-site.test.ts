@@ -1,9 +1,10 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { gzipSync } from 'node:zlib'
 import { beforeAll, describe, expect, it } from 'vitest'
 // @ts-expect-error a plain .mjs script, run by the Pages workflow
-import { SITE, build, headingText, pagesOf, resolveHref } from './build-site.mjs'
+import { BUILDING, SITE, build, headingText, pagesOf, resolveHref } from './build-site.mjs'
 // @ts-expect-error a plain browser script, copied to the site as it is
 import { STEPS, tipSide } from '../site/demo.js'
 
@@ -64,7 +65,7 @@ describe('the project site', () => {
     const home = readFileSync(join(out, 'index.html'), 'utf8')
     const video = /<video\b[^>]*>/.exec(home)?.[0] ?? ''
     expect(video).toContain('controls')
-    expect(video).toContain('preload="metadata"')
+    expect(video).toContain('preload="none"')
     expect(video).toContain('playsinline')
     expect(video).not.toContain('autoplay')
     expect(video).toContain('poster="assets/docs/images/video-poster.jpg"')
@@ -203,5 +204,59 @@ describe('the heading text in a page\'s contents', () => {
   it('leaves no tag behind when stripping one makes another, and the entities read afterwards are not stripped as tags', () => {
     expect(headingText('<<i>script>alert(1)<<i>/script>')).toBe('alert(1)')
     expect(headingText('a &lt;b&gt; c')).toBe('a <b> c')
+  })
+})
+
+describe('the site on a slow network', () => {
+  const files = () => walk(out).filter((x) => x.endsWith('.html'))
+
+  it('loads every picture of every page lazily, with its size, so nothing shifts and hidden pictures wait to be shown', () => {
+    for (const f of files()) {
+      const html = readFileSync(f, 'utf8')
+      for (const tag of html.match(/<img\b[^>]*>/g) ?? []) {
+        expect(tag, `${f.slice(out.length)}: ${tag.slice(0, 80)}`).toMatch(/\sloading="lazy"/)
+        expect(tag, tag.slice(0, 80)).toMatch(/\sdecoding="async"/)
+        expect(tag, tag.slice(0, 80)).toMatch(/\sheight="\d+"/)
+        expect(tag, tag.slice(0, 80)).toMatch(/\swidth="\d+"/)
+      }
+    }
+  })
+
+  it('keeps the shape of a picture whose width the page chose', () => {
+    const home = readFileSync(join(out, 'index.html'), 'utf8')
+    const tag = home.match(/<img\b[^>]*run-card\.png[^>]*>/)?.[0] ?? ''
+    const [w, h] = [+tag.match(/\swidth="(\d+)"/)![1], +tag.match(/\sheight="(\d+)"/)![1]]
+    expect(Math.abs(w / h - 1032 / 427)).toBeLessThan(0.02)
+  })
+
+  it('preloads the script that starts the crew and the font of the headings on the home page, and the film waits to be played', () => {
+    const home = readFileSync(join(out, 'index.html'), 'utf8')
+    expect(home).toContain('<link rel="modulepreload" href="office.js">')
+    expect(home).toMatch(/<link rel="preload" href="fonts\/pixelify-sans\.woff2" as="font" type="font\/woff2" crossorigin>/)
+    expect(home).toMatch(/<video[^>]*preload="none"/)
+  })
+
+  it('keeps what the first screen cannot do without small: the page, the styles, the script and the font stay under 60 KB on the wire', () => {
+    const wire = ['index.html', 'site.css', 'site.js', 'office.js'].map((f) => gzipSync(readFileSync(join(out, f))).length).reduce((a, b) => a + b, 0) + statSync(join(out, 'fonts/pixelify-sans.woff2')).size
+    expect(wire).toBeLessThan(60 * 1024)
+  })
+
+  const run = (connection: object | undefined, width = 1440) => {
+    const classes = new Set<string>()
+    const document = { documentElement: { classList: { add: (c: string) => classes.add(c), remove: (c: string) => classes.delete(c) } } }
+    new Function('document', 'navigator', 'matchMedia', 'innerWidth', 'setTimeout', 'window', (BUILDING as string).replace(/^<script>|<\/script>$/g, ''))(document, { connection }, () => ({ matches: false }), width, () => 0, {})
+    return classes
+  }
+
+  it('marks a slow connection before anything is drawn, so the headline, the words and the buttons show at once', () => {
+    expect([...run({ effectiveType: '3g' })].sort()).toEqual(['building', 'slow'])
+    expect([...run({ saveData: true })].sort()).toEqual(['building', 'slow'])
+    expect([...run({ effectiveType: '4g', downlink: 0.9 })].sort()).toEqual(['building', 'slow'])
+  })
+
+  it('does not change the opening on a fast connection, or on a phone or small window where nothing is built', () => {
+    expect([...run({ effectiveType: '4g', downlink: 10 })]).toEqual(['building'])
+    expect([...run(undefined)]).toEqual(['building'])
+    expect([...run({ effectiveType: '3g' }, 700)]).toEqual([])
   })
 })

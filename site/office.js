@@ -124,13 +124,71 @@ export function mount(doc, bits) {
     const { px } = scene(name, bits, t, { scroll, ...c.sceneExtra })
     paintPixels(c, w, h, (x, y) => px[y][x])
   }
+  const look = mountLook(doc)
   const facade = doc.querySelector('.facade')
-  if (facade) { const layer = doc.createElement('div'); layer.id = 'crew'; doc.body.append(layer); windows(doc, layer); if (!still) crew(doc, bits, layer) }
+  if (facade) { const layer = doc.createElement('div'); layer.id = 'crew'; doc.body.append(layer); windows(doc, layer); if (!still) crew(doc, bits, layer, look) }
   if (still) return canvases.forEach((c) => paint(c, 60_000))
   // Every scene is drawn once, so none is blank; then only the ones on screen move.
   canvases.forEach((c) => paint(c, 0))
   const tick = () => { const t = Date.now() - start; for (const c of canvases) { const r = c.getBoundingClientRect(); if (r.bottom > 0 && r.top < doc.defaultView.innerHeight) paint(c, t) } }
   return doc.defaultView.setInterval(tick, 125)
+}
+
+/**
+ * The chat panel on the page: a visitor picks an idea and presses Send, the whole page takes the look (one class on the page), and a bar like the app's asks Keep or Undo.
+ * It needs no crew: the crew only does the same on its own at the end of the build. Returns the handle the crew uses, or null when the page has no panel.
+ */
+export function mountLook(doc) {
+  const panel = doc.querySelector('.chatpanel'), send = doc.getElementById('look-send')
+  if (!panel || !send) return null
+  const html = doc.documentElement, win = doc.defaultView
+  const log = panel.querySelector('.cp-log'), box = panel.querySelector('textarea'), chips = [...panel.querySelectorAll('.cp-ideas button')]
+  const greeting = log.innerHTML
+  const el = (tag, cls, text) => { const n = doc.createElement(tag); n.className = cls; if (text) n.textContent = text; return n }
+  const classes = LOOKS.map((l) => l.cls)
+  let chosen = LOOKS[0].id, draft = null, kept = null, version = 0, bar = null
+  const setClass = (cls) => { html.classList.remove(...classes); if (cls) html.classList.add(cls) }
+  const choose = (id) => { chosen = id; for (const c of chips) c.setAttribute('aria-pressed', String(c.dataset.look === id)); box.value = requestText(lookFor(id).idea) }
+  const closeBar = () => { bar?.remove(); bar = null }
+  const agentLine = (text) => { const p = el('p', 'cp-agent'); p.append(el('b', '', 'ada'), doc.createTextNode(text)); log.append(p); log.scrollTop = log.scrollHeight }
+  const showBar = (look) => {
+    closeBar()
+    bar = el('div', 'keepbar'); bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'A new look is waiting')
+    const who = el('span', ''); who.append(el('b', '', 'An agent'), doc.createTextNode(` changed how the page looks: ${look.why}`))
+    const eye = el('button', 'eye'); eye.setAttribute('aria-label', 'Hold to compare with the current look'); eye.title = 'Hold to see the current look; let go to see the new one'
+    eye.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
+    eye.onpointerdown = (e) => { eye.setPointerCapture?.(e.pointerId); setClass(kept ? lookFor(kept).cls : null) }
+    eye.onpointerup = eye.onpointercancel = () => setClass(look.cls)
+    eye.onkeydown = (e) => (e.key === ' ' || e.key === 'Enter') && (e.preventDefault(), setClass(kept ? lookFor(kept).cls : null))
+    eye.onkeyup = eye.onblur = () => draft && setClass(look.cls)
+    const keep = el('button', 'keep', keepLabel(version + 1)); keep.onclick = () => { kept = draft; draft = null; version++; closeBar(); agentLine('Kept. It is saved as a version you can switch back to.') }
+    const undo = el('button', '', 'Undo'); undo.onclick = () => { draft = null; setClass(kept ? lookFor(kept).cls : null); closeBar(); agentLine('Undone. The page is as it was.') }
+    bar.append(el('span', 'grip', '⠿'), who, eye, keep, undo); doc.body.append(bar)
+  }
+  const sendNow = () => {
+    const look = lookFor(chosen)
+    const calls = el('div', 'cp-tools'); calls.append(el('b', '', 'Appearance'), doc.createTextNode(' 3 calls: type, shape, depth'))
+    const you = el('p', 'cp-you', requestText(look.idea))
+    log.append(you, calls); agentLine('Done. It is a draft: keep it or undo it.')
+    draft = look.id
+    const go = () => { setClass(look.cls); showBar(look) }
+    const reduced = win?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (doc.startViewTransition && !reduced) doc.startViewTransition(go); else go()
+  }
+  const hooks = { choose: null, sent: null }
+  chips.forEach((c) => (c.onclick = () => { choose(c.dataset.look); hooks.choose?.(c.dataset.look) }))
+  send.onclick = () => { sendNow(); hooks.sent?.() }
+  choose(chosen)
+  return {
+    send: sendNow,
+    applied: () => !!(draft || kept),
+    button: send,
+    panel,
+    ideas: panel.querySelector('.cp-ideas'),
+    pick: choose,
+    on: (name, fn) => { hooks[name] = fn },
+    reset() { closeBar(); setClass(null); draft = kept = null; version = 0; log.innerHTML = greeting; choose(LOOKS[0].id) }
+  }
 }
 
 /** Where the five windows and the door sit on the page, for a facade drawn in the rectangle `r`. */
@@ -161,6 +219,33 @@ export const speedLabel = (speed) => `${speed / DEFAULT_SPEED}×`
 // Extra work on a part once it is built, named in its data-then: a stamp checks a line or crosses it out, a barrier holds a push and lets it go, and Run is pressed.
 export const THEN_ACTIONS = ['check', 'barrier', 'press']
 export const thenFor = (el) => (THEN_ACTIONS.includes(el.dataset?.then) ? el.dataset.then : null)
+// The looks the chat panel on the page can ask for: what is typed to the agent, the class that restyles the whole page, and what the bar says the agent did.
+export const LOOKS = [
+  { id: 'minimal', cls: 'look-minimal', idea: 'a shadcn-style minimal, clean UI in dark', why: 'a minimal, clean look: zinc black, a clean sans, rounded corners, thin borders and soft shadows.' },
+  { id: 'paper', cls: 'look-paper', idea: 'warm paper with serif type', why: 'warm paper, a book serif, near-square corners and thin rules in place of shadows.' },
+  { id: 'maximal', cls: 'look-maximal', idea: 'a maximalist look and design', why: 'a maximalist look: loud colour, heavy rounded type, thick outlines, hard colour shadows and tilted cards.' }
+]
+/** A slow connection, by what the browser says (navigator.connection): save data, 2g or 3g, or under 1.5 Mbps. The same test as the script in the page's head (scripts/build-site.mjs). */
+export const isSlowConnection = (c) => !!c && !!(c.saveData || /^(slow-2g|2g|3g)$/.test(c.effectiveType || '') || (c.downlink > 0 && c.downlink < 1.5))
+/** Asks a lazy picture to load now and resolves when it can be drawn, or after `ms` when it does not come; a film, a missing picture or one already here is no wait. */
+export function whenLoaded(img, ms, timer = setTimeout) {
+  if (!img || img.tagName === 'VIDEO' || img.complete) return Promise.resolve()
+  img.loading = 'eager'
+  const arrived = img.decode ? img.decode().catch(() => {}) : new Promise((r) => { img.onload = img.onerror = r })
+  return Promise.race([arrived, new Promise((r) => timer(r, ms))])
+}
+export const lookFor = (id) => LOOKS.find((l) => l.id === id) ?? null
+export const requestText = (idea) => `Using the appearance tools, restyle the whole page, not only its colours, to look like ${idea}.`
+/** Two places left of the panel, level with the theme options, one behind the other, for the builders who invite a click; never off the page. */
+export const inviteSpots = (panel, ideas) => [{ x: Math.max(0, panel.x - 64), y: ideas.y - 8 }, { x: Math.max(0, panel.x - 118), y: ideas.y + 14 }]
+/** The hands go up and down in turn, a change every 200 ms: 0 or 1. */
+export const handBeat = (t) => Math.floor(t / 200) % 2
+export const keepLabel = (n) => `Keep as v${n}`
+/** n places evenly on a circle of radius r round (cx, cy), turned by time t in ms: one whole turn every six seconds. */
+export function circlePoints(cx, cy, r, n, t) {
+  const turn = (t / 6000) * Math.PI * 2
+  return Array.from({ length: n }, (_, i) => { const a = (i / n) * Math.PI * 2 + turn; return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), a } })
+}
 export const actionFor = (kind) => ACTIONS[kind]
 /** The next part to build: the first in page order not yet taken whose top is within reach; -1 when none is. */
 export function nextPart(parts, reach, taken) {
@@ -177,8 +262,8 @@ export function armPixels(kind, a) {
 }
 /** Who an engineer is on a section: itself when alone there, the intern of whoever is already working on it (who becomes the boss). */
 export const castFor = (working, section) => (working.some((w) => w.section === section) ? 'intern' : 'senior')
-const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .room video, .lobby h2, .hub, .vs h2, .vs li, .pics img, .pics figcaption, .limit'
-export const kindOf = (el) => (el.tagName === 'CANVAS' ? 'scene' : el.tagName === 'IMG' || el.tagName === 'VIDEO' ? 'pic' : /\b(row|links|hub|legend)\b/.test(el.className) ? 'box' : 'text')
+const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .room video, .lobby h2, .hub, .vs h2, .vs li, .pics img, .pics figcaption, .limit, .chatpanel'
+export const kindOf = (el) => (el.tagName === 'CANVAS' ? 'scene' : el.tagName === 'IMG' || el.tagName === 'VIDEO' ? 'pic' : /\b(row|links|hub|legend|chatpanel)\b/.test(el.className) ? 'box' : 'text')
 // 12x12 tools, 'b' brass, 'k' ink, 'w' wood, 'p' paper, 'r' red, 'g' grey.
 const TOOLS = {
   laptop: ['............', '..kkkkkkkk..', '..kggggggk..', '..kggggggk..', '..kggggggk..', '..kkkkkkkk..', '.kkkkkkkkkk.', '.kggggggggk.', '.kkkkkkkkkk.', '............', '............', '............'],
@@ -229,7 +314,7 @@ function windows(doc, layer) {
 }
 
 /** Starts the crew on the home page: returns nothing when the page is not being built (reduced motion, or no parts). */
-export function crew(doc, bits, layer) {
+export function crew(doc, bits, layer, look = null) {
   const win = doc.defaultView, html = doc.documentElement
   if (!html.classList.contains('building')) return
   const parts = [...doc.querySelectorAll(PART_SELECTORS)].map((el) => ({ el, kind: kindOf(el), y: 0 }))
@@ -335,7 +420,10 @@ export function crew(doc, bits, layer) {
     const tape = doc.createElement('div'); tape.className = 'tape'; tape.style.cssText = `left:${r.x}px;top:${r.y - 8}px;width:0`; const size = doc.createElement('span'); size.className = 'size'; tape.append(size); layer.append(tape)
     try {
       for (let i = 1; i <= 10; i++) { tape.style.width = `${(r.w * i) / 10}px`; size.textContent = `${Math.round((r.w * i) / 10)} × ${Math.round(r.h)}`; await sleep(60) }
-      await sleep(200); tape.remove(); e.hold('none'); e.say.textContent = 'carrying'; if (mate) { mate.h.say.textContent = 'carrying'; mate.h.alert(false) }
+      await sleep(200)
+      // On a slow line the page is built at the speed its pictures come: the engineer waits for the parcel (4 s at most).
+      if (p.el.tagName === 'IMG' && !p.el.complete) { e.say.textContent = 'waiting for it'; await whenLoaded(p.el, 4000) }
+      tape.remove(); e.hold('none'); e.say.textContent = 'carrying'; if (mate) { mate.h.say.textContent = 'carrying'; mate.h.alert(false) }
       const from = -(r.x + r.w + 60), steps = 16
       p.el.style.transform = `translateX(${from}px)`; p.el.classList.add('in')
       for (let i = 1; i <= steps; i++) { const x = from * (1 - i / steps); p.el.style.transform = `translateX(${x}px)`; e.put(r.x + x - 50, r.y + Math.min(r.h, 72) - 72); e.show('side', i % 2 ? 'walk1' : 'walk2'); if (mate && x > -40) mate.h.show('front', 'stand', false, 'wave', i % 2); await sleep(55) }
@@ -398,7 +486,61 @@ export function crew(doc, bits, layer) {
     await walk(e, d.x + d.w + 20 + e.i * 44, d.y + d.h - 72)
   }
   // The ending: everyone walks back in, the courier brings the dmg to the Download button, and the door closes on a lit office.
-  let ended = false
+  let ended = false, ritual = 'idle', ritualOver = null, ritualResolve = null
+  const callout = (text, x, y) => { const c = doc.createElement('div'); c.className = 'callout'; c.setAttribute('aria-hidden', 'true'); c.textContent = text; c.style.cssText = `left:${x}px;top:${y}px`; layer.append(c); return c }
+  const clearCallouts = () => layer.querySelectorAll('.callout').forEach((c) => c.remove())
+  const endRitual = () => { ritual = 'done'; ritualResolve?.(); clearCallouts() }
+  const resetRitual = () => { ritual = 'idle'; ritualResolve?.(); ritualOver = null; clearCallouts(); look?.on('choose', null); look?.on('sent', null); look?.reset() }
+  // The ritual, once, when the screen reaches the chat panel. Two builders stand by the theme options with "Try this!" until a theme is clicked;
+  // then every builder comes (each when its own part is done) and circles the send button, hands up and down, with "Send!" until it is pressed;
+  // the page takes its look, they all cheer, and the build goes on with what is left. Nobody clicks? The crew does it, so the build never waits for a visitor.
+  async function runRitual(e) {
+    if (!look || ritual !== 'idle' || look.applied()) return
+    ritual = 'invite'
+    let chosen = false, sent = false
+    look.on('choose', () => (chosen = true)); look.on('sent', () => (sent = true))
+    const h = helperFor(engineers, e), trio = [e, h].filter(Boolean)
+    if (h) { h.busyNow = true; h.mate = true; h.el.classList.remove('seated') }
+    let present = trio
+    // The wait for a click counts only the time the thing to click is on screen, so a slow reader is not rushed; and never more than 90 s in all.
+    const inView = (el) => { const r = el.getBoundingClientRect(); return r.bottom > 70 && r.top < win.innerHeight - 30 }
+    const patience = (el, ms) => { let seen = 0, last = Date.now(); const t = last; return () => { const now = Date.now(); if (inView(el)) seen += now - last; last = now; return seen < ms && now - t < 90000 } }
+    try {
+      const spots = inviteSpots(pageY(look.panel), pageY(look.ideas))
+      await Promise.all(trio.map((x, i) => { x.hold('none'); x.say.textContent = ''; return walk(x, spots[i].x, spots[i].y) }))
+      const ir = pageY(look.ideas), hint = callout('Try this!', ir.x + ir.w / 2 - 36, ir.y - 46), t0 = Date.now(), waiting = patience(look.ideas, 12000)
+      while (!chosen && !sent && !look.applied() && waiting()) { trio.forEach((x) => x.show('front', 'stand', false, 'wave', handBeat(Date.now() - t0))); await sleep(120) }
+      hint.remove()
+      if (!chosen && !sent && !look.applied()) look.pick(LOOKS[0].id)
+      if (!sent && !look.applied()) {
+        ritual = 'gather'; ritualOver = new Promise((r) => (ritualResolve = r))
+        if (h) { h.mate = false; h.busyNow = false }
+        const g0 = Date.now()
+        while (engineers.some((x) => x !== e && !x.parked) && Date.now() - g0 < 7000) await sleep(150)
+        ritual = 'circle'
+        present = engineers.filter((x) => x === e || x.parked)
+        const br = pageY(look.button), cx = br.x + br.w / 2 - 24, cy = br.y + br.h / 2 - 36, R = 96, n = present.length
+        const first = circlePoints(cx, cy, R, n, 0)
+        await Promise.all(present.map((x, i) => { x.hold('none'); x.say.textContent = ''; x.busyNow = true; return walk(x, first[i].x, first[i].y) }))
+        const call = callout('Send!', br.x + br.w / 2 - 30, br.y - 58), s0 = Date.now(), circling = patience(look.button, 12000)
+        while (!sent && !look.applied() && circling()) {
+          await frame()
+          const now = Date.now()
+          circlePoints(cx, cy, R, n, (now - s0) * speed).forEach((pt, i) => { const x = present[i]; x.put(pt.x, pt.y - (handBeat(now) ? 6 : 0)); x.show('front', 'stand', false, 'wave', handBeat(now + i * 200)) })
+        }
+        if (!sent && !look.applied()) { look.button.classList.add('pressed'); await sleep(450); look.button.classList.remove('pressed'); look.send() }
+        call.remove()
+      }
+      present.forEach((x) => (x.say.textContent = 'Wohoo!'))
+      const ground = new Map(present.map((x) => [x, x.y]))
+      for (let k = 0; k < 8; k++) { present.forEach((x, i) => { x.put(x.x, ground.get(x) - ((k + i) % 2 ? 14 : 0)); x.show('front', 'stand', false, 'wave', (k + i) % 2) }); await sleep(170) }
+      present.forEach((x) => { x.put(x.x, ground.get(x)); x.say.textContent = ''; x.show('front', 'stand', false, 'none', 0) })
+    } finally {
+      ritual = 'done'; look.on('choose', null); look.on('sent', null); clearCallouts()
+      present.concat(trio).forEach((x) => { x.busyNow = false; x.say.textContent = '' }); if (h) h.mate = false
+      ritualResolve?.()
+    }
+  }
   async function finish() {
     if (ended) return; ended = true
     const d = doorRect(stage()), out = engineers.map((e) => e.busyNow)
@@ -418,6 +560,7 @@ export function crew(doc, bits, layer) {
       for (;;) {
         passed()
         if (e.mate) { await sleep(150); continue }
+        if (ritual === 'gather' || ritual === 'circle') { e.parked = true; await ritualOver; e.parked = false; continue }
         if (e.redo != null) { const j = e.redo; e.redo = null; const p = parts[j]; e.busyNow = true; p.el.classList.remove('in'); try { await work[actionFor(p.kind)](e, p) } finally { p.el.classList.add('in'); e.busyNow = false; e.say.textContent = '' } continue }
         const i = nextPart(parts, win.scrollY + win.innerHeight * 1.15, taken)
         if (i < 0) { if (done >= parts.length) { finish().catch((err) => err !== STOP && console.error(err)); return } await idle(e); continue }
@@ -436,6 +579,7 @@ export function crew(doc, bits, layer) {
           }
           await work[actionFor(p.kind)](e, p); p.el.classList.add('in')
           const more = thenFor(p.el); if (more) await then[more](e, p)
+          if (p.el.classList.contains('chatpanel')) await runRitual(e)
         } finally { if (run === session) { busy--; done++; status() } e.say.textContent = ''; e.alert(false); e.busyNow = false; if (run === session) working.splice(working.findIndex((w) => w.name === e.name), 1); e.role = 'senior'; e.drawn = false; e.show(e.view, e.pose, e.flip, 'none', 0) }
         if (done >= parts.length) html.classList.remove('building')
       }
@@ -444,9 +588,12 @@ export function crew(doc, bits, layer) {
   // A part scrolled past before anyone got to it is simply there: nobody is watching it being built.
   const passed = () => { parts.forEach((p, j) => { Object.assign(p, pageY(p.el)); if (!taken.has(j) && p.y + p.el.offsetHeight < win.scrollY - 40) { taken.add(j); p.el.classList.add('in'); done++ } }); status(); if (done >= parts.length) html.classList.remove('building') }
   win.addEventListener('scroll', () => session && passed(), { passive: true })
-  const start = () => { session++; taken = new Set(); done = 0; busy = 0; working.length = 0; status(); engineers.forEach((e) => loop(e)) }
-  const skip = () => { session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); if (thenFor(p.el) === 'check') p.el.classList.add('checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape, .boom, .ring').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.alert(false); e.el.classList.remove('seated'); e.show('front', 'stand'); e.busyNow = false; e.mate = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
-  const replay = () => { ended = false; doc.querySelectorAll('.btn .parcel').forEach((t) => t.remove()); if (theCourier) theCourier.el.style.visibility = 'hidden'; parts.forEach((p) => { p.el.classList.remove('in', 'checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); html.classList.add('building'); win.scrollTo({ top: 0, behavior: 'instant' }); setScene({ door: 'closed', quiet: false, tanks: 0 }); start() }
+  // On a slow connection the page shows its headline, words and buttons at once (the page's own style), so the crew has nothing to build there.
+  const HERO = '.street h1, .lede, .street .row, .brew, .meta'
+  const settleHero = () => { if (html.classList.contains('slow')) parts.forEach((p, i) => { if (p.el.matches(HERO)) { taken.add(i); p.el.classList.add('in'); done++ } }) }
+  const start = () => { session++; taken = new Set(); done = 0; busy = 0; working.length = 0; settleHero(); status(); engineers.forEach((e) => loop(e)) }
+  const skip = () => { endRitual(); session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); if (thenFor(p.el) === 'check') p.el.classList.add('checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape, .boom, .ring').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.alert(false); e.el.classList.remove('seated'); e.show('front', 'stand'); e.busyNow = false; e.mate = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
+  const replay = () => { ended = false; resetRitual(); doc.querySelectorAll('.btn .parcel').forEach((t) => t.remove()); if (theCourier) theCourier.el.style.visibility = 'hidden'; parts.forEach((p) => { p.el.classList.remove('in', 'checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); html.classList.add('building'); win.scrollTo({ top: 0, behavior: 'instant' }); setScene({ door: 'closed', quiet: false, tanks: 0 }); start() }
   bar.querySelector('[data-skip]').onclick = skip
   bar.querySelector('[data-replay]').onclick = replay
   bar.querySelector('[data-speed]').onclick = (ev) => { speed = nextSpeed(speed); ev.target.textContent = speedLabel(speed) }

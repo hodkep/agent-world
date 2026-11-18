@@ -84,7 +84,7 @@ abbr.plain{font-family:var(--body);text-decoration:none;font-weight:700}
 .street{padding-top:32px}.vs,.pics{grid-template-columns:1fr}.story{padding-inline:16px}.rules>div,.room,.room.flip,.hubs{grid-template-columns:1fr}.room>canvas{position:static}.room.flip>canvas,.room.flip>img{order:0}.room{padding:40px 16px 0}.lobby,.rules{padding-inline:16px}}
 /* The build: while html.building, the parts of the home page wait for the crew; each shows when its engineer is done with it. */
 /* The same list as PART_SELECTORS in office.js, so a part is hidden from the first paint, before the script marks it. */
-html.building :is(.street h1,.lede,.street .row,.brew,.meta,.legend,.rules p,.room h2,.room p:not(.links),.room .steps li,.room .links,.room canvas,.room img,.room video,.lobby h2,.hub,.vs h2,.vs li,.pics img,.pics figcaption,.limit):not(.in){opacity:0}.part{transition:opacity .3s steps(3)}
+html.building :is(.street h1,.lede,.street .row,.brew,.meta,.legend,.rules p,.room h2,.room p:not(.links),.room .steps li,.room .links,.room canvas,.room img,.room video,.lobby h2,.hub,.vs h2,.vs li,.pics img,.pics figcaption,.limit,.chatpanel):not(.in){opacity:0}.part{transition:opacity .3s steps(3)}
 html.building .part.typing{opacity:1}
 #crew{position:absolute;left:0;top:0;width:100%;height:0;overflow:visible;pointer-events:none;z-index:4}
 .eng{position:absolute;left:0;top:0;width:48px;height:72px;will-change:transform}.eng canvas{position:absolute;left:0;top:0;width:48px;height:72px}.eng canvas.flip{transform:scaleX(-1)}
@@ -127,3 +127,73 @@ body:has(.bar){padding-bottom:44px}
 .demo .keys{margin:10px 0 0;font:12px var(--mono);color:var(--muted)}
 @media(prefers-reduced-motion:reduce){.demo .hot{animation:none}}
 @media(max-width:860px){.demo .tip{position:static;width:auto;margin-top:14px}.demo .hot{box-shadow:none}.demo .full{display:inline-block}.demo .end{position:static;background:none;padding:14px 0 0}.demo .stage.done{aspect-ratio:auto;box-shadow:none;background:none;overflow:visible}.demo .stage.done>img,.demo .stage.done~.full{display:none}.demo .keys{display:none}}
+
+/* The chat panel on the page and the Keep/Undo bar: drawn with the page's own tokens, so each look restyles them with everything else. */
+:root{--on-accent:var(--ink);--r:0px;--bw:2px}
+.chatpanel{display:flex;flex-direction:column;width:100%;max-width:470px;background:var(--panel-3);box-shadow:var(--drop);border-radius:var(--r);overflow:hidden}
+.cp-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:var(--bw) solid var(--ink);font:600 14px var(--body)}
+.cp-head small{color:var(--muted);font:12px var(--mono)}.cp-head .dot{width:9px;height:9px;background:var(--accent);border-radius:calc(var(--r) / 2)}
+.cp-log{display:grid;gap:10px;padding:14px;min-height:210px;max-height:300px;overflow:auto;align-content:start}
+.cp-you{justify-self:end;max-width:88%;padding:8px 12px;background:var(--accent);color:var(--on-accent);border-radius:var(--r);font-size:14.5px}
+.cp-agent{max-width:92%;font-size:14.5px;color:var(--text)}.cp-agent b{display:block;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.cp-tools{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:var(--r);font:12px var(--mono);color:var(--muted);background:var(--panel)}.cp-tools b{color:var(--accent);font-weight:700}
+.cp-box{display:grid;gap:10px;padding:12px;border-top:var(--bw) solid var(--ink);background:var(--panel)}
+.cp-ideas{display:grid;gap:6px}.cp-ideas button{display:flex;align-items:center;gap:10px;text-align:left;font:600 13px var(--body);padding:6px 10px 6px 6px;background:var(--panel-2);color:var(--muted);border:1px solid var(--line);border-radius:var(--r);cursor:pointer}
+.cp-ideas .sw{flex:none;display:grid;place-items:center;width:34px;height:34px;font:700 16px ui-sans-serif,system-ui,sans-serif;font-style:normal;border-radius:var(--r);box-shadow:0 0 0 1px var(--line)}
+.cp-ideas [data-look=minimal] .sw{background:#09090b;color:#fafafa}.cp-ideas [data-look=paper] .sw{background:#f5efe3;color:#b4532a;font-family:Georgia,'Times New Roman',serif}
+.cp-ideas [data-look=maximal] .sw{background:#4416a8;color:#ffe14d;font-family:ui-rounded,'Arial Rounded MT Bold',sans-serif;font-weight:900;box-shadow:0 0 0 2px #12002e,2px 2px 0 #ff3d9a}.cp-ideas button[aria-pressed=true]{color:var(--text);border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.cp-box textarea{width:100%;min-height:62px;resize:none;background:var(--well);color:var(--text);border:1px solid var(--line);border-radius:var(--r);padding:9px 11px;font:14px/1.45 var(--body)}
+.cp-row{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--muted);font:12px var(--mono)}
+.cp-send{font:700 14px var(--body);padding:8px 18px;background:var(--accent);color:var(--on-accent);border:0;border-radius:var(--r);box-shadow:var(--drop);cursor:pointer;transition:transform .08s steps(2)}.cp-send.pressed{transform:translateY(2px) scale(.97);outline:3px solid var(--accent-hot);outline-offset:3px}
+.room .chatpanel p{margin:0;max-width:none}.room .chatpanel p.cp-you{color:var(--on-accent)}.room .chatpanel p.cp-agent{color:var(--text)}
+.keepbar{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);padding:9px 12px;background:var(--panel);color:var(--text);border:2px solid var(--accent);border-radius:var(--r);box-shadow:0 8px 30px rgb(0 0 0 / .35);font:14px var(--body)}
+.keepbar .grip{color:var(--muted);font-size:16px}.keepbar button{font:600 14px var(--body);padding:6px 12px;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:var(--r);cursor:pointer;white-space:nowrap}.keepbar .keep{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.keepbar .eye{display:grid;place-items:center;padding:6px 9px}.keepbar svg{width:16px;height:16px}
+@media(max-width:860px){.keepbar{flex-wrap:wrap;bottom:12px}}
+
+/* Every look: round off the pixel rims, take the hard shadows out, set the type, and tone the pixel scenes. One class on the page, so one Undo. */
+html[class*="look-"]{--bw:1px}
+html[class*="look-"] :is(h1,h2,h3,.wm,.sky h1,.room h2){text-shadow:none;letter-spacing:var(--track,-.02em)}
+html[class*="look-"] :is(.btn,.shot,code,pre,.vs,.hub,.tag,.brew code,.rules,.pics img,.chatpanel,.keepbar,.cp-send){border-radius:var(--r)}
+html[class*="look-"] .btn{color:var(--on-accent)}html[class*="look-"] .btn.alt{color:var(--text)}html[class*="look-"] .btn:hover{transform:none}
+html[class*="look-"] .shot,html[class*="look-"] .vs{box-shadow:var(--rim)}
+html[class*="look-"] .top{box-shadow:none;border-bottom:1px solid var(--line)}
+html[class*="look-"] :is(.rules,.lobby,.foot){border-color:var(--line)}
+html[class*="look-"] canvas{border-radius:calc(var(--r) * 2)}
+html[class*="look-"] .sky h1 b{color:var(--hl,var(--accent))}
+html[class*="look-"] code{box-shadow:none}
+::view-transition-old(root),::view-transition-new(root){animation-duration:.55s}
+
+/* A shadcn-style minimal look, dark: zinc on near black, one light primary, eight pixel corners, thin borders, soft shadows, a clean sans. */
+html.look-minimal{--bg:#09090b;--panel:#09090b;--panel-2:#18181b;--panel-3:#0f0f12;--line:#27272a;--ink:#000;--text:#fafafa;--muted:#a1a1aa;--dim:#52525b;--accent:#fafafa;--accent-hot:#e4e4e7;--accent-dim:#27272a;--think:#60a5fa;--violet:#a78bfa;--well:#18181b;--on-accent:#09090b;--hl:#a1a1aa;--r:8px;--track:-.03em;--display:ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;--rim:0 0 0 1px var(--line);--drop:0 1px 2px rgb(0 0 0 / .5),0 0 0 1px var(--line);color-scheme:dark}
+html.look-minimal :is(h1,h2,.wm){font-weight:650}html.look-minimal .wm{color:var(--text)}
+html.look-minimal a{color:var(--text);text-decoration-color:var(--dim)}html.look-minimal a:hover{color:var(--muted)}html.look-minimal canvas{filter:grayscale(1)}
+
+/* Warm paper and serif: cream, ink brown and one terracotta, book type, almost square corners, rules instead of shadows. */
+html.look-paper{--bg:#f5efe3;--panel:#fbf7ee;--panel-2:#efe6d3;--panel-3:#f8f2e6;--line:#d8cbb0;--ink:#2b2118;--text:#2b2118;--muted:#6b5b45;--dim:#a8977c;--accent:#b4532a;--accent-hot:#c8633a;--accent-dim:#e8d2c3;--think:#2f6f77;--violet:#6b4e8f;--well:#efe6d3;--on-accent:#fffaf2;--hl:#b4532a;--r:3px;--track:0;--display:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--body:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;--mono:'Courier New',Courier,monospace;--rim:0 0 0 1px var(--line);--drop:0 1px 0 var(--line),0 0 0 1px var(--line);color-scheme:light}
+html.look-paper :is(h1,h2,.wm){font-weight:600}html.look-paper body{font-size:17px}
+html.look-paper .btn.alt{background:var(--panel)}html.look-paper a{color:var(--accent)}html.look-paper canvas{filter:sepia(.85) saturate(.85) contrast(.95)}
+
+/* Maximalist: loud colour on deep violet, heavy rounded type in capitals, thick outlines, hard colour shadows, tilted cards and a dotted ground. */
+html.look-maximal{--bg:#2b0a63;--panel:#4416a8;--panel-2:#5b22d6;--panel-3:#3a1190;--line:#ffe14d;--ink:#12002e;--text:#fff7e6;--muted:#ffd0f0;--dim:#b79bff;--accent:#ff3d9a;--accent-hot:#ff6fb5;--accent-dim:#7a1f66;--think:#2ee6d6;--violet:#c9a7ff;--well:#1c0644;--on-accent:#fff;--hl:#ffe14d;--r:18px;--track:-.01em;--display:ui-rounded,'Arial Rounded MT Bold','Avenir Next Condensed','Trebuchet MS',sans-serif;--body:'Avenir Next','Trebuchet MS',ui-sans-serif,system-ui,sans-serif;--rim:0 0 0 3px var(--ink);--drop:0 0 0 3px var(--ink),6px 6px 0 var(--accent);color-scheme:dark}
+html.look-maximal body{font-size:17px;background-color:var(--bg);background-image:radial-gradient(#ffe14d44 2px,transparent 3px),repeating-linear-gradient(45deg,transparent 0 20px,#ffffff0a 20px 40px);background-size:30px 30px,auto}
+html.look-maximal :is(h1,h2,h3,.wm){font-weight:900;text-transform:uppercase;text-shadow:3px 3px 0 var(--accent),6px 6px 0 var(--ink)}
+html.look-maximal .sky h1{font-size:clamp(28px,3.6vw,50px);line-height:1.02}html.look-maximal .room h2,html.look-maximal .vs h2{font-size:28px}
+html.look-maximal .top{background:var(--accent);border-bottom:4px solid var(--ink)}html.look-maximal .top nav a{color:#fff;font-weight:700}html.look-maximal .top nav a.on{box-shadow:inset 0 -4px 0 var(--hl)}html.look-maximal .wm{color:var(--hl)}
+html.look-maximal .btn{border:3px solid var(--ink);border-radius:999px;font-weight:800;transform:rotate(-1.2deg);box-shadow:var(--drop)}html.look-maximal .btn:hover{transform:rotate(1.2deg) scale(1.04)}html.look-maximal .btn.alt{background:var(--hl);color:var(--ink)}html.look-maximal .top .btn{box-shadow:none;background:var(--hl);color:var(--ink)}
+html.look-maximal :is(.shot,.vs,.hub,.chatpanel,.pics img,.keepbar){border:3px solid var(--ink);box-shadow:var(--drop)}
+html.look-maximal .vs .no{background:#3a1190}html.look-maximal .vs .yes{background:#7a1f66}html.look-maximal .vs li::before{opacity:1}
+html.look-maximal .vs .yes li::before{border-color:#b6ff3c}
+html.look-maximal .pics figure:nth-child(odd){transform:rotate(-1.4deg)}html.look-maximal .pics figure:nth-child(even){transform:rotate(1.1deg)}html.look-maximal .pics figcaption{font-weight:700;color:var(--hl)}
+html.look-maximal .room .shot,html.look-maximal .facade{box-shadow:var(--drop)}html.look-maximal canvas{filter:saturate(1.7) hue-rotate(-18deg);border:3px solid var(--ink)}
+html.look-maximal code{background:var(--ink);color:var(--think)}html.look-maximal a{color:var(--hl)}html.look-maximal .rules{background:var(--accent-dim)}
+html.look-maximal .cp-head{background:var(--accent)}html.look-maximal .cp-you{border:3px solid var(--ink)}html.look-maximal .keepbar{border-color:var(--ink);background:var(--hl);color:var(--ink)}html.look-maximal .keepbar button{border:2px solid var(--ink);background:#fff;color:var(--ink)}html.look-maximal .keepbar .keep{background:var(--accent);color:#fff}html.look-maximal .keepbar .grip{color:var(--ink)}
+
+/* The crew's callouts: a bubble with a tail over what they point at, bobbing. */
+.callout{position:absolute;z-index:7;padding:5px 10px;background:#f2c230;color:#08070c;font:700 13px ui-monospace,Menlo,Consolas,monospace;box-shadow:0 0 0 2px #08070c;white-space:nowrap;pointer-events:none;animation:call .5s steps(2) infinite alternate}
+.callout::after{content:'';position:absolute;left:50%;bottom:-9px;margin-left:-6px;border:6px solid transparent;border-top-color:#f2c230;border-bottom:0}
+@keyframes call{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+@media(prefers-reduced-motion:reduce){.callout{animation:none}}
+
+/* A slow connection: the headline, the words and the buttons show at once, before the crew has its script; the crew builds the rest. */
+html.building.slow :is(.street h1,.lede,.street .row,.brew,.meta):not(.in){opacity:1}
