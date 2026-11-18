@@ -1,0 +1,13 @@
+{
+  "version": "0.15.0",
+  "tagline": "Safer Preview pages, and agents that end runs.",
+  "subtitle": "A certificate warning in the Preview, pages at 100%, and an agent that can end its own run.",
+  "cards": [
+    { "kicker": "Preview", "title": "A warning for a bad certificate", "text": "A site whose certificate fails shows a warning with Continue anyway, and the page is marked Not secure until the app closes.", "chips": ["Continue anyway", "Not secure"] },
+    { "kicker": "Preview", "title": "Pages open at 100%", "text": "A page opens at 100%, not the app's 120%, and Cmd+0 resets it. New-tab links open in the pane, and a page can go fullscreen.", "chips": ["100%", "Cmd+0", "Fullscreen"] },
+    { "kicker": "Workflows", "title": "An agent can end its own run", "text": "A run is dropped when nothing changed, and ended when the person asked for it.", "chips": ["End run"] },
+    { "kicker": "Agents", "title": "Claude Code's folder question", "text": "When Claude Code asks about adding a new directory, the app answers for the agent's own folders.", "chips": ["Add directory"] }
+  ],
+  "also": ["Linux downloads linked from README and site", "The user guide mentions the Linux beta"],
+  "footer": "Linux is a beta. Try it and tell us what breaks."
+}
