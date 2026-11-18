@@ -11,6 +11,7 @@ import { SiteData } from './SiteData'
 import { SiteAsk } from './SiteAsk'
 import { BrowserFrame } from './BrowserFrame'
 import type { BrowserActivity } from '../../shared/api'
+import { insecureHost, isCertError } from './certError'
 import { allowSite, forgetSite, hostOf, loadSites, needsAsking } from './previewSites'
 
 // The subset of the <webview> element used here.
@@ -45,7 +46,7 @@ function loadHistory(folder: string): Visit[] {
  * The address bar: shows where the page is, and typing in it opens another address. A list under it offers the dev servers
  * running now and the pages opened before, narrowed as you type, with the best match completed in grey (Tab or → takes it).
  */
-function AddressField({ agentId, shown, state, web, live, history, onForget }: { agentId: string; shown: string; state?: 'up' | 'down'; /** A page on the internet: waiting to be allowed, loading, shown, or not loaded. */ web?: 'asking' | 'loading' | 'loaded' | 'failed'; live: { url: string; title: string }[]; history: Visit[]; onForget: (url: string) => void }) {
+function AddressField({ agentId, shown, state, web, insecure, live, history, onForget }: { agentId: string; shown: string; /** The person went past a bad certificate to open this page. */ insecure?: boolean; state?: 'up' | 'down'; /** A page on the internet: waiting to be allowed, loading, shown, or not loaded. */ web?: 'asking' | 'loading' | 'loaded' | 'failed'; live: { url: string; title: string }[]; history: Visit[]; onForget: (url: string) => void }) {
   const [typed, setTyped] = useState<string | null>(null)
   const [bad, setBad] = useState(false)
   const [open, setOpen] = useState(false)
@@ -97,7 +98,8 @@ function AddressField({ agentId, shown, state, web, live, history, onForget }: {
     </div>
   )
   return (
-    <div className={`pa ${web ? 'has-tag' : ''}`}>
+    <div className={`pa ${web ? 'has-tag' : ''} ${insecure ? 'is-insecure' : ''}`}>
+      {insecure && <span className="pa-insecure" role="status" title="The certificate of this site was not accepted, and you chose to continue. What you send here could be read or changed on the way."><span aria-hidden>⚠</span><span className="pa-insecure-t">Not secure</span></span>}
       {web && <span className={`preview-state web ${web}`} role="status" title={{ asking: 'Not opened yet', loading: 'The page is loading', loaded: 'A page on the internet', failed: 'The page did not load' }[web]}><span className="sr-only">{{ asking: 'waiting', loading: 'loading', loaded: 'web page', failed: 'not loaded' }[web]}</span></span>}
       {web && <span className="pa-tag" aria-hidden="true">web</span>}
       {state && <span className={`preview-state ${state}`} role="status" title={state === 'up' ? 'The page is running' : 'Nothing is answering at this address'}><span className="sr-only">{state === 'up' ? 'running' : 'not answering'}</span></span>}
@@ -250,6 +252,12 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   }, [folder, history])
   const currentUrl = useRef('')
   const [error, setError] = useState<string | null>(null)
+  // A page whose certificate failed: the person is told why and may Continue anyway for that site (the error above keeps the page hidden meanwhile).
+  // Chromium finishes a load right after it failed (it shows its own error page): that finish must not wipe the error just shown.
+  const failedLoad = useRef(false)
+  // The sites the person went past a bad certificate for (the main process knows; asked again as the page or the warning changes, so a reloaded window cannot show one as secure).
+  const [pastCerts, setPastCerts] = useState<string[]>([])
+  const [bad, setBad] = useState<{ url: string; host: string; why: string } | null>(null)
   const [loading, setLoading] = useState(false)
   // A page that asked for fullscreen (a video's F key) covers the whole window, as in a browser, until it leaves it (Esc).
   const [full, setFull] = useState(false)
@@ -298,6 +306,9 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
   const current = asked ?? servers.find((s) => s.port === port) ?? servers.find((s) => s.alive) ?? servers[0]
   currentUrl.current = current?.url ?? ''
   const shown = current && shownAt.base === current.url ? shownAt.url : ''
+  const pageUrl = current ? shown || current.url : ''
+  useEffect(() => void window.aw.previewCertsAllowed().then(setPastCerts), [pageUrl, bad])
+  const insecure = !!web && !ask && !error && !!insecureHost(pageUrl, pastCerts)
   // Each screen size is a page of its own: a page given its size when it is made is the way to be sure the page sees that size.
   // A site that is not allowed yet has no page, so the page that comes when it is allowed is a new one too.
   const frameKey = `${current?.url}|${dev.kind}|${dev.preset}|${dev.rotated}|${ask}`
@@ -356,11 +367,16 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
     const el = view.current
     if (!el) return
     const fail = (e: Event) => {
-      const ev = e as Event & { errorDescription?: string; errorCode?: number }
+      const ev = e as Event & { errorDescription?: string; errorCode?: number; validatedURL?: string; isMainFrame?: boolean }
+      // A page inside the page (an image, a frame) failing its certificate does not take the page away.
+      if (ev.isMainFrame === false) return
       // -3 is a navigation interrupted by another one; not a failure worth showing.
-      if (ev.errorCode !== -3) setError(ev.errorDescription ?? 'The page did not load.')
+      if (ev.errorCode === -3) return
+      failedLoad.current = true
+      setError(ev.errorDescription ?? 'The page did not load.')
+      if (isCertError(ev.errorCode) && ev.validatedURL) setBad({ url: ev.validatedURL, host: hostOf(ev.validatedURL), why: ev.errorDescription ?? '' })
     }
-    const ok = () => setError(null)
+    const ok = () => failedLoad.current || (setError(null), setBad(null))
     const enter = () => setFull(true)
     const leave = () => setFull(false)
     ready.current = false
@@ -374,7 +390,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       }
     }
     const up = () => ((ready.current = true), look())
-    const start = () => setLoading(true)
+    const start = () => ((failedLoad.current = false), setLoading(true))
     // A page that was moved on has its place to go back to once it has stopped loading.
     const stop = () => (setLoading(false), look())
     // A page opened or followed here is remembered, and its title is added when it arrives.
@@ -506,7 +522,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
         <button onClick={() => view.current?.reload()} aria-label="Reload" title="Reload the page">
           <OutlineIcon name="reload" />
         </button>
-        <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={web ? undefined : current.alive ? 'up' : 'down'} web={web ? (ask ? 'asking' : error ? 'failed' : loading ? 'loading' : 'loaded') : undefined} live={live} history={history} onForget={forgetVisit} />
+        <AddressField agentId={agentId} shown={(!shown || shown === current.url ? pagePaths.get(current.url) : undefined) ?? (shown || current.url)} state={web ? undefined : current.alive ? 'up' : 'down'} web={web ? (ask ? 'asking' : error ? 'failed' : loading ? 'loading' : 'loaded') : undefined} insecure={insecure} live={live} history={history} onForget={forgetVisit} />
         <SiteData page={current.url} loading={loading} />
         <span className="preview-dev" ref={devWrap}>
           <button className="dev-btn" aria-haspopup="menu" aria-expanded={devMenu} aria-label={`Screen size: ${DEVICES[dev.kind].label}`} title="Screen size: see the page as it looks on a tablet or phone" onClick={() => setDevMenu((o) => !o)}>
@@ -538,7 +554,7 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       {ask && web && (
         <SiteAsk host={hostOf(web)} http={web.startsWith('http:')} onOpen={() => setSites(allowSite(localStorage, hostOf(web)))} onOther={() => (void window.aw.openExternal(web), setOpened(null))} />
       )}
-      {!ask && (!current.alive || error) && (
+      {!ask && (!current.alive || (error && !bad)) && (
         <div className="preview-down" role="status">
           <b>{!current.alive ? `Nothing is answering at ${new URL(current.url).host}` : 'The page did not load'}</b>
           <p>
@@ -575,11 +591,31 @@ export function PreviewView({ servers, agentName, agentId, folder, onAttached, t
       )}
       {/* Keyed by address so each server gets a fresh, isolated page; it is only there while something answers. */}
       {!ask && current.alive && (
-        <div className={`preview-holder ${full ? 'full' : ''}`} ref={holder} style={error ? { display: 'none' } : undefined}>
+        <div className={`preview-holder ${full ? 'full' : ''}`} ref={holder} style={error && !bad ? { display: 'none' } : undefined}>
           <div className={`device-frame is-${full ? 'desktop' : (agentFrame.kind ?? dev.kind)}`} style={full ? undefined : frame}>
             <Frame key={frameKey} url={shown || current.url} ua={dev.kind === 'desktop' ? undefined : USER_AGENT[dev.kind]} viewRef={view} agentId={agentId} />
           </div>
           <BrowserFrame who={agentName} connections={browser?.connections ?? 0} at={browser?.at ?? 0} method={browser?.method} action={browser?.action} size={browser?.size} onDisconnect={() => window.aw.browserDisconnect(agentId)} />
+          {error && bad && (
+            <div className="cert-over" role="alert">
+              <div className="cert-card">
+                <h3><span aria-hidden>⚠</span> This site's certificate cannot be trusted</h3>
+                <p>
+                  <b>{bad.host}</b> cannot prove who it is. What you type there, passwords included, could be read or changed by someone else on the way.
+                </p>
+                <details>
+                  <summary>Technical details</summary>
+                  {bad.why.replace(/^net::/, '')}
+                </details>
+                <span className="cert-row">
+                  <button className="primary" onClick={() => (setBad(null), setError('The page was not opened.'))}>Go back</button>
+                  <button className="cert-go" onClick={() => void window.aw.allowPreviewCert(new URL(bad.url).hostname).then((ok) => { if (ok) (setBad(null), setError(null), void (view.current?.loadURL(bad.url), view.current?.focus())) })}>
+                    Continue to {bad.host} (unsafe)
+                  </button>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
