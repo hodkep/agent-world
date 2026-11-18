@@ -6,12 +6,12 @@ import { join, resolve } from 'node:path'
 import { expect, test } from '@playwright/test'
 import { hire, launchApp } from './launch'
 
-test('in the Preview, Cmd+= / Cmd+- / Cmd+0 over the page zoom the page and not the app, and pinch is allowed on it', async () => {
+test('in the Preview, a page opens at 100% though the app is at 120%; Cmd+= / Cmd+- / Cmd+0 zoom the page and not the app, and pinch is allowed on it', async () => {
   const dev = createServer((_, res) => res.writeHead(200, { 'content-type': 'text/html' }).end('<title>x</title><h1 id="h">Shop</h1>'))
   await new Promise<void>((r) => dev.listen(0, '127.0.0.1', r))
   const port = (dev.address() as AddressInfo).port
   const home = mkdtempSync(join(tmpdir(), 'aw-dev-'))
-  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_DEV_PORT: String(port) }, home)
+  const { app, shutdown } = await launchApp({ AW_HOME: join(home, 'aw'), AW_CLAUDE_BIN: resolve(__dirname, 'fake-claude.mjs'), FAKE_DELAY_MS: '50', FAKE_DEV_PORT: String(port), AW_ZOOM: '1.2' }, home)
   try {
     const page = await app.firstWindow()
     await page.setViewportSize({ width: 1400, height: 900 })
@@ -32,6 +32,9 @@ test('in the Preview, Cmd+= / Cmd+- / Cmd+0 over the page zoom the page and not 
       }, { key, ...o })
     const start = await press('x')
     expect(start.prevented).toBe(false)
+    // The app is at its own 120%; the page is at the browser's 100%.
+    expect(start.host).toBeCloseTo(1.2)
+    expect(start.guest).toBeCloseTo(1)
     const up = await press('=')
     expect(up.prevented).toBe(true)
     expect(up.guest).toBeGreaterThan(start.guest)
@@ -39,7 +42,7 @@ test('in the Preview, Cmd+= / Cmd+- / Cmd+0 over the page zoom the page and not 
     const down = await press('-')
     expect(down.guest).toBeCloseTo(start.guest)
     expect((await press('-')).guest).toBeLessThan(start.guest)
-    expect((await press('0')).guest).toBeCloseTo(start.guest)
+    expect((await press('0')).guest).toBeCloseTo(1)
     // The page itself sees the zoom: its width in CSS pixels shrinks as it is zoomed in.
     const wide = (await run('innerWidth')) as number
     await press('=')
