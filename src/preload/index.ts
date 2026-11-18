@@ -87,6 +87,8 @@ const api: AwApi = {
   getServers: () => ipcRenderer.invoke('get-servers'),
   onServers: on('servers'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  previewCertsAllowed: () => ipcRenderer.invoke('preview:certs-allowed'),
+  allowPreviewCert: (host) => ipcRenderer.invoke('preview:allow-cert', host),
   previewPage: (agentId, id) => ipcRenderer.send('preview:page', agentId, id),
   previewSitesAllowed: (sites) => ipcRenderer.send('preview:sites-allowed', sites),
   previewAskAnswer: (agentId, url, ok) => ipcRenderer.send('preview:ask-answer', agentId, url, ok),

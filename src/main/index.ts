@@ -61,6 +61,7 @@ import { appKey, forwarded } from './appKeys'
 import { clearAllSites, clearSite, keepSessionCookies, listSites } from './siteData'
 import { createAccess } from './browserTool/access'
 import { previewAllows } from './previewPermission'
+import { createCertGate } from './previewCerts'
 import { browserEnv, startEndpoint, type Endpoint, type Guest } from './browserTool/endpoint'
 import { BROWSER_TOOLS, syncBrowserSkill } from './library/browserSkill'
 import * as pty from 'node-pty'
@@ -3712,6 +3713,20 @@ async function main() {
   // in a session of its own, shared by every agent and every project and kept between runs (logins stay), and that is never given a permission (camera, location, notifications) nor lets a file be downloaded.
   const preview = session.fromPartition('persist:preview')
   keepSessionCookies(preview.cookies)
+  // A site whose certificate fails stays failed, unless the person chose Continue anyway for that site (until the app closes).
+  const certs = createCertGate()
+  // (The 'certificate-error' event, not a verify proc: Chromium caches a verify proc's verdict per site, so a site allowed later would still fail.)
+  app.on('certificate-error', (event, contents, url, error, _cert, done) => {
+    if (contents.session !== preview) return
+    event.preventDefault()
+    try {
+      done(certs.check(new URL(url).hostname, error) === 0)
+    } catch {
+      done(false)
+    }
+  })
+  ipcMain.handle('preview:certs-allowed', () => certs.allowed())
+  ipcMain.handle('preview:allow-cert', (_, host: unknown) => typeof host === 'string' && certs.allow(host))
   // ---- the browser tool: an agent's own Preview page, offered to its tools (agent-browser, Playwright) through a filtered endpoint. The Preview says which web page is whose.
   const previewPages = new Map<string, Electron.WebContents>()
   const waiting = new Map<string, ((g: Electron.WebContents) => void)[]>()

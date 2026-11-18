@@ -670,6 +670,10 @@ export interface AwApi {
   onServers(cb: (s: Record<string, DevServer[]>) => void): () => void
   /** Open a local address in the system browser. */
   openExternal(url: string): Promise<void>
+  /** Continue anyway on a Preview site whose certificate just failed: that host is accepted until the app closes. False for a host that did not fail. */
+  allowPreviewCert(host: string): Promise<boolean>
+  /** The hosts "Continue anyway" was chosen for, until the app closes. */
+  previewCertsAllowed(): Promise<string[]>
   /** What the Preview's one shared session holds: the page being shown (by host, with its port) and the other sites with cookies. */
   previewSites(current?: string): Promise<PreviewSites>
   /** Clear one site's cookies and stored data from that session; it is also what every agent's Preview sees. */
