@@ -1,10 +1,10 @@
 <section class="street">
   <div class="sky">
-    <h1>Your agents,<br><b>at their desks.</b></h1>
-    <p class="lede">Run your coding agents from one pixel-art office. Each agent has its own git branch and a real Claude Code or Antigravity session. You see who is thinking, running or waiting for you, and step in from the office.</p>
+    <h1>Your agents skip the process.<br><b>Agent World makes them follow it.</b></h1>
+    <p class="lede">Coding agents jump straight to editing, ignore the skills you wrote and commit to the wrong branch. Agent World runs your own Claude Code or Antigravity sessions through a process you write down: plan, build, checks, review, pull request. Nothing is pushed until you press Run.</p>
     <div class="row"><a class="btn" href="https://github.com/hodkep/agent-world/releases/latest">Download for Mac</a><a class="btn alt" href="demo/">Try the demo</a><a class="btn alt" href="docs/install/">Install notes</a></div>
     <p class="brew"><code>brew tap hodkep/tap &amp;&amp; brew trust --cask hodkep/tap/agent-world &amp;&amp; brew install --cask hodkep/tap/agent-world</code></p>
-    <p class="meta">v{{version}} · macOS · Apache 2.0 · Homebrew 6 and later asks you to trust a third-party tap, once on each Mac. <a href="docs/install/">Why</a></p>
+    <p class="meta">v{{version}} · macOS · Linux beta · Apache 2.0 · Homebrew 6 and later asks you to trust a third-party tap, once on each Mac. <a href="docs/install/">Why</a></p>
   </div>
   <canvas class="facade" data-scene="facade" width="240" height="120" role="img" aria-label="The office building at night from the street: five lit windows, an agent at a desk in each, one idle, one thinking, one running, one waiting for you, one asleep; the front door with a brass plaque"></canvas>
   <figure class="peek" data-state="idle" hidden><img src="assets/docs/images/office.png" alt="The office: an idle agent rests on a sofa in the lounge" width="720"><figcaption>idle: finished its turn, resting on a sofa</figcaption></figure>
@@ -13,6 +13,57 @@
   <figure class="peek" data-state="permission" hidden><img src="assets/docs/images/permission.png" alt="A permission request from an agent" width="720"><figcaption>waiting for you: a permission request, answered from the office</figcaption></figure>
   <figure class="peek" data-state="asleep" hidden><img src="assets/docs/images/chat-restart.png" alt="The restart menu of an agent" width="720"><figcaption>asleep: its program stopped; Wake starts it again</figcaption></figure>
   <p class="legend"><span><i style="--c:#6ad0e0"></i>thinking</span><span><i style="--c:#5f9e5f"></i>running</span><span><i style="--c:#d83a3a"></i>waiting for you</span><span><i style="--c:#4a4860"></i>asleep</span><span>every window is one agent, in its real state</span></p>
+</section>
+
+<section class="story" id="story">
+  <div class="vs">
+    <div class="no"><h2>Without it</h2><ul><li data-then="check">The agent starts editing before the plan is agreed.</li><li data-then="check">It never opens the skill you wrote for this job.</li><li data-then="check">It commits on the wrong branch, or pushes before review.</li><li data-then="check">You find out afterwards, in a terminal tab.</li></ul></div>
+    <div class="yes"><h2>With Agent World</h2><ul><li data-then="check">Edits wait for a plan you approve.</li><li data-then="check">A playbook tells each agent which skills to read, and the app flags the rules it ignored.</li><li data-then="check">Every agent works on its own branch, and nothing is pushed until you press Run.</li><li data-then="check">Each step is a card in the chat, with where it stands.</li></ul></div>
+  </div>
+  <div class="pics">
+    <figure><img class="shot" src="assets/docs/images/plan-gate.png" alt="The plan gate: what ada understood before the build starts" width="720"><figcaption>Check the plan before the build starts</figcaption></figure>
+    <figure><img class="shot" data-then="press" src="assets/docs/images/run-card.png" alt="Your turn to run: the pull request step waits, with Run, Send back, Not now and Skip" width="720"><figcaption>Press Run, or send it back</figcaption></figure>
+    <figure><img class="shot" src="assets/docs/images/preview-agent-page.png" alt="The Preview showing the settings page an agent built" width="720"><figcaption>Preview the page the agent built</figcaption></figure>
+  </div>
+  <p class="limit" data-then="barrier">The holds stop an agent that follows its instructions from getting ahead of you. They are a guard rail, not a lock against an agent set on getting round them.</p>
+</section>
+
+<section class="room flip" id="workflows">
+  <canvas data-scene="meeting" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>Workflows</h2>
+    <p>A plan you approve, checks that run, a review of the branch against the plan, and the pull request. Git holds an agent's edits until the plan is approved, and its commits and push until the review is settled. A run is a track in the chat; the step it stands on is where the work is.</p>
+    <img class="shot" src="assets/docs/images/plan-gate-links.png" alt="A plan gate in the chat, with the plan's files as links" width="720">
+    <p class="links"><a class="btn alt" href="docs/workflows/">Workflows</a><a href="docs/todos/">Todos</a></p>
+  </div>
+</section>
+
+<section class="room" id="playbook">
+  <canvas data-scene="shelf" width="120" height="60" aria-hidden="true"></canvas>
+  <div class="copy">
+    <h2>Playbook</h2>
+    <p>Skills, instructions and prompts live in one library, and a playbook says which agent is told what, and when. The Usage tab measures, rule by rule, how often an agent read it when it applied, and flags the weak ones with a fix.</p>
+    <img class="shot" src="assets/docs/images/playbook.png" alt="The playbook: two rules, each with when an agent should reach for it" width="720">
+    <p class="links"><a class="btn alt" href="docs/library-and-playbook/">Library and playbook</a></p>
+  </div>
+</section>
+
+<section class="room flip" id="tools">
+  <img class="shot" src="assets/docs/images/mcp-servers.png" alt="The MCP servers tab: the servers the programs name, in a panel for each place, each with an on and off switch" width="720">
+  <div class="copy">
+    <h2>Skills, <abbr class="plain" title="Model Context Protocol">MCP</abbr> servers and tools</h2>
+    <p>Every skill, server and tool in one window: where it lives and how often it was called. Connect a server to see what it offers, test an entry before you save it, take it out of one project or every place, and set each tool to Allow, Ask or Deny for the agents the app runs.</p>
+    <p class="links"><a class="btn alt" href="docs/library-and-playbook/">Skills, MCP and tools</a></p>
+  </div>
+</section>
+
+<section class="room" id="preview">
+  <img class="shot" src="assets/docs/images/preview-agent-page.png" alt="The Preview showing the settings page an agent built, with the address bar, Site data, screen size and Select element" width="720">
+  <div class="copy">
+    <h2>Preview</h2>
+    <p>The page the agent serves, beside the chat. Resize it to a phone, point at an element to send it to the agent, and let the agent open its own Preview page, click, scroll and take screenshots, in a frame that names it and can disconnect it.</p>
+    <p class="links"><a class="btn alt" href="docs/code-and-preview/">Code and preview</a></p>
+  </div>
 </section>
 
 <section class="rules"><div>
@@ -39,26 +90,6 @@
     <p>Each character does what its agent does: thinking, researching, implementing, running, delegating or waiting. Click one to open its chat: tool cards, edits as diffs, a Code tab for changes and history.</p>
     <img class="shot" src="assets/docs/images/office-activities.png" alt="The office with eight agents, one in each activity" width="720">
     <p class="links"><a class="btn alt" href="docs/the-office/">The office guide</a><a href="docs/chat-and-dialogs/">Chat and dialogs</a><a href="docs/code-and-preview/">Code and preview</a></p>
-  </div>
-</section>
-
-<section class="room flip" id="meeting">
-  <canvas data-scene="meeting" width="120" height="60" aria-hidden="true"></canvas>
-  <div class="copy">
-    <h2>The meeting table</h2>
-    <p>Workflows with plan and review gates: the agent writes a plan you approve, builds it, walks you through the change, and lands it only when you press Run. A run is a track in the chat; the station it stands on is where the work is.</p>
-    <img class="shot" src="assets/docs/images/plan-gate-links.png" alt="A plan gate in the chat, with the plan's files as links" width="720">
-    <p class="links"><a class="btn alt" href="docs/workflows/">Workflows</a><a href="docs/todos/">Todos</a></p>
-  </div>
-</section>
-
-<section class="room" id="shelf">
-  <canvas data-scene="shelf" width="120" height="60" aria-hidden="true"></canvas>
-  <div class="copy">
-    <h2>The bookshelf</h2>
-    <p>Skills, instructions and prompts live in one library, and a playbook says when each applies. An agent reads the item before the work it covers, and the office shows it at the shelf while it does.</p>
-    <img class="shot" src="assets/docs/images/library.png" alt="The library: skills, instructions and prompts, with where each is used" width="720">
-    <p class="links"><a class="btn alt" href="docs/library-and-playbook/">Library and playbook</a></p>
   </div>
 </section>
 

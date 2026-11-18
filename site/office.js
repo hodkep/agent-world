@@ -154,6 +154,13 @@ export function tankLevel(done, total) { const level = total ? done / total : 0;
 
 // ---- The crew: six engineers who build the home page part by part as it scrolls into view.
 const ACTIONS = { text: 'type', box: 'hammer', pic: 'hang', scene: 'paint' }
+// The pace of the crew: the factor times its steps are divided by. The page starts at 2 and calls it 1x; the slow pace, 1, is called 0.5x.
+export const DEFAULT_SPEED = 2
+export const nextSpeed = (speed) => (speed === DEFAULT_SPEED ? 1 : DEFAULT_SPEED)
+export const speedLabel = (speed) => `${speed / DEFAULT_SPEED}×`
+// Extra work on a part once it is built, named in its data-then: a stamp checks a line or crosses it out, a barrier holds a push and lets it go, and Run is pressed.
+export const THEN_ACTIONS = ['check', 'barrier', 'press']
+export const thenFor = (el) => (THEN_ACTIONS.includes(el.dataset?.then) ? el.dataset.then : null)
 export const actionFor = (kind) => ACTIONS[kind]
 /** The next part to build: the first in page order not yet taken whose top is within reach; -1 when none is. */
 export function nextPart(parts, reach, taken) {
@@ -170,7 +177,7 @@ export function armPixels(kind, a) {
 }
 /** Who an engineer is on a section: itself when alone there, the intern of whoever is already working on it (who becomes the boss). */
 export const castFor = (working, section) => (working.some((w) => w.section === section) ? 'intern' : 'senior')
-const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .room video, .lobby h2, .hub'
+const PART_SELECTORS = '.street h1, .lede, .street .row, .brew, .meta, .legend, .rules p, .room h2, .room p:not(.links), .room .steps li, .room .links, .room canvas, .room img, .room video, .lobby h2, .hub, .vs h2, .vs li, .pics img, .pics figcaption, .limit'
 export const kindOf = (el) => (el.tagName === 'CANVAS' ? 'scene' : el.tagName === 'IMG' || el.tagName === 'VIDEO' ? 'pic' : /\b(row|links|hub|legend)\b/.test(el.className) ? 'box' : 'text')
 // 12x12 tools, 'b' brass, 'k' ink, 'w' wood, 'p' paper, 'r' red, 'g' grey.
 const TOOLS = {
@@ -180,6 +187,7 @@ const TOOLS = {
   tape: ['............', '...bbbbbb...', '..bbbbbbbb..', '..bbkkkkbb..', '..bbkppkbb..', '..bbkkkkbb..', '..bbbbbbbb..', '...bbbbbb...', '....kkkkkkkk', '............', '............', '............'],
   brush: ['.........ww.', '........wwk.', '.......wwk..', '......wwk...', '.....wwk....', '....kkk.....', '...kbbk.....', '..kbbbk.....', '..kbbk......', '..kkk.......', '............', '............'],
   plank: ['............', '............', '............', '............', '............', 'wwwwwwwwwwww', 'kkkkkkkkkkkk', 'wwwwwwwwwwww', '............', '............', '............', '............'],
+  stamp: ['....kkkk....', '...kppppk...', '....kppk....', '....kppk....', '...kkkkkk...', '..kkkkkkkk..', '..kbbbbbbk..', '..kbbbbbbk..', '..kkkkkkkk..', '............', '............', '............'],
   parcel: ['............', '............', '............', '..kkkkkkkk..', '..kwwwwwwk..', '..kwwbbwwk..', '..kwwbbwwk..', '..kwwwwwwk..', '..kkkkkkkk..', '............', '............', '............'],
   none: []
 }
@@ -230,7 +238,7 @@ export function crew(doc, bits, layer) {
   const bar = doc.createElement('div'); bar.className = 'bar'; bar.innerHTML = '<b>Building the page</b><span data-who></span><i></i><button data-replay>Replay</button><button data-skip>Skip</button><button data-speed>1×</button>'; doc.body.append(bar)
   const who = bar.querySelector('[data-who]'), meter = bar.querySelector('i')
   const STOP = {}
-  let session = 0, speed = 1, taken = new Set(), done = 0, busy = 0
+  let session = 0, speed = DEFAULT_SPEED, taken = new Set(), done = 0, busy = 0
   const working = []
   const pageY = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + win.scrollX, y: r.top + win.scrollY, w: r.width, h: r.height } }
   const sleep = (ms) => { const s = session; return new Promise((r) => win.setTimeout(r, ms / speed)).then(() => { if (s !== session) throw STOP }) }
@@ -342,7 +350,39 @@ export function crew(doc, bits, layer) {
       for (let i = 1; i <= bands; i++) { p.el.style.clipPath = `inset(0 0 ${100 - (i / bands) * 100}% 0)`; e.put(e.x, r.y + Math.min(r.h - 72, (r.h * i) / bands)); e.show('front', 'stand', false, 'brush', i % 2); await sleep(90) }
     } finally { p.el.style.clipPath = ''; e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
   }
+  // A line, once typed: the engineer stamps a tick beside it, or a cross when it is a thing that goes wrong without the process.
+  async function check(e, p) {
+    e.hold('stamp'); e.say.textContent = p.el.closest('.no') ? 'crossing out' : 'checking'
+    try {
+      for (let i = 0; i < 4; i++) { e.show('front', 'stand', false, 'hammer', i % 2); await sleep(90) }
+      p.el.classList.add('checked'); await sleep(240)
+    } finally { e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
+  }
+  // The line about the guard rail: a striped barrier comes down in front of the text, held for a moment as a push is held, and goes up again.
+  async function barrier(e, p) {
+    const r = pageY(p.el), x = Math.min(r.x + Math.min(r.w, 660) + 24, win.innerWidth - 90)
+    const boom = doc.createElement('div'); boom.className = 'boom'; boom.style.cssText = `left:${x}px;top:${r.y + 6}px`
+    const arm = doc.createElement('i'), tag = doc.createElement('b'); tag.textContent = 'HELD'; boom.append(arm, tag); layer.append(boom)
+    e.hold('plank'); e.say.textContent = 'holding'
+    try {
+      for (let i = 1; i <= 6; i++) { arm.style.transform = `rotate(${-90 + i * 15}deg)`; e.show('front', 'stand', false, 'wave', i % 2); await sleep(70) }
+      boom.classList.add('down'); await sleep(900)
+      e.say.textContent = 'Run'
+      for (let i = 5; i >= 0; i--) { arm.style.transform = `rotate(${-90 + i * 15}deg)`; await sleep(60) }
+      boom.classList.remove('down'); await sleep(160)
+    } finally { boom.remove(); e.hold('none'); e.show('front', 'stand', false, 'none', 0) }
+  }
+  // The card that waits for Run: the engineer goes to its left and presses the button, and a ring spreads from it.
+  async function press(e, p) {
+    const r = pageY(p.el), bx = r.x + r.w * 0.107, by = r.y + r.h * 0.808
+    await walk(e, Math.max(0, r.x - 56), by - 72); e.say.textContent = 'pressing Run'
+    const ring = doc.createElement('div'); ring.className = 'ring'; ring.style.cssText = `left:${bx - 16}px;top:${by - 16}px`; layer.append(ring)
+    try {
+      for (let i = 0; i < 6; i++) { ring.classList.toggle('on', i % 2 === 0); e.show('front', 'stand', false, 'wave', i % 2); await sleep(150) }
+    } finally { ring.remove(); e.show('front', 'stand', false, 'none', 0) }
+  }
   const work = { type, hammer, hang, paint }
+  const then = { check, barrier, press }
 
   // Nothing to do: the engineer walks off the left edge and waits there, out of the page's way, and comes back in for the next part.
   async function idle(e) {
@@ -395,6 +435,7 @@ export function crew(doc, bits, layer) {
             e.alert(false); e.say.textContent = ''
           }
           await work[actionFor(p.kind)](e, p); p.el.classList.add('in')
+          const more = thenFor(p.el); if (more) await then[more](e, p)
         } finally { if (run === session) { busy--; done++; status() } e.say.textContent = ''; e.alert(false); e.busyNow = false; if (run === session) working.splice(working.findIndex((w) => w.name === e.name), 1); e.role = 'senior'; e.drawn = false; e.show(e.view, e.pose, e.flip, 'none', 0) }
         if (done >= parts.length) html.classList.remove('building')
       }
@@ -404,11 +445,11 @@ export function crew(doc, bits, layer) {
   const passed = () => { parts.forEach((p, j) => { Object.assign(p, pageY(p.el)); if (!taken.has(j) && p.y + p.el.offsetHeight < win.scrollY - 40) { taken.add(j); p.el.classList.add('in'); done++ } }); status(); if (done >= parts.length) html.classList.remove('building') }
   win.addEventListener('scroll', () => session && passed(), { passive: true })
   const start = () => { session++; taken = new Set(); done = 0; busy = 0; working.length = 0; status(); engineers.forEach((e) => loop(e)) }
-  const skip = () => { session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.alert(false); e.el.classList.remove('seated'); e.show('front', 'stand'); e.busyNow = false; e.mate = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
-  const replay = () => { ended = false; doc.querySelectorAll('.btn .parcel').forEach((t) => t.remove()); if (theCourier) theCourier.el.style.visibility = 'hidden'; parts.forEach((p) => { p.el.classList.remove('in'); p.el.style.transform = ''; p.el.style.clipPath = '' }); html.classList.add('building'); win.scrollTo({ top: 0, behavior: 'instant' }); setScene({ door: 'closed', quiet: false, tanks: 0 }); start() }
+  const skip = () => { session++; taken = new Set(parts.map((_, i) => i)); done = parts.length; busy = 0; parts.forEach((p) => { p.el.classList.add('in'); if (thenFor(p.el) === 'check') p.el.classList.add('checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); layer.querySelectorAll('.ghost, .tape, .boom, .ring').forEach((g) => g.remove()); engineers.forEach((e) => { e.hold('none'); e.say.textContent = ''; e.alert(false); e.el.classList.remove('seated'); e.show('front', 'stand'); e.busyNow = false; e.mate = false; e.el.style.visibility = 'hidden' }); html.classList.remove('building'); setScene({ door: 'closed', quiet: false }); status() }
+  const replay = () => { ended = false; doc.querySelectorAll('.btn .parcel').forEach((t) => t.remove()); if (theCourier) theCourier.el.style.visibility = 'hidden'; parts.forEach((p) => { p.el.classList.remove('in', 'checked'); p.el.style.transform = ''; p.el.style.clipPath = '' }); html.classList.add('building'); win.scrollTo({ top: 0, behavior: 'instant' }); setScene({ door: 'closed', quiet: false, tanks: 0 }); start() }
   bar.querySelector('[data-skip]').onclick = skip
   bar.querySelector('[data-replay]').onclick = replay
-  bar.querySelector('[data-speed]').onclick = (ev) => { speed = speed === 1 ? 2 : 1; ev.target.textContent = `${speed}×` }
+  bar.querySelector('[data-speed]').onclick = (ev) => { speed = nextSpeed(speed); ev.target.textContent = speedLabel(speed) }
   doc.addEventListener('keydown', (ev) => ev.key === 'Escape' && !peeks.some((f) => f.classList.contains('open')) && skip())
   win.awCrew = true
   start()

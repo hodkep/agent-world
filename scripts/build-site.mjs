@@ -128,7 +128,7 @@ export async function build(root, out) {
     for (const m of html.matchAll(/src="(?:\.\.\/)+assets\/([^"]+)"/g)) assets.add(decodeURI(m[1]))
     const h1 = heads.find((h) => h.level === 1)?.text ?? page.label
     const first = plain(text.replace(/^# .*$/m, '').split(/\n\s*\n/).find((p) => plain(p).length > 40 && !/^\s*(#|<|!\[|\|)/.test(p)) ?? '')
-    const description = clip(first || `${h1}: documentation of Agent World, a pixel-art office for your coding agents.`, 160)
+    const description = clip(first || `${h1}: documentation of Agent World, which makes coding agents follow your process.`, 160)
     const at = pages.indexOf(page)
     const link = (p, dir) => (p ? `<a href="../${p.slug}/"${dir === 'next' ? ' class="next"' : ''}><small>${dir === 'prev' ? 'Previous' : 'Next'}</small><b>${esc(p.label)}</b></a>` : '<span></span>')
     const body = `${html}\n<div class="pn">${link(pages[at - 1], 'prev')}${link(pages[at + 1], 'next')}</div>\n<p class="edit"><a href="${GITHUB}/edit/main/${page.src}" rel="noopener">Edit this page on GitHub</a></p>`
@@ -145,7 +145,7 @@ export async function build(root, out) {
 
   const home = readFileSync(join(root, 'site', 'home.html'), 'utf8').replace(/\{\{version\}\}/g, version).replace(/\{\{root\}\}/g, '')
   for (const m of home.matchAll(/(?:src|poster)="assets\/([^"]+)"/g)) assets.add(m[1])
-  write('index.html', layout({ title: 'Agent World: run your coding agents from a pixel-art office', description: 'A desktop app for running Claude Code and Antigravity agents, each on its own git branch, shown as characters at their desks in a small office.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
+  write('index.html', layout({ title: 'Agent World: your agents skip the process, this makes them follow it', description: 'Run Claude Code and Antigravity agents through the plan, review and pull request steps you set, with a skills playbook, an MCP and tools manager and a Preview.', path: '', depth: 0, body: `<!--bare-->${home}`, active: '', head: BUILDING }))
   // The demo tour: real screens of the app with the spot to click on each (site/demo.js).
   const demo = readFileSync(join(root, 'site', 'demo.html'), 'utf8').replace(/\{\{root\}\}/g, '../')
   for (const s of STEPS) for (const img of [s.img, s.before].filter(Boolean)) assets.add(`docs/images/demo/${img}.jpg`)
