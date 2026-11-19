@@ -56,6 +56,7 @@ const ICONS = {
   // Up: with the chevron, previous and next.
   up: <path d="M6 15l6-6 6 6" />,
   minus: <path d="M5 12h14" />,
+  present: <path d="M7 4v16l13-8z" />,
   sun: <><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></>,
   table: <><rect x="3" y="4" width="18" height="16" /><path d="M3 10h18M3 15h18M9 4v16" /></>,
   // The kinds of tool on the profile card.

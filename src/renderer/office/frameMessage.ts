@@ -2,6 +2,8 @@
 export type FrameMessage =
   | { t: 'ready' }
   | { t: 'selection'; on: boolean }
+  /** Present mode started or ended in the frame (Esc inside it ends it). */
+  | { t: 'present'; on: boolean }
   /** A key pressed while the frame has the focus, so the app's own shortcuts still work. */
   | { t: 'key'; key: string; code: string; meta: boolean; ctrl: boolean; shift: boolean; alt: boolean }
   | { t: 'words'; text: string; where?: string }
@@ -26,6 +28,8 @@ export function parseFrameMessage(data: unknown): FrameMessage | null {
       return { t: 'ready' }
     case 'selection':
       return typeof data.on === 'boolean' ? { t: 'selection', on: data.on } : null
+    case 'present':
+      return typeof data.on === 'boolean' ? { t: 'present', on: data.on } : null
     case 'key':
       return str(data.key, 20) && str(data.code, 20) && typeof data.meta === 'boolean' && typeof data.ctrl === 'boolean' && typeof data.shift === 'boolean' && typeof data.alt === 'boolean'
         ? { t: 'key', key: data.key, code: data.code, meta: data.meta, ctrl: data.ctrl, shift: data.shift, alt: data.alt }
