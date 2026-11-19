@@ -5,13 +5,14 @@
   var MAX_CELLS = 500
   var MAX_ROWS = 2000
   var MAX_COLS = 60
+  var MAX_SHEETS = 50
   var app = document.getElementById('app')
   var bubble = document.createElement('div')
   bubble.className = 'bub'
   bubble.hidden = true
   document.body.appendChild(bubble)
 
-  var st = { kind: '', name: '', csv: false, sheets: [], sheet: 0, table: null, rect: null, drag: null, words: '', where: '', root: null, hits: [], hit: 0, q: '', selecting: false, zoom: 1, anchor: null, dim: { rows: 0, cols: 0 } }
+  var st = { kind: '', name: '', csv: false, sheets: [], sheet: 0, leftOut: 0, table: null, rect: null, drag: null, words: '', where: '', root: null, hits: [], hit: 0, q: '', selecting: false, zoom: 1, anchor: null, dim: { rows: 0, cols: 0 } }
 
   function post(m) {
     parent.postMessage(m, '*')
@@ -198,13 +199,18 @@
     st.sheet = i
     clearSelection()
     var s = st.sheets[i]
+    if (!s.rows) {
+      s.rows = XLSX.utils.sheet_to_json(s.ws, { header: 1, raw: false, defval: '', blankrows: true }).map(function (r) { return r.map(String) })
+      s.ws = null
+    }
     var cols = 0
     s.rows.forEach(function (r) { cols = Math.max(cols, r.length) })
     st.dim = { rows: s.rows.length, cols: cols }
     var wrap = app.querySelector('.grid-wrap')
     var blank = !s.rows.some(function (r) { return r.some(function (c) { return c !== '' }) })
+    var more = st.leftOut > 0 ? '<div class="cut">Only the first ' + MAX_SHEETS + ' sheets are shown; ' + st.leftOut + ' more are left out.</div>' : ''
     if (blank || !cols) {
-      wrap.innerHTML = '<div class="note">This sheet is empty.</div>'
+      wrap.innerHTML = '<div class="note">This sheet is empty.</div>' + more
       st.table = null
       st.root = wrap
     } else {
@@ -218,6 +224,7 @@
       })
       h += '</tbody></table>'
       if (s.cut) h += '<div class="cut">Only the first ' + MAX_ROWS.toLocaleString() + ' rows and ' + MAX_COLS + ' columns are shown.</div>'
+      h += more
       wrap.innerHTML = h
       st.table = wrap.querySelector('table')
       st.table.style.zoom = String(st.zoom)
@@ -278,10 +285,21 @@
   })
   function showSheets(wb, csv) {
     var sheets = []
-    wb.SheetNames.forEach(function (name) {
-      var all = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '', blankrows: true })
-      var cut = all.length > MAX_ROWS || all.some(function (r) { return r.length > MAX_COLS })
-      sheets.push({ name: name, cut: cut, rows: all.slice(0, MAX_ROWS).map(function (r) { return r.slice(0, MAX_COLS).map(String) }) })
+    var names = wb.SheetNames.slice(0, MAX_SHEETS)
+    st.leftOut = wb.SheetNames.length - names.length
+    names.forEach(function (name) {
+      var ws = wb.Sheets[name]
+      // The used range a file claims can be far larger than its data, and the conversion fills all of it: cut the range before any cell is built.
+      var cut = false
+      if (ws['!ref']) {
+        var rg = XLSX.utils.decode_range(ws['!ref'])
+        cut = rg.e.r - rg.s.r >= MAX_ROWS || rg.e.c - rg.s.c >= MAX_COLS
+        rg.e.r = Math.min(rg.e.r, rg.s.r + MAX_ROWS - 1)
+        rg.e.c = Math.min(rg.e.c, rg.s.c + MAX_COLS - 1)
+        ws['!ref'] = XLSX.utils.encode_range(rg)
+      }
+      // The rows are made when the sheet is first shown, so a file of many full sheets costs only the ones looked at.
+      sheets.push({ name: name, cut: cut, ws: ws, rows: null })
     })
     if (!sheets.length) return note('This file has no sheets.', true)
     st.sheets = sheets
