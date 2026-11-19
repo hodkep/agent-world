@@ -223,6 +223,8 @@ aside .change-list { width: 190px; }
 .fcrumb .fpath { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 6ch; max-width: 100%; }
 .fcrumb .flang { color: var(--think); }
 .fcrumb button { margin-left: auto; flex: none; font: 12px inherit; padding: 1px 10px; }
+/* A CSV's table icon takes the space, and Save sits right beside it. */
+.fcrumb .tip-btn + button { margin-left: 6px; }
 .fold-ctl { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex: none; }
 .fold-ctl .lab { color: var(--muted); }
 .fold-ctl .change-view { margin-left: 0; }
@@ -1328,6 +1330,21 @@ a.folder-link::before { clip-path: polygon(0 18%, 42% 18%, 52% 0, 100% 0, 100% 1
 .fileview-code .copy { top: 0; }
 .fileview-other { padding: 24px 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .fileview .hint { padding: 6px 12px; margin: 0; }
+.officeview { flex: 1; min-height: 0; height: 100%; display: flex; flex-direction: column; background: var(--well); }
+.officeview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 10px; min-width: 0; background: var(--panel); border-bottom: 2px solid var(--ink); font-size: 12px; flex: none; }
+.officeview-bar button { font-size: 11px; padding: 1px 8px; }
+.officeview-bar button[aria-pressed='true'] { background: var(--accent); color: var(--ink); font-weight: 700; }
+.officeview-find { flex: 1 1 120px; width: auto; max-width: 240px; min-width: 100px; background: var(--well); color: var(--text); border: 1px solid var(--line); padding: 2px 8px; font: 12px ui-sans-serif, system-ui, sans-serif; }
+.officeview-count { color: var(--muted); white-space: nowrap; }
+.officeview-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; }
+.officeview-tools { display: flex; align-items: center; gap: 6px; margin-left: auto; flex: none; }
+.officeview-zoom { min-width: 46px; text-align: center; padding: 1px 4px; }
+.officeview-bar .tip-btn { flex: none; padding: 4px 6px; }
+/* The viewer's buttons sit toward the right edge, so their hints open leftwards (the find icon at the far left opens rightwards) and wrap instead of running off the panel. */
+.officeview-bar .tip-btn::after { left: auto; right: 0; transform: none; max-width: 200px; }
+.officeview-bar > .tip-btn:first-child::after { left: 0; right: auto; }
+.officeview .hint { padding: 6px 12px; margin: 0; }
+.md-preview.page-frame .officeview iframe.officeview-frame, .officeview iframe.officeview-frame { display: block; flex: 1; min-height: 0; width: 100%; height: auto; border: 0; background: var(--well); }
 .fileview-ask { position: absolute; z-index: 5; }
 .term-ask { position: fixed; z-index: 30; }
 
