@@ -617,8 +617,9 @@ if (process.env.FAKE_CHAT) {
       fs.writeFileSync(`${process.cwd()}/out/report.html`, '<html><body><h1 id="title">Quarterly report</h1><button id="go">Go</button></body></html>')
       fs.writeFileSync(`${process.cwd()}/notes.md`, '# Meeting notes\n\nWe agreed to **ship** on Friday.')
       fs.writeFileSync(`${process.cwd()}/deck.pptx`, 'not really a deck')
+      fs.writeFileSync(`${process.cwd()}/legacy.xls`, 'an old binary sheet')
       fs.writeFileSync(`${process.cwd()}/tool.ts`, 'export const answer = 42\n')
-      say(`I made ${process.cwd()}/out/report.html, \`notes.md\`, deck.pptx and tool.ts. See also https://example.com/docs/page.html and missing/nothing.md.`)
+      say(`I made ${process.cwd()}/out/report.html, \`notes.md\`, deck.pptx, legacy.xls and tool.ts. See also https://example.com/docs/page.html and missing/nothing.md.`)
     }
     // FAKE_FOLDERS=1: the agent names a folder of the project, and one outside it, as a real one does.
     if (process.env.FAKE_FOLDERS) {

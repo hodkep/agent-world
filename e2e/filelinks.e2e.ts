@@ -24,7 +24,7 @@ test('files an agent names are links that open as a page, a document, code or an
     const reply = log.locator('.msg.assistant').filter({ hasText: 'I made' })
 
     // Real files become links named after the file; a web address and a missing file stay as written.
-    await expect(reply.locator('a.file-link')).toHaveText(['report.html', 'notes.md', 'deck.pptx', 'tool.ts'], { timeout: SLOW })
+    await expect(reply.locator('a.file-link')).toHaveText(['report.html', 'notes.md', 'deck.pptx', 'legacy.xls', 'tool.ts'], { timeout: SLOW })
     await expect(reply).toContainText('https://example.com/docs/page.html')
     await expect(reply).toContainText('missing/nothing.md')
     await expect(reply).not.toContainText(home)
@@ -42,9 +42,16 @@ test('files an agent names are links that open as a page, a document, code or an
     await expect(page.getByRole('tab', { name: 'Chat', selected: true })).toBeVisible()
     await expect(page.getByRole('list', { name: 'Attached files' })).toContainText('notes.md, selection')
 
-    // A file the app cannot show says so and offers the machine's own program.
+    // A PowerPoint, Word or Excel file opens in the read-only viewer; one that cannot be read says so and keeps the machine's own program on offer.
     await page.getByRole('tab', { name: 'Chat' }).click()
     await reply.getByRole('link', { name: 'deck.pptx' }).click()
+    await expect(page.locator('.officeview')).toBeVisible()
+    await expect(page.locator('.officeview .hint.bad')).toContainText('could not be read', { timeout: SLOW })
+    await expect(page.getByRole('button', { name: 'Open with default app' })).toBeVisible()
+
+    // An old binary format is not shown, and says so.
+    await page.getByRole('tab', { name: 'Chat' }).click()
+    await reply.getByRole('link', { name: 'legacy.xls' }).click()
     await expect(page.locator('.fileview-other')).toContainText("can't be shown here")
     await expect(page.getByRole('button', { name: 'Open with default application' })).toBeVisible()
 
