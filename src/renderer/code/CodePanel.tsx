@@ -5,6 +5,8 @@ import { codeContext } from './codeContext'
 import { Markdown } from '../chat/markdown'
 import { openFileEvent } from '../files/context'
 import { fileShows } from './fileShows'
+import { OfficeView } from '../office/OfficeView'
+import { OutlineIcon } from '../panel/IconButton'
 import { ORIGINAL_NUMBER_CHARS, editorOptions, languageFor, monaco } from './monaco'
 import { CONTEXTS, CONTEXT_KEY, FOLD_KEY, type Context, type Fold, foldOptions, readFold } from './foldRule'
 import { closeTab, openTab, type TabState } from './tabs'
@@ -500,6 +502,12 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const [pageAt, setPageAt] = useState<Record<string, { url: string; n: number }>>({})
   const [reload, setReload] = useState(0)
   const shows = sess.tabs.active ? fileShows(sess.tabs.active) : 'source'
+  // Word, Excel and PowerPoint files are read-only: shown by the Office viewer, never opened as text.
+  const office = shows === 'word' || shows === 'sheet' || shows === 'slides'
+  // A CSV is text to edit; its table is one icon away, shown as the file was last saved. Either way the viewer has its own bar, so the file's line goes.
+  const table = shows === 'csv' && !!sess.tabs.active && previewing.has(sess.tabs.active)
+  const viewing = office || table
+  const flip = (p: string) => setPreviewing((s) => (s.has(p) ? new Set([...s].filter((x) => x !== p)) : new Set(s).add(p)))
   useEffect(() => {
     const p = sess.tabs.active
     if (!p || (shows !== 'pdf' && !(shows === 'html' && previewing.has(p)))) return
@@ -564,7 +572,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
 
   const open = (p: string, range?: { from: number; to: number }) =>
     void run(async () => {
-      if (fileShows(p) !== 'pdf' && !model(p)) {
+      if (fileShows(p) !== 'pdf' && !['word', 'sheet', 'slides'].includes(fileShows(p)) && !model(p)) {
         const text = await window.aw.code.read(agentId, p)
         const m = monaco.editor.createModel(text, languageFor(p), uriOf(agentId, p))
         sess.saved.set(p, text)
@@ -716,7 +724,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
             ))}
           </div>
         )}
-        {active && (
+        {active && !viewing && (
           <div className="fcrumb">
             <span className="fpath" data-reveal={active} title={active}>{active}</span>
             <span aria-hidden="true">·</span>
@@ -728,6 +736,11 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 onClick={() => setPreviewing((s) => (s.has(active) ? new Set([...s].filter((x) => x !== active)) : new Set(s).add(active)))}
               >
                 {previewing.has(active) ? 'Source' : 'Preview'}
+              </button>
+            )}
+            {shows === 'csv' && (
+              <button className="tip-btn" aria-label="View as a table" data-tip="View as a table" onClick={() => flip(active)}>
+                <OutlineIcon name="table" />
               </button>
             )}
             {shows === 'pdf' ? (
@@ -758,6 +771,11 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
               <Markdown text={model(active)?.getValue() ?? ''} agentId={agentId} />
             </div>
           )}
+          {active && viewing && (
+            <div className="md-preview page-frame">
+              <OfficeView key={active} agentId={agentId} path={active} name={baseName(active)} reload={reload} onText={table ? () => flip(active) : undefined} />
+            </div>
+          )}
           {active && ((shows === 'html' && previewing.has(active)) || shows === 'pdf') && (
             <div className="md-preview page-frame">
               {pageAt[active] &&
@@ -770,7 +788,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
                 ))}
             </div>
           )}
-          <div className="diff" ref={host} style={active && (shows === 'pdf' || ((shows === 'markdown' || shows === 'html') && previewing.has(active))) ? { visibility: 'hidden' } : undefined} aria-label={active ? (shows === 'pdf' ? `Editor (${active} is a PDF)` : `Editing ${active}`) : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
+          <div className="diff" ref={host} style={active && (shows === 'pdf' || viewing || ((shows === 'markdown' || shows === 'html') && previewing.has(active))) ? { visibility: 'hidden' } : undefined} aria-label={active ? (shows === 'pdf' ? `Editor (${active} is a PDF)` : `Editing ${active}`) : 'Editor'} data-hint={active ? undefined : 'Pick a file to edit it'} />
           {ask.view}
         </div>
         <ContextTray agentId={agentId} onJump={(j) => open(j.path, { from: j.from, to: j.to })} onOpenChat={onOpenChat} />

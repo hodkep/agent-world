@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ADD_SELECTION_EVENT } from '../addSelection'
 import { keysOf } from '../shortcuts'
-import type { FileInfo } from '../../shared/files'
+import { isCsv, type FileInfo } from '../../shared/files'
 import { languageFor } from '../code/monaco'
 import { Code, Markdown } from '../chat/markdown'
+import { OfficeView } from '../office/OfficeView'
+import { OutlineIcon } from './IconButton'
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 
@@ -16,6 +18,10 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
   const [opened, setOpened] = useState('')
   const body = useRef<HTMLDivElement>(null)
   const [pick, setPick] = useState<{ text: string; x: number; y: number } | null>(null)
+  // A CSV opens as the text it is, with its table one icon away.
+  const [table, setTable] = useState(false)
+  const csv = !!info && info.kind === 'sheet' && isCsv(info.name)
+  const office = !!info && (info.kind === 'word' || info.kind === 'slides' || (info.kind === 'sheet' && (!csv || table)))
 
   useEffect(() => {
     let alive = true
@@ -24,12 +30,13 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
     setImage('')
     setError('')
     setOpened('')
+    setTable(false)
     void window.aw.fileInfo(agentId, [path]).then(async ([i]) => {
       if (!alive) return
       if (!i) return setError('That file is not there any more.')
       setInfo(i)
       try {
-        if (['code', 'text', 'markdown'].includes(i.kind)) {
+        if (['code', 'text', 'markdown'].includes(i.kind) || (i.kind === 'sheet' && isCsv(i.name))) {
           const r = await window.aw.fileRead(agentId, i.path)
           if (alive) setText({ body: r.text, truncated: r.truncated })
         } else if (i.kind === 'image') {
@@ -86,16 +93,23 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
 
   return (
     <div className="fileview">
-      <div className="fileview-bar">
-        <b className="fileview-name" title={info?.path ?? path}>{info?.name ?? path.split('/').pop()}</b>
-        {info && <span className="muted">{size(info.size)}</span>}
-        <button className="push" onClick={openOutside} title="Open with the program this computer uses for this kind of file">
-          Open with default app
-        </button>
-        <button onClick={onClose} aria-label="Close file">
-          Close
-        </button>
-      </div>
+      {!office && (
+        <div className="fileview-bar">
+          <b className="fileview-name" title={info?.path ?? path}>{info?.name ?? path.split('/').pop()}</b>
+          {info && <span className="muted">{size(info.size)}</span>}
+          {csv && (
+            <button className="push tip-btn" aria-label="View as a table" data-tip="View as a table" onClick={() => setTable(true)}>
+              <OutlineIcon name="table" />
+            </button>
+          )}
+          <button className={csv ? '' : 'push'} onClick={openOutside} title="Open with the program this computer uses for this kind of file">
+            Open with default app
+          </button>
+          <button onClick={onClose} aria-label="Close file">
+            Close
+          </button>
+        </div>
+      )}
       {opened && <p className="hint" role="status">{opened}</p>}
       {error && <p className="hint bad" role="alert">{error}</p>}
       {info && info.kind === 'other' && (
@@ -107,6 +121,7 @@ export function FileView({ agentId, path, onClose, onAttached }: { agentId: stri
           <button className="primary" onClick={openOutside}>Open with default application</button>
         </div>
       )}
+      {office && info && <OfficeView key={info.path} agentId={agentId} path={info.path} name={info.name} fileSize={info.size} onClose={onClose} onOutside={openOutside} onText={csv ? () => setTable(false) : undefined} onAttached={onAttached} />}
       {image && (
         <div className="fileview-body fileview-image">
           <img src={image} alt={info?.name ?? ''} />
