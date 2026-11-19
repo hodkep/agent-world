@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Viewer</title>
+<style>
+:root{--ink:#08070c;--text:#e4e4ee;--muted:#a4a2b8;--accent:#f2c230;--well:#0c0b12;--panel:#1a1726;--panel-2:#221e33;--panel-3:#17142a;--line:#2c3350}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--well);color:var(--text);font:13px/1.45 ui-sans-serif,system-ui,sans-serif;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column;min-height:0}
+.note{margin:auto;color:var(--muted);padding:24px;text-align:center}.note.bad{color:#ff8a8a}
+.scroll{flex:1;min-height:0;overflow:auto;position:relative}
+/* the bubble: the same as the app's "Add selection to message" */
+.bub{position:fixed;z-index:9;background:var(--panel-3);color:var(--text);font:600 12px ui-sans-serif,system-ui,sans-serif;border:1px solid var(--accent);box-shadow:0 3px 0 var(--ink),0 6px 14px rgb(0 0 0/.55);padding:5px 11px;white-space:nowrap;cursor:pointer}
+.bub::after{content:'';position:absolute;top:100%;left:20px;width:8px;height:8px;background:var(--panel-3);border-right:1px solid var(--accent);border-bottom:1px solid var(--accent);transform:translate(-50%,-4px) rotate(45deg)}
+.bub.under::after{top:auto;bottom:100%;transform:translate(-50%,4px) rotate(225deg)}
+.bub:hover{background:#2c2742}
+.bub[hidden]{display:none}
+mark.hit{background:rgba(242,194,48,.5);color:inherit}mark.hit.on{background:var(--accent);color:var(--ink)}
+/* Word: the page as the author made it */
+.doc-wrap{padding:14px 0}
+.docx-wrapper{background:transparent!important;padding:0 14px!important}
+.docx-wrapper>section.docx{box-shadow:0 0 0 2px var(--ink),0 8px 18px rgb(0 0 0/.5)!important;margin-bottom:14px!important}
+body.dark .docx-wrapper>section.docx{background:var(--panel-3)!important}
+body.dark .docx-wrapper>section.docx *{color:var(--text)!important;background-color:transparent!important;border-color:var(--line)!important}
+body.dark .docx-wrapper>section.docx a{color:#6ad0e0!important}
+/* Excel: a grid with the sheets as tabs underneath */
+.grid-wrap{padding:10px;flex:1;min-height:0;overflow:auto}
+table.g{border-collapse:collapse;background:#fff;color:#1b1b24;font:12px ui-sans-serif,system-ui,sans-serif;user-select:none;cursor:cell}
+table.g th{background:#e7e7ef;color:#555;font-weight:600;border:1px solid #cfcfda;padding:3px 10px;text-align:center;position:sticky;top:0;z-index:1;min-width:64px}
+table.g td{border:1px solid #dcdce6;padding:3px 8px;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+table.g td.rh{background:#e7e7ef;color:#555;text-align:center;font-weight:600;cursor:pointer;position:sticky;left:0}
+table.g tbody tr:first-child td:not(.rh){font-weight:600}
+table.g td.sel{background:#cfe3ff}table.g td.sel.edge{outline:0}
+body.dark table.g{background:var(--well);color:var(--text)}
+body.dark table.g th,body.dark table.g td.rh{background:var(--panel-2);color:var(--muted);border-color:var(--line)}
+body.dark table.g td{border-color:var(--line)}
+body.dark table.g td.sel{background:rgba(242,194,48,.28)}
+.cut{color:var(--muted);padding:6px 10px;font-size:12px}
+.tabs{display:flex;flex:none;background:var(--panel);border-top:2px solid var(--ink);overflow-x:auto}
+.tabs button{font:inherit;font-size:12px;color:var(--muted);background:none;border:0;border-right:1px solid var(--line);padding:5px 14px;cursor:pointer;white-space:nowrap}
+.tabs button.on{background:#fff;color:#1b1b24;font-weight:600}
+body.dark .tabs button.on{background:var(--accent);color:var(--ink)}
+/* PowerPoint: the slides in a list, with a strip of numbers to jump by */
+.deck{flex:1;min-height:0;display:grid;grid-template-columns:116px 1fr}
+.strip{background:var(--panel-3);border-right:2px solid var(--ink);padding:8px;display:flex;flex-direction:column;gap:8px;overflow:auto}
+.strip button{font:inherit;font-size:11px;color:var(--muted);background:none;border:0;padding:0;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;flex:none}
+.strip .thumb{position:relative;overflow:hidden;background:#fff;box-shadow:0 0 0 2px var(--ink);pointer-events:none}
+.strip .thumb>*{position:absolute;left:0;top:0}
+.strip button.on .thumb{box-shadow:0 0 0 2px var(--accent)}
+.strip button.on{color:var(--text)}
+.slides{overflow:auto;padding:14px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.slide-box{box-shadow:0 0 0 2px var(--ink),0 8px 18px rgb(0 0 0/.5);flex:none;position:relative;overflow:hidden;background:#fff}
+body.dark .slide-box{filter:brightness(.8)}
+</style></head>
+<body class="paper"><div id="app"><div class="note">Opening the file…</div></div>
+<script src="frame.js"></script>
+</body></html>

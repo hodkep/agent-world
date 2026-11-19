@@ -8,7 +8,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import type { FileInfo, FileKind } from '../shared/files'
 
 const CODE = new Set(['ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sh', 'bash', 'zsh', 'sql', 'css', 'scss', 'less', 'vue', 'svelte', 'yaml', 'yml', 'toml', 'json', 'xml', 'gradle', 'lua', 'r', 'dart', 'scala'])
-const TEXT = new Set(['txt', 'log', 'csv', 'tsv', 'env', 'ini', 'conf', 'cfg', 'rst', 'tex'])
+const TEXT = new Set(['txt', 'log', 'env', 'ini', 'conf', 'cfg', 'rst', 'tex'])
 const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'])
 
 export function kindOf(path: string): FileKind {
@@ -16,6 +16,9 @@ export function kindOf(path: string): FileKind {
   if (ext === 'html' || ext === 'htm') return 'html'
   if (ext === 'md' || ext === 'markdown' || ext === 'mdx') return 'markdown'
   if (ext === 'pdf') return 'pdf'
+  if (ext === 'docx') return 'word'
+  if (ext === 'xlsx' || ext === 'csv' || ext === 'tsv') return 'sheet'
+  if (ext === 'pptx') return 'slides'
   if (IMAGE.has(ext)) return 'image'
   if (CODE.has(ext)) return 'code'
   if (TEXT.has(ext) || (!ext && /^(readme|license|makefile|dockerfile|changelog)$/i.test(basename(path)))) return 'text'
@@ -66,6 +69,14 @@ export async function resolveEntry(cwd: string, written: string): Promise<FileIn
 }
 
 const MAX_TEXT = 2 * 1024 * 1024
+/** The largest Office file the viewer opens, as Claude's own limit. */
+export const MAX_OFFICE = 30 * 1024 * 1024
+
+/** The bytes of an Office file for the viewer; a file over the limit is refused before it is read. */
+export async function readBytes(path: string, max = MAX_OFFICE): Promise<Buffer> {
+  if ((await stat(path)).size > max) throw new Error(`That file is too large to show here (over ${Math.round(max / 1024 / 1024)} MB).`)
+  return readFile(path)
+}
 
 /** The text of a file for the viewer, cut at 2 MB. */
 export async function readText(path: string): Promise<{ text: string; truncated: boolean }> {
@@ -90,9 +101,24 @@ interface Share {
  * Shows a local HTML page (or PDF) at a web address on this machine, so its CSS, scripts and pictures load beside it and the
  * Preview's page-picker works on it. Each shared file gets a random address; nothing outside the file's own folder is reachable.
  */
-export async function startFileServer() {
+/** The viewer page runs the libraries that read an untrusted Office file: its own scripts only, and no network. */
+export const OFFICE_CSP = "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
+
+export interface OfficeAsset {
+  type: string
+  body: string
+}
+
+export async function startFileServer(office: Record<string, OfficeAsset> = {}) {
   const shares = new Map<string, Share>()
   const server: Server = createServer((req, res) => {
+    // The Office viewer's own page and scripts, kept in memory: nothing on disk is reachable through this route.
+    const o = /^\/office\/([A-Za-z0-9._-]+)$/.exec(req.url?.split('?')[0] ?? '')
+    if (o) {
+      const asset = Object.hasOwn(office, o[1]!) ? office[o[1]!] : undefined
+      if (req.method !== 'GET' || !asset) return void res.writeHead(404).end()
+      return void res.writeHead(200, { 'content-type': asset.type, 'content-security-policy': OFFICE_CSP, 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-store' }).end(asset.body)
+    }
     const m = /^\/([0-9a-f]{32})\/(.*)$/.exec(req.url?.split('?')[0] ?? '')
     const share = m && shares.get(m[1]!)
     if (req.method !== 'GET' || !m || !share) return void res.writeHead(404).end()
@@ -116,6 +142,8 @@ export async function startFileServer() {
   const { port } = server.address() as AddressInfo
   return {
     port,
+    /** Where the Office viewer page is served. */
+    officeUrl: () => `http://127.0.0.1:${port}/office/viewer.html`,
     /** The file on disk behind an address this server handed out (the page, or what sits beside it); null for any other address or a file that is gone. */
     pathOf(address: string): string | null {
       try {

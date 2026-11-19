@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { kindOf, readText, resolveEntry, resolveFile, startFileServer } from './files'
+import { kindOf, readBytes, readText, resolveEntry, resolveFile, startFileServer } from './files'
 
 describe('what kind of file it is', () => {
   it('sorts by extension', () => {
@@ -11,9 +11,18 @@ describe('what kind of file it is', () => {
     expect(kindOf('x.PDF')).toBe('pdf')
     expect(kindOf('shot.png')).toBe('image')
     expect(kindOf('src/app.ts')).toBe('code')
-    expect(kindOf('data.csv')).toBe('text')
     expect(kindOf('README')).toBe('text')
-    expect(kindOf('deck.pptx')).toBe('other')
+  })
+
+  it('knows Word, Excel, PowerPoint and CSV files, and leaves the old binary formats to the default app', () => {
+    expect(kindOf('plan.docx')).toBe('word')
+    expect(kindOf('Budget.XLSX')).toBe('sheet')
+    expect(kindOf('data.csv')).toBe('sheet')
+    expect(kindOf('data.tsv')).toBe('sheet')
+    expect(kindOf('deck.pptx')).toBe('slides')
+    expect(kindOf('old.doc')).toBe('other')
+    expect(kindOf('old.xls')).toBe('other')
+    expect(kindOf('old.ppt')).toBe('other')
   })
 })
 
@@ -104,3 +113,37 @@ describe('the local page server', () => {
 })
 
 const dirname2 = (p: string) => p.slice(0, p.lastIndexOf('/'))
+
+describe('the Office viewer page', () => {
+  it('is served with a policy that lets it run its own scripts and nothing else, and only the files it was given', async () => {
+    const server = await startFileServer({ 'viewer.html': { type: 'text/html; charset=utf-8', body: '<p>hi</p>' }, 'a.js': { type: 'text/javascript; charset=utf-8', body: 'x' } })
+    try {
+      const page = await fetch(server.officeUrl())
+      expect(page.status).toBe(200)
+      expect(await page.text()).toBe('<p>hi</p>')
+      const csp = page.headers.get('content-security-policy') ?? ''
+      expect(csp).toContain("default-src 'none'")
+      expect(csp).toContain("script-src 'self'")
+      expect(csp).toContain("connect-src 'none'")
+      expect(page.headers.get('x-content-type-options')).toBe('nosniff')
+      expect((await fetch(server.officeUrl().replace('viewer.html', 'a.js'))).headers.get('content-type')).toContain('javascript')
+      expect((await fetch(server.officeUrl().replace('viewer.html', 'nope.js'))).status).toBe(404)
+      expect((await fetch(server.officeUrl().replace('viewer.html', '..%2Fx'))).status).toBe(404)
+    } finally {
+      server.close()
+    }
+  })
+})
+
+describe('the bytes of an Office file for the viewer', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aw-bytes-'))
+  writeFileSync(join(dir, 'a.docx'), Buffer.from([1, 2, 3, 4]))
+
+  it('returns the file when it is within the limit', async () => {
+    expect([...(await readBytes(join(dir, 'a.docx'), 4))]).toEqual([1, 2, 3, 4])
+  })
+
+  it('refuses a file over the limit without reading it', async () => {
+    await expect(readBytes(join(dir, 'a.docx'), 3)).rejects.toThrow('too large')
+  })
+})
