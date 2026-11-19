@@ -4,7 +4,7 @@ import { IconButton } from '../panel/IconButton'
 import { cellsContext, wordsContext } from './selection'
 import { gridOf, parseFrameMessage } from './frameMessage'
 import { readTheme, saveTheme, type OfficeTheme } from './theme'
-import { zoomStep } from './zoom'
+import { ZOOMS, zoomLabel, zoomStep, type Zoom } from './zoom'
 
 const size = (n: number) => (n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
 
@@ -22,7 +22,10 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
   const [ready, setReady] = useState(false)
   const [error, setError] = useState('')
   const [theme, setTheme] = useState<OfficeTheme>(() => readTheme())
-  const [zoom, setZoom] = useState(1)
+  const [zoom, setZoom] = useState<Zoom>('width')
+  const [menu, setMenu] = useState(false)
+  const [kind, setKind] = useState('')
+  const [presenting, setPresenting] = useState(false)
   const [finding, setFinding] = useState(false)
   const [q, setQ] = useState('')
   const [found, setFound] = useState({ count: 0, index: 0 })
@@ -51,6 +54,7 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
       (r) => {
         if (!alive) return
         const buf = r.bytes.buffer.slice(r.bytes.byteOffset, r.bytes.byteOffset + r.bytes.byteLength) as ArrayBuffer
+        setKind(r.info.kind)
         tell({ t: 'load', kind: r.info.kind, name, bytes: buf, theme: themeRef.current, zoom: zoomRef.current }, [buf])
       },
       (e: Error) => alive && setError(e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -68,6 +72,10 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
       if (!m) return
       if (m.t === 'ready') setReady(true)
       else if (m.t === 'selection') selecting.current = m.on
+      else if (m.t === 'present') {
+        setPresenting(m.on)
+        if (!m.on && document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+      }
       else if (m.t === 'key') window.dispatchEvent(new KeyboardEvent('keydown', { key: m.key, code: m.code, metaKey: m.meta, ctrlKey: m.ctrl, shiftKey: m.shift, altKey: m.alt, bubbles: true, cancelable: true }))
       else if (m.t === 'found') setFound({ count: m.count, index: m.index })
       else if (m.t === 'error') setError('This file could not be read. It may be damaged, password-protected or not what its name says.')
@@ -106,9 +114,47 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
     return () => window.removeEventListener('keydown', on)
   }, [])
 
-  // Another file starts at 100% again.
+  // Leaving full screen (Esc, or the system's way) ends present mode in the frame too.
   useEffect(() => {
-    setZoom(1)
+    const on = () => {
+      if (!document.fullscreenElement && presenting) {
+        setPresenting(false)
+        tell({ t: 'present', on: false })
+      }
+    }
+    // Esc also ends it when the focus is outside the frame, on the button that started it.
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !presenting) return
+      setPresenting(false)
+      tell({ t: 'present', on: false })
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
+    }
+    document.addEventListener('fullscreenchange', on)
+    window.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('fullscreenchange', on)
+      window.removeEventListener('keydown', esc)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the frame handle is a ref
+  }, [presenting])
+
+  // The zoom menu closes on a click elsewhere, or Esc.
+  useEffect(() => {
+    if (!menu) return
+    const away = (e: MouseEvent) => !(e.target as Element | null)?.closest?.('.officeview-zoomwrap') && setMenu(false)
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false)
+    window.addEventListener('mousedown', away)
+    window.addEventListener('keydown', esc)
+    return () => {
+      window.removeEventListener('mousedown', away)
+      window.removeEventListener('keydown', esc)
+    }
+  }, [menu])
+
+  // Another file starts fitted to the width again.
+  useEffect(() => {
+    setZoom('width')
+    setMenu(false)
     setQ('')
     setFinding(false)
   }, [path])
@@ -126,9 +172,20 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
     setFinding(false)
     search('', 0)
   }
-  const zoomTo = (z: number) => {
+  const zoomTo = (z: Zoom) => {
     setZoom(z)
+    setMenu(false)
     tell({ t: 'zoom', z })
+  }
+  // A sheet has nothing to fit, so it shows 100% until zoomed.
+  const shown: Zoom = kind === 'sheet' && typeof zoom !== 'number' ? 1 : zoom
+  const present = () => {
+    void frame.current?.requestFullscreen?.().catch(() => undefined)
+    setPresenting(true)
+    tell({ t: 'present', on: true })
+    // The keys that move through the slides go to the frame.
+    frame.current?.focus()
+    frame.current?.contentWindow?.focus()
   }
   const outside = onOutside ?? (() => void window.aw.openFileExternal(agentId, path).catch(() => undefined))
 
@@ -162,13 +219,26 @@ export function OfficeView({ agentId, path, name, fileSize, onClose, onOutside, 
           <IconButton icon="search" label="Find in this file" tip="Find (⌘F)" onClick={() => (setFinding(true), setTimeout(() => findBox.current?.focus(), 0))} />
         )}
         <span className="officeview-tools">
-          <IconButton icon="minus" label="Zoom out" tip="Zoom out" onClick={() => zoomTo(zoomStep(zoom, -1))} disabled={zoom <= 0.5} />
-          <button className="officeview-zoom" onClick={() => zoomTo(1)} title="Back to 100%" aria-label={`Zoom ${Math.round(zoom * 100)}%, back to 100%`}>
-            {Math.round(zoom * 100)}%
+          <IconButton icon="minus" label="Zoom out" tip="Zoom out" onClick={() => zoomTo(zoomStep(shown, -1))} disabled={typeof shown === 'number' && shown <= 0.5} />
+        <span className="officeview-zoomwrap">
+          <button className="officeview-zoom" onClick={() => setMenu((v) => !v)} aria-haspopup="menu" aria-expanded={menu} title="Zoom">
+            {zoomLabel(shown)} ▾
           </button>
-          <IconButton icon="plus" label="Zoom in" tip="Zoom in" onClick={() => zoomTo(zoomStep(zoom, 1))} disabled={zoom >= 3} />
-          <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} label={theme === 'dark' ? 'Show as made' : 'Dark look'} tip={theme === 'dark' ? 'Show the file as it was made' : 'Show the file in the app’s dark colours'} pressed={theme === 'dark'} onClick={() => choose(theme === 'dark' ? 'paper' : 'dark')} />
-          {onText && <IconButton icon="code" label="View as text" tip="View the file as text" onClick={onText} />}
+          {menu && (
+            <div className="officeview-menu" role="menu" aria-label="Zoom">
+              {(kind === 'word' || kind === 'slides' ? (['width', 'page'] as Zoom[]) : []).concat(ZOOMS).map((z) => (
+                <button key={String(z)} role="menuitemradio" aria-checked={z === shown} onClick={() => zoomTo(z)}>
+                  {zoomLabel(z)}
+                  {z === shown && <span aria-hidden>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+        <IconButton icon="plus" label="Zoom in" tip="Zoom in" onClick={() => zoomTo(zoomStep(shown, 1))} disabled={typeof shown === 'number' && shown >= 3} />
+        <IconButton icon={theme === 'dark' ? 'sun' : 'moon'} label={theme === 'dark' ? 'Show as made' : 'Dark look'} tip={theme === 'dark' ? 'Show the file as it was made' : 'Show the file in the app’s dark colours'} pressed={theme === 'dark'} onClick={() => choose(theme === 'dark' ? 'paper' : 'dark')} />
+          {kind === 'slides' && <IconButton icon="present" label="Present" tip="Present: one slide fills the screen" pressed={presenting} onClick={present} />}
+        {onText && <IconButton icon="code" label="View as text" tip="View the file as text" onClick={onText} />}
           <IconButton icon="external" label="Open with default app" tip="Open with the program this computer uses for it" onClick={outside} />
           {onClose && <IconButton icon="cross" label="Close file" tip="Close" onClick={onClose} />}
         </span>

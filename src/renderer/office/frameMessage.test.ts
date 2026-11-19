@@ -5,6 +5,7 @@ describe('what the viewer frame may tell the app', () => {
   it('accepts the shapes it sends', () => {
     expect(parseFrameMessage({ t: 'ready' })).toEqual({ t: 'ready' })
     expect(parseFrameMessage({ t: 'selection', on: true })).toEqual({ t: 'selection', on: true })
+    expect(parseFrameMessage({ t: 'present', on: false })).toEqual({ t: 'present', on: false })
     const key = { t: 'key', key: 'L', code: 'KeyL', meta: true, ctrl: false, shift: true, alt: false }
     expect(parseFrameMessage(key)).toEqual(key)
     expect(parseFrameMessage({ t: 'words', text: 'hi', where: 'slide 2' })).toEqual({ t: 'words', text: 'hi', where: 'slide 2' })
@@ -15,7 +16,7 @@ describe('what the viewer frame may tell the app', () => {
   })
 
   it('rejects anything else', () => {
-    for (const bad of [null, 'x', 5, [], {}, { t: 'run' }, { t: 'words' }, { t: 'words', text: 5 }, { t: 'selection', on: 'yes' }, { t: 'key', key: 'L' }, { t: 'key', key: 'x'.repeat(21), code: 'KeyL', meta: true, ctrl: false, shift: true, alt: false }, { t: 'found', count: -1, index: 0 }, { t: 'found', count: 1.5, index: 0 }, { t: 'error' }]) expect(parseFrameMessage(bad)).toBeNull()
+    for (const bad of [null, 'x', 5, [], {}, { t: 'run' }, { t: 'words' }, { t: 'words', text: 5 }, { t: 'selection', on: 'yes' }, { t: 'present', on: 1 }, { t: 'present' }, { t: 'key', key: 'L' }, { t: 'key', key: 'x'.repeat(21), code: 'KeyL', meta: true, ctrl: false, shift: true, alt: false }, { t: 'found', count: -1, index: 0 }, { t: 'found', count: 1.5, index: 0 }, { t: 'error' }]) expect(parseFrameMessage(bad)).toBeNull()
   })
 
   it('rejects text, cells or names that are too big, and cell ranges that do not make sense', () => {
