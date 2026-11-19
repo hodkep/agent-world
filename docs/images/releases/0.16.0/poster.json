@@ -1,0 +1,12 @@
+{
+  "version": "0.16.0",
+  "tagline": "Read Word, Excel and PowerPoint in the app.",
+  "subtitle": "A read-only viewer for Office files and CSV, and a website that restyles itself.",
+  "cards": [
+    { "kicker": "Chat", "title": "Office files open in a viewer", "text": "Word, Excel, PowerPoint and CSV files open read-only in the Code tab and the file view, with find, zoom and a dark look.", "chips": ["Word", "Excel", "PowerPoint", "CSV"] },
+    { "kicker": "Agents", "title": "Select, then add to your message", "text": "Select a passage in the viewer and add it to your message for the agent.", "chips": ["Select to add"] },
+    { "kicker": "Office", "title": "A website that builds and restyles itself", "text": "The page-building crew invites a click, restyles the whole page in three looks with Keep and Undo, and the site opens fast on slow networks.", "chips": ["3 looks", "Keep / Undo"] }
+  ],
+  "also": ["README and site lead with the workflows"],
+  "footer": "Linux is a beta. Try it and tell us what breaks."
+}

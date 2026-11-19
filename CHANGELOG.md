@@ -4,6 +4,18 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-19
+
+![Agent World 0.16.0: read Word, Excel and PowerPoint in the app](https://raw.githubusercontent.com/hodkep/agent-world/v0.16.0/docs/images/releases/0.16.0/poster.png)
+
+### Added
+
+- Files: Word, Excel, PowerPoint and CSV files open in a read-only viewer, with find, zoom, a dark look, and a way to add a selection to your message.
+
+### Changed
+
+- Docs: the README and the website lead with workflows, the playbook, the skills, MCP and tools manager and the Preview; the website's chat panel restyles the whole page in three looks with Keep and Undo, and the site opens much faster on slow networks.
+
 ## [0.15.1] - 2026-11-18
 
 ### Fixed
