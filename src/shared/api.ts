@@ -375,6 +375,9 @@ export interface AwApi {
   revealShow(agentId: string, path: string): Promise<boolean>
   fileRead(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; text: string; truncated: boolean }>
   fileUrl(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; url: string }>
+  /** Where the Office viewer page is served, and the bytes of a Word, Excel, PowerPoint or CSV file for it (30 MB at most). */
+  officeUrl(): Promise<string>
+  fileBytes(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; bytes: Uint8Array }>
   fileImage(agentId: string, path: string): Promise<{ info: import('./files').FileInfo; src: string }>
   /** Open a file with the program this machine uses for that type; resolves to an error message, or '' when it opened. */
   openFileExternal(agentId: string, path: string): Promise<string>

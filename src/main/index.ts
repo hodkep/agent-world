@@ -1,4 +1,6 @@
-import { readText, resolveEntry, resolveFile, startFileServer } from './files'
+import { readBytes, readText, resolveEntry, resolveFile, startFileServer } from './files'
+import { officeAssets } from './officeAssets'
+import { isCsv } from '../shared/files'
 import { listFolderFiles } from './folderFiles'
 import { forget, loadMemory, recall, remember } from './memory'
 import { createLibraryService, runsWhenOpened } from './library/service'
@@ -1817,7 +1819,7 @@ async function main() {
       skip: (caller, id, reason) => libraryService.skip(caller, id, reason)
     }
   })
-  const pages = await startFileServer()
+  const pages = await startFileServer(officeAssets)
   pagePathOf = pages.pathOf
   office = { mcpUrl: mcp.url }
   for (const u of [mcp.url, ...[...eventHandles.values()].map((h) => h.url)]) if (u) ownPorts.push(Number(new URL(u).port))
@@ -2035,13 +2037,21 @@ async function main() {
   })
   ipcMain.handle('file:read', async (_, agentId: string, path: string) => {
     const info = await fileFor(agentId, path)
-    if (!['code', 'text', 'markdown', 'html'].includes(info.kind)) throw new Error('That kind of file is not shown as text.')
+    // A CSV is read as text too, for the person who wants its rows rather than its table.
+    if (!['code', 'text', 'markdown', 'html'].includes(info.kind) && !(info.kind === 'sheet' && isCsv(info.name))) throw new Error('That kind of file is not shown as text.')
     return { info, ...(await readText(info.path)) }
   })
   ipcMain.handle('file:url', async (_, agentId: string, path: string) => {
     const info = await fileFor(agentId, path)
     if (info.kind !== 'html' && info.kind !== 'pdf') throw new Error('Only pages and PDFs open as a page.')
     return { info, url: pages.urlFor(info.path) }
+  })
+  // Word, Excel, PowerPoint and CSV files: the viewer page's address, and a file's bytes (up to 30 MB) for the page to read in its own sandbox.
+  ipcMain.handle('office:url', () => pages.officeUrl())
+  ipcMain.handle('file:bytes', async (_, agentId: string, path: string) => {
+    const info = await fileFor(agentId, path)
+    if (info.kind !== 'word' && info.kind !== 'sheet' && info.kind !== 'slides') throw new Error('That kind of file is not shown by the Office viewer.')
+    return { info, bytes: await readBytes(info.path) }
   })
   ipcMain.handle('file:image', async (_, agentId: string, path: string) => {
     const info = await fileFor(agentId, path)
