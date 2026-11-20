@@ -47,9 +47,12 @@ export function actionOf(method: string, p: Record<string, any> = {}): Said | nu
     }
     case 'Input.dispatchDragEvent':
       return p.data?.files?.length ? { action: { pill: 'DROP FILE', target: NOT_ALLOWED, refused: true } } : { action: { pill: 'DRAGGING' } }
-    case 'DOM.setFileInputFiles':
-    case 'Page.setInterceptFileChooserDialog':
-      return { action: { pill: 'UPLOAD FILE', target: NOT_ALLOWED, refused: true } }
+    case 'DOM.setFileInputFiles': {
+      const files: string[] = Array.isArray(p.files) ? p.files.filter((f: unknown) => typeof f === 'string') : []
+      if (!files.length) return { action: { pill: 'UPLOAD FILE' } }
+      const name = (files[0]!.split(/[\\/]/).pop() || files[0]!).slice(0, 60)
+      return { action: { pill: 'UPLOAD FILE', target: files.length > 1 ? `${name} and ${files.length - 1} more` : name } }
+    }
     case 'Emulation.setDeviceMetricsOverride': {
       const w = Number(p.width)
       const h = Number(p.height)

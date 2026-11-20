@@ -21,7 +21,7 @@ It is already set up for you: the address of your own page is in AW_BROWSER_CDP,
 
 - \`${tool} open <address>\`: go to a page.
 - \`${tool} snapshot -i\`: what is on the page, with a @ref for each control. Take a new one after every move: the refs change.
-- \`${tool} click @e2\`, \`fill @e3 "text"\`, \`type @e3 "text"\`, \`press Enter\`, \`select @e4 "option"\`, \`scrollintoview @e5\`.
+- \`${tool} click @e2\`, \`fill @e3 "text"\`, \`type @e3 "text"\`, \`press Enter\`, \`select @e4 "option"\`, \`scrollintoview @e5\`, \`upload @e6 /full/path/to/file\` (a file input: the path must be absolute and name a file that exists).
 - Screen sizes: \`${tool} set viewport 390 844\` (a phone), \`set viewport 820 1180\` (a tablet), \`set viewport 1440 900\` (a desktop), or \`set device "iPhone 14"\`; then \`snapshot\` or \`screenshot\` to look. The page lays out at that size (media queries and \`innerWidth\` answer for it) and the person sees the size on the frame. The size stays until you set another or run \`${tool} close\`, so close when you are done checking.
 - \`${tool} get text "<selector>"\`, \`get url\`, \`eval "<js>"\`, \`screenshot <file>\`, \`wait --text "Done"\`.
 - Playwright works too: \`chromium.connectOverCDP(process.env.AW_BROWSER_CDP)\`.
@@ -32,7 +32,7 @@ What to know:
 - If a command is blocked or not allowed, or the browser is not available, do not switch to another browser tool (Playwright or any other): they do not use the person's Preview and its logins. Say which command was blocked and why, then try the plain form once, then tell the person what you need.
 - Claude Code's own safety check may block an address with a query string (\`open "https://site/search?q=..."\`). Then open the site's plain address and use the page's own search box (\`fill\`, then \`press Enter\`).
 - A CAPTCHA, a "verify you are human" page or a login the person must do is the person's to do, in this same Preview, where they can see it: ask the person to do it, and wait. Do not try to get round it.
-- You have one tab: your Preview page. \`open\` moves it. There are no new windows, file uploads or downloads.
+- You have one tab: your Preview page. \`open\` moves it. There are no new windows or downloads. To upload, \`upload\` the file into the page's file input; the person sees the file's name in their frame.
 - The person sees every action in their Preview tab, inside a frame with your name, and can disconnect you from it. Work in steps they can follow.
 - A site on the internet that the person has not allowed yet is not opened at once: the Preview asks them, and the command waits a little. If it answers that the site is waiting for the person, tell the person to answer the question in the Preview, then run the same command again; once they allow it, it opens at once. If the answer is "not now", do not try again; tell the person what you needed and why.
 - The logins are the person's own. Do not sign in to anything unless they asked you to, and never read out or save cookie values.
