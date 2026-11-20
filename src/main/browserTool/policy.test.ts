@@ -15,7 +15,7 @@ describe('what a tool may ask of the page it is on', () => {
     expect((d as { why: string }).why).toMatch(/not available|not allowed|not a/i)
   })
 
-  it.each(['Page.close', 'Page.crash', 'Page.setInterceptFileChooserDialog', 'DOM.setFileInputFiles', 'Network.getAllCookies', 'Network.clearBrowserCookies', 'Network.clearBrowserCache', 'Network.loadNetworkResource'])('refuses %s even though its area is open', (m) => {
+  it.each(['Page.close', 'Page.crash', 'Network.getAllCookies', 'Network.clearBrowserCookies', 'Network.clearBrowserCache', 'Network.loadNetworkResource'])('refuses %s even though its area is open', (m) => {
     expect(decide(m, {}, page).do).toBe('refuse')
   })
 
@@ -32,6 +32,18 @@ describe('what a tool may ask of the page it is on', () => {
   it('refuses dragging files into the page, and lets other dragging through', () => {
     expect(decide('Input.dispatchDragEvent', { type: 'drop', x: 1, y: 1, data: { items: [], files: ['/etc/passwd'] } }, page).do).toBe('refuse')
     expect(decide('Input.dispatchDragEvent', { type: 'dragOver', x: 1, y: 1, data: { items: [] } }, page).do).toBe('forward')
+  })
+})
+
+describe('uploading a file', () => {
+  it('lets a tool put files in a file input, and watch for the file chooser', () => {
+    const p = { files: ['/Users/me/cover.png'], objectId: 'o1' }
+    expect(decide('DOM.setFileInputFiles', p, page)).toEqual({ do: 'forward', params: p })
+    expect(decide('Page.setInterceptFileChooserDialog', { enabled: true }, page).do).toBe('forward')
+  })
+
+  it.each([[{}], [{ files: [] }], [{ files: ['cover.png'] }], [{ files: ['../cover.png'] }], [{ files: [42] }], [{ files: '/a/b.png' }]])('refuses %j: it needs a list of absolute paths', (p) => {
+    expect(decide('DOM.setFileInputFiles', p, page)).toMatchObject({ do: 'refuse', why: expect.stringMatching(/absolute/) })
   })
 })
 

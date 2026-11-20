@@ -1,4 +1,7 @@
 import { EventEmitter } from 'node:events'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import WebSocket from 'ws'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { browserEnv, startEndpoint, type Deps, type Endpoint, type Guest } from './endpoint'
@@ -186,9 +189,27 @@ describe('the endpoint a tool connects to', () => {
     it('refuses what the policy refuses, and does not send it on', async () => {
       const c = await connect(wsUrl())
       const s = await session(c)
-      await expect(c.call('DOM.setFileInputFiles', { files: ['/etc/hosts'] }, s)).rejects.toThrow(/uploads/)
       await expect(c.call('Network.getAllCookies', {}, s)).rejects.toThrow(/cookies/)
       expect(guest!.sent).toEqual([])
+    })
+
+    it('puts a real file in a file input, and refuses a path that is no file, sending nothing', async () => {
+      const c = await connect(wsUrl())
+      const s = await session(c)
+      const dir = mkdtempSync(join(tmpdir(), 'upload-'))
+      const file = join(dir, 'cover.png')
+      writeFileSync(file, 'x')
+      try {
+        await c.call('DOM.setFileInputFiles', { files: [file], objectId: 'o1' }, s)
+        expect(guest!.sent).toEqual([['DOM.setFileInputFiles', { files: [file], objectId: 'o1' }]])
+        guest!.sent.length = 0
+        await expect(c.call('DOM.setFileInputFiles', { files: [join(dir, 'missing.png')] }, s)).rejects.toThrow(/no file/)
+        await expect(c.call('DOM.setFileInputFiles', { files: [dir] }, s)).rejects.toThrow(/no file/)
+        await expect(c.call('DOM.setFileInputFiles', { files: ['cover.png'] }, s)).rejects.toThrow(/absolute/)
+        expect(guest!.sent).toEqual([])
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
     })
 
     it('types on the page itself, not through the debugger', async () => {
@@ -372,8 +393,8 @@ describe('the endpoint a tool connects to', () => {
 
       it('says a refusal as a refusal', async () => {
         const { c, s } = await onPage()
-        await expect(c.call('DOM.setFileInputFiles', { files: ['/etc/hosts'] }, s)).rejects.toThrow()
-        expect(last()).toMatchObject({ action: { pill: 'UPLOAD FILE', refused: true } })
+        await expect(c.call('Input.dispatchDragEvent', { type: 'drop', x: 1, y: 1, data: { items: [], files: ['/etc/hosts'] } }, s)).rejects.toThrow()
+        expect(last()).toMatchObject({ action: { pill: 'DROP FILE', refused: true } })
       })
     })
 

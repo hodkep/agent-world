@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { randomBytes } from 'node:crypto'
+import { statSync } from 'node:fs'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { isWebUrl } from '../../renderer/links'
 import { decide, type TypeStep } from './policy'
@@ -238,8 +239,14 @@ export async function startEndpoint(deps: Deps): Promise<Endpoint> {
             return fail(d.why)
           case 'reply':
             return reply(d.result)
-          case 'forward':
+          case 'forward': {
+            // A path that is no file would make the page fail in a way the tool cannot read: say it here.
+            if (m.method === 'DOM.setFileInputFiles') {
+              const bad = (d.params as { files: string[] }).files.find((f) => !statSync(f, { throwIfNoEntry: false })?.isFile())
+              if (bad) return fail(`There is no file at ${bad}`)
+            }
             return reply((await g.debugger.sendCommand(m.method, d.params)) as object)
+          }
           case 'navigate': {
             if (!isWebUrl(d.url) && d.url !== 'about:blank') return fail('That is not a web page address: only http and https addresses can be opened')
             const why = d.url === 'about:blank' ? null : await deps.mayOpen(c.agentId, d.url)
