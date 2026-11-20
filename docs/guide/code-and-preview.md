@@ -94,7 +94,8 @@ What to know:
 - One page per agent: its Preview. A tool sees that tab and nothing else, never the app or another agent's page. If the agent has no Preview page yet, `open` makes one. Use `Page.navigate` (`open`) to move it, not a new tab.
 - The Preview's rules apply. A page on this computer opens at once. A site on the internet opens only once the person has allowed it: the Preview asks them ("csr-1 wants to open example.com") and the tool waits a few seconds, then is told the site is waiting for the person: the question stays on screen, and once you press **Open here** the site is remembered and the agent's next try opens it at once. If you say no, the tool is told why.
 - Cookies: a tool can read and set those of the page being shown, no others. Reading or clearing every site's cookies is refused: the person does that from Site data.
-- Not available: file uploads and choosers, downloads, new windows, closing the page, permission prompts. Typing goes to the page itself, so it never reaches a terminal.
+- An agent can upload any file on your computer to the page it is on, as a browser does (it names an exact path, and the frame says the file's name: **UPLOAD FILE**). Dragging files onto the page is not available.
+- Not available: downloads, new windows, closing the page, permission prompts. Typing goes to the page itself, so it never reaches a terminal.
 - The page works best while it is on screen. A page in the background is slowed by the system, and a command that waits for the screen to draw (some of Playwright's clicks) can time out; `agent-browser` does not wait for it.
 
 ## Terminal, Agent Memory, Traces, History
