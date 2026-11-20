@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path'
+
 /**
  * What a tool may ask of the one page it is given (an agent's Preview page): pure, so it is tested without Electron.
  * Anything not named here is refused, with a reason the tool shows its agent.
@@ -13,12 +15,10 @@ export type Decision =
 /** The areas of the protocol that drive a page. The tools send about twenty commands from these (checked against agent-browser and Playwright). */
 const OPEN = new Set(['Page', 'Runtime', 'DOM', 'Input', 'Network', 'Accessibility', 'Emulation', 'Log', 'Console', 'Fetch', 'CSS', 'DOMSnapshot', 'Performance', 'WebMCP', 'Inspector'])
 
-/** Inside an open area, what is still refused: it reaches outside the page, or the person's files, or every site's logins. */
+/** Inside an open area, what is still refused: it reaches outside the page, or every site's logins. */
 const REFUSED: Record<string, string> = {
   'Page.close': 'closing the Preview page is the person’s choice',
   'Page.crash': 'crashing the Preview page is not allowed',
-  'Page.setInterceptFileChooserDialog': 'file choosers and uploads are not available here',
-  'DOM.setFileInputFiles': 'file choosers and uploads are not available here',
   'Network.getAllCookies': 'only the cookies of the page being shown can be read',
   'Network.clearBrowserCookies': 'clearing every site’s cookies is not allowed (the person does it from Site data)',
   'Network.clearBrowserCache': 'clearing the cache is not allowed (the person does it from Site data)',
@@ -69,6 +69,13 @@ export function decide(method: string, params: Record<string, any> = {}, page: {
       return { do: 'reply', result: {} }
     case 'Page.navigate':
       return typeof params.url === 'string' && params.url ? { do: 'navigate', url: params.url, params } : { do: 'refuse', why: 'Page.navigate needs an address' }
+    // A file goes into the page as in any browser, from any path on this computer: the page itself was allowed by the person, and each upload is said in the frame.
+    case 'DOM.setFileInputFiles': {
+      const files = params.files
+      return Array.isArray(files) && files.length > 0 && files.every((f) => typeof f === 'string' && isAbsolute(f))
+        ? { do: 'forward', params }
+        : { do: 'refuse', why: 'uploading needs a list of absolute file paths' }
+    }
     case 'Input.dispatchDragEvent':
       return params.data?.files?.length ? { do: 'refuse', why: 'dragging files into the page is not available here' } : { do: 'forward', params }
     case 'Input.insertText':

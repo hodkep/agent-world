@@ -62,8 +62,16 @@ describe('what a command says the agent is doing', () => {
     expect(actionOf('Runtime.callFunctionOn', {})).toMatchObject({ action: { low: true } })
   })
 
+  it('an upload says the file name, and how many more', () => {
+    expect(actionOf('DOM.setFileInputFiles', { files: ['/Users/me/Downloads/cover.png'] })).toEqual({ action: { pill: 'UPLOAD FILE', target: 'cover.png' } })
+    expect(actionOf('DOM.setFileInputFiles', { files: ['/a/one.txt', '/b/two.txt', '/c/three.txt'] })).toEqual({ action: { pill: 'UPLOAD FILE', target: 'one.txt and 2 more' } })
+    expect(actionOf('DOM.setFileInputFiles', {})).toEqual({ action: { pill: 'UPLOAD FILE' } })
+    const long = `${'a'.repeat(200)}.png`
+    expect((actionOf('DOM.setFileInputFiles', { files: [`/x/${long}`] })!.action.target ?? '').length).toBeLessThanOrEqual(60)
+    expect(actionOf('Page.setInterceptFileChooserDialog', { enabled: true })).toBeNull()
+  })
+
   it('what is refused is said as refused', () => {
-    expect(actionOf('DOM.setFileInputFiles', {})).toMatchObject({ action: { pill: 'UPLOAD FILE', target: 'not allowed here', refused: true } })
     expect(actionOf('Input.dispatchDragEvent', { type: 'drop', data: { files: ['/a'], items: [] } })).toMatchObject({ action: { pill: 'DROP FILE', target: 'not allowed here', refused: true } })
     expect(actionOf('Input.dispatchDragEvent', { type: 'dragOver', data: { items: [] } })).toMatchObject({ action: { pill: 'DRAGGING' } })
   })
