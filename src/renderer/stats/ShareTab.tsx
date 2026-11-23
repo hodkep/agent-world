@@ -3,6 +3,7 @@ import { acctKey } from '../../shared/ledger'
 import type { ShareDay, ShareRow } from '../../shared/attribution'
 import type { ProviderInfo } from '../../shared/types'
 import type { AcctView } from './acct'
+import { showTipAt } from '../tipPlace'
 
 type Kind = 'five_hour' | 'weekly'
 const KINDS: { id: Kind; label: string }[] = [
@@ -46,7 +47,7 @@ export function ShareTab({ providers, view, scope, now }: { providers: ProviderI
     const lines = rows.map((r) => said(r, view(acctKey(r.provider, r.account))?.name ?? (r.account || 'Own login'), label(r.provider)))
     const isToday = date.toDateString() === today.toDateString()
     return (
-      <div key={d.date} className={`sh-day${isToday ? ' today' : ''}`} data-day={d.date} tabIndex={0} aria-label={`${title}${lines.length ? `: ${lines.map((l) => `${l.who} this app ${l.mine} of ${l.used} used, ${l.others}`).join('; ')}` : ''}`}>
+      <div key={d.date} className={`sh-day${isToday ? ' today' : ''}`} data-day={d.date} tabIndex={0} onMouseEnter={(e) => showTipAt(e.currentTarget, '.sh-tip')} onFocus={(e) => showTipAt(e.currentTarget, '.sh-tip')} aria-label={`${title}${lines.length ? `: ${lines.map((l) => `${l.who} this app ${l.mine} of ${l.used} used, ${l.others}`).join('; ')}` : ''}`}>
         <span className="sh-n">{i + 1}</span>
         <span className="sh-stripes" aria-hidden>
           {rows.length > 0 && seen.map((x) => {
