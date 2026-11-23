@@ -86,7 +86,7 @@ import { LimitsBook } from '../shared/usage'
 import { cleanRates, estimateUsd, type Rate } from '../shared/prices'
 import type { UsageRecord } from '../shared/tokens'
 import { tokenMix } from '../shared/tokenMix'
-import { requestEvents } from './usageLedger'
+import { askCostEvent, requestEvents } from './usageLedger'
 import { claudeWindows } from '../shared/limits'
 import { type HandoffKind, handoffText } from '../shared/handoff'
 import { saveAttachment } from './attachments'
@@ -121,7 +121,7 @@ import { createWidgetFeeds } from './widgetFeeds'
 import { fetchPublic } from './widgetFetch'
 import { outlineOf } from '../shared/uiOutline'
 import { Workflows } from './workflows/service'
-import { askAgy, askClaude } from './workflows/ask'
+import { askAgy, askClaude, type Asked } from './workflows/ask'
 import { WorkflowStore } from './workflows/store'
 import { staleAgents } from './workflows/stale'
 import { Approvals } from './workflows/approvals'
@@ -340,6 +340,11 @@ function record(e: LedgerEvent) {
   }
 }
 const projectOf = (a: AgentRecord) => basename(a.repoPath)
+// What a background question cost lands on the account it ran on (the agent's own when the same program answered), so it counts as this app's use.
+const recordAsk = (a: AgentRecord, asked: Asked, provider: string, own: boolean) => {
+  const e = askCostEvent(asked, { agent: a.id, project: projectOf(a), provider, name: a.name, ...(own && a.account && { account: a.account }) }, Date.now())
+  if (e) record(e)
+}
 /** Each allowance, as it was last looked at, saved now and then so the Weekly Rewind can say how hard each account was pushed. */
 const limitSeen = new Map<string, { t: number; pct: number }>()
 function snapshotLimits(windows: LimitWindow[]) {
@@ -605,7 +610,9 @@ const workflows = new Workflows(join(HOME, 'runs.jsonl'), {
     const env = { ...p.env(process.env), PATH: loginShellPath(), ...(own ? accountsSvc.envFor(a.provider, a.configDir) : accountsSvc.envFor(p.id, undefined)) }
     const dial = prefs.workflows.dial
     if (p.id === 'agy') return askAgy(resolveCommand(binFor(p)), askModel('agy', dial, model, p.models.map((m) => m.value)) ?? 'gemini-3.8-flash-low', prompt, env)
-    return askClaude(resolveCommand(binFor(p)), askModel('claude', dial, model) ?? 'haiku', prompt, env)
+    const asked = await askClaude(resolveCommand(binFor(p)), askModel('claude', dial, model) ?? 'haiku', prompt, env)
+    recordAsk(a, asked, p.id, own)
+    return asked
   },
   now: Date.now,
   newId: () => randomUUID().slice(0, 8),
@@ -785,7 +792,9 @@ const askHaiku = async (a: ReturnType<typeof byId>, prompt: string, timeoutMs: n
   const p = providers().find((x) => x.id === 'claude')
   if (!p || !(await readyAskers()).includes('claude')) throw new Error('No Claude is ready to ask.')
   const env = { ...p.env(process.env), PATH: loginShellPath(), ...accountsSvc.envFor('claude', a && providerOf(a).id === 'claude' ? a.configDir : undefined) }
-  return (await askClaude(resolveCommand(binFor(p)), 'haiku', prompt, env, timeoutMs)).text
+  const asked = await askClaude(resolveCommand(binFor(p)), 'haiku', prompt, env, timeoutMs)
+  if (a) recordAsk(a, asked, 'claude', providerOf(a).id === 'claude')
+  return asked.text
 }
 // What the agent committed while it worked on a task, from git in its own checkout.
 const workSince = (id: string, since: number): Promise<{ commits: { sha: string; subject: string }[]; files: string[] }> => {
