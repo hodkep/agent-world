@@ -41,6 +41,20 @@ describe('this app\'s share of each account, by day', () => {
     expect(c.querySelector('.sh-tip')!.textContent).toContain('still learning')
   })
 
+  it('places the hover card inside the window when a day is hovered or focused, not where the cell would put it', async () => {
+    const { host } = await setup(days({ 23: [row('work', 15, 3)] }))
+    const c = cell(host, 23)
+    c.getBoundingClientRect = () => ({ left: 20, top: 100, right: 100, bottom: 160, width: 80, height: 60 }) as DOMRect
+    const tip = c.querySelector<HTMLElement>('.sh-tip')!
+    tip.getBoundingClientRect = () => ({ width: 280, height: 120 }) as DOMRect
+    await act(async () => void c.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })))
+    expect(tip.style.left).toBe('8px')
+    expect(tip.style.top).toBe('166px')
+    tip.style.left = ''
+    await act(async () => void c.focus())
+    expect(tip.style.left).toBe('8px')
+  })
+
   it('does not say "at least" of others when none are seen, even while still learning', async () => {
     const { host } = await setup(days({ 8: [row('work', 22, 22, true), row('team', 10, 9.7, true)] }))
     expect(cell(host, 8).getAttribute('aria-label')).toBe('Sun, Nov 8: Claude Code, Work this app up to 22% of 22% used, others 0%; Claude Code, Team this app up to 10% of 10% used, others 0%')
