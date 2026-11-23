@@ -1,5 +1,6 @@
 import type { LedgerEvent } from '../shared/ledger'
 import type { UsageRecord } from '../shared/tokens'
+import type { Asked } from './workflows/ask'
 
 const KEEP = 1000
 
@@ -25,4 +26,10 @@ export function requestEvents(
   // Ids only have to outlast a repeat, so the oldest are dropped before the list grows without end.
   if (seen.size > 2 * KEEP) for (const id of [...seen].slice(0, seen.size - KEEP)) seen.delete(id)
   return out
+}
+
+/** A background question (an audit, a check, the todo triage, a tidy) costs the account it ran on like any request, so it is a cost event: the Share tab then counts it as the app's own use. */
+export function askCostEvent(asked: Asked, who: { agent: string; project: string; provider: string; name: string; account?: string }, at: number): LedgerEvent | null {
+  if (!asked.cost || asked.cost <= 0) return null
+  return { k: 'cost', t: at, agent: who.agent, project: who.project, provider: who.provider, name: who.name, ...(who.account && { account: who.account }), model: asked.model ?? 'unknown', usd: asked.cost }
 }

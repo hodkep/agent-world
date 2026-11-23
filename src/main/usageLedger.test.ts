@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { UsageRecord } from '../shared/tokens'
-import { requestEvents } from './usageLedger'
+import { askCostEvent, requestEvents } from './usageLedger'
 
 const who = { agent: 'a1', project: 'web', provider: 'claude', name: 'Ada' }
 const rec = (id: string, o: Partial<UsageRecord> = {}): UsageRecord => ({ id, at: 1000, model: 'opus', input: 2, cacheRead: 80, cacheWrite: 5, output: 7, ...o })
@@ -41,5 +41,17 @@ describe('requests turned into ledger events', () => {
     requestEvents(Array.from({ length: 5000 }, (_, i) => rec(`r${i}`)), who, seen)
     expect(seen.size).toBeLessThan(5000)
     expect(requestEvents([rec('r4999')], who, seen)).toEqual([])
+  })
+})
+
+describe('what a background question cost', () => {
+  it('is a cost event on the agent that asked, its project, program and account, at the model that answered', () => {
+    expect(askCostEvent({ text: 'x', cost: 0.0042, model: 'claude-haiku-5-5' }, { ...who, account: 'work' }, 5000)).toEqual({ k: 'cost', t: 5000, agent: 'a1', project: 'web', provider: 'claude', name: 'Ada', account: 'work', model: 'claude-haiku-5-5', usd: 0.0042 })
+  })
+
+  it('is nothing when the program gave no dollars or the question was free, and has no account key for the own login', () => {
+    expect(askCostEvent({ text: 'x', tokens: 900 }, who, 1)).toBeNull()
+    expect(askCostEvent({ text: 'x', cost: 0 }, who, 1)).toBeNull()
+    expect('account' in askCostEvent({ text: 'x', cost: 1 }, who, 1)!).toBe(false)
   })
 })
