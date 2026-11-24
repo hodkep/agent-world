@@ -1,0 +1,12 @@
+{
+  "version": "0.17.0",
+  "tagline": "Upload in the Preview, and a fuller Office viewer.",
+  "subtitle": "Agents can upload files to a page, and Word, Excel and slides read better.",
+  "cards": [
+    { "kicker": "Preview", "title": "Agents upload files to a page", "text": "An agent driving the Preview can upload a file into the page, and the frame shows the file's name.", "chips": ["Upload", "File name"] },
+    { "kicker": "Chat", "title": "Word as numbered pages", "text": "Word files show as separate, numbered pages, with a zoom menu for fit width and fit page.", "chips": ["Pages", "Fit width", "Fit page"] },
+    { "kicker": "Chat", "title": "Excel and slides", "text": "Excel keeps column widths, merged cells and fills, and cells copy. A deck presents full screen.", "chips": ["Copy cells", "Present"] }
+  ],
+  "also": ["The Code tab keeps your last tab", "Share tab hover card fits the window"],
+  "footer": "Linux is a beta. Try it and tell us what breaks."
+}
