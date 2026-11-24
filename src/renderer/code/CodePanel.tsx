@@ -10,6 +10,7 @@ import { OutlineIcon } from '../panel/IconButton'
 import { ORIGINAL_NUMBER_CHARS, editorOptions, languageFor, monaco } from './monaco'
 import { CONTEXTS, CONTEXT_KEY, FOLD_KEY, type Context, type Fold, foldOptions, readFold } from './foldRule'
 import { closeTab, openTab, type TabState } from './tabs'
+import { toggled } from './viewMode'
 import { SideSizer, useSideWidth } from '../panel/SideSizer'
 import { BasePicker } from '../panel/BasePicker'
 import { ancestors, changeRows, visibleRows } from './tree'
@@ -19,6 +20,8 @@ import { pickRepo, type RepoInfo } from './repoChips'
 import { type ChangeMode, HistoryList, UncommittedList, ViewSwitch } from './ChangeViews'
 
 type Tab = 'changes' | 'files'
+/** Which of the two each agent's Code tab was last on, for when it is opened again. */
+const lastTab = new Map<string, Tab>()
 /** Ask the Code view to open a file in the Files tab, or just a tab; a new object each time so asking twice works. */
 export interface OpenRequest {
   path?: string
@@ -62,7 +65,8 @@ export function CodePanel({ agentId, agentName, workDone, openFile, onOpenChat, 
     setRemembered(name)
     try { localStorage.setItem(`aw.repo.${agentId}`, name) } catch { /* not remembered, still picked */ }
   }
-  const [tab, setTab] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : 'changes')
+  const [tab, setTabNow] = useState<Tab>(openFile ? (openFile.tab ?? 'files') : (lastTab.get(agentId) ?? 'changes'))
+  const setTab = (t: Tab) => (lastTab.set(agentId, t), setTabNow(t))
   // What to open in the Files tab: what was asked from outside, or the lines of a chip clicked under the editor.
   const [request, setRequest] = useState<OpenRequest | undefined>(openFile)
   useEffect(() => {
@@ -482,9 +486,11 @@ interface Session {
   saved: Map<string, string>
   views: Map<string, monaco.editor.ICodeEditorViewState | null>
   subs: Map<string, monaco.IDisposable>
+  /** The files read as formatted text (a page, a table) instead of source: kept with the open files, so leaving the tab or the agent does not undo it. */
+  previewing: Set<string>
 }
 const sessions = new Map<string, Session>()
-const sessionOf = (agentId: string): Session => sessions.get(agentId) ?? sessions.set(agentId, { tabs: { open: [], active: null }, saved: new Map(), views: new Map(), subs: new Map() }).get(agentId)!
+const sessionOf = (agentId: string): Session => sessions.get(agentId) ?? sessions.set(agentId, { tabs: { open: [], active: null }, saved: new Map(), views: new Map(), subs: new Map(), previewing: new Set() }).get(agentId)!
 const uriOf = (agentId: string, path: string) => monaco.Uri.from({ scheme: 'aw-file', authority: agentId, path: `/${path}` })
 const baseName = (p: string) => p.slice(p.lastIndexOf('/') + 1)
 
@@ -497,7 +503,8 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   const [openDirs, setOpenDirs] = useState<Set<string>>(new Set())
   const [asking, setAsking] = useState<string | null>(null)
   // Markdown and html files can be read as the page they make, instead of as source.
-  const [previewing, setPreviewing] = useState<Set<string>>(new Set())
+  const [previewing, setPreviewingNow] = useState<Set<string>>(sess.previewing)
+  const setPreviewing = (next: Set<string>) => (sess.previewing = next, setPreviewingNow(next))
   // A page (an html file) or a pdf is shown by the app's own page server, as the Preview tab does; the address changes after a Save so the page is read again.
   const [pageAt, setPageAt] = useState<Record<string, { url: string; n: number }>>({})
   const [reload, setReload] = useState(0)
@@ -507,7 +514,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
   // A CSV is text to edit; its table is one icon away, shown as the file was last saved. Either way the viewer has its own bar, so the file's line goes.
   const table = shows === 'csv' && !!sess.tabs.active && previewing.has(sess.tabs.active)
   const viewing = office || table
-  const flip = (p: string) => setPreviewing((s) => (s.has(p) ? new Set([...s].filter((x) => x !== p)) : new Set(s).add(p)))
+  const flip = (p: string) => setPreviewing(toggled(sess.previewing, p))
   useEffect(() => {
     const p = sess.tabs.active
     if (!p || (shows !== 'pdf' && !(shows === 'html' && previewing.has(p)))) return
@@ -733,7 +740,7 @@ function FilesView({ agentId, agentName, openFile, onOpenChat }: { agentId: stri
               <button
                 aria-pressed={previewing.has(active)}
                 title={previewing.has(active) ? 'Back to the source' : shows === 'html' ? 'Read it as a page (the file as saved)' : 'Read it as formatted text'}
-                onClick={() => setPreviewing((s) => (s.has(active) ? new Set([...s].filter((x) => x !== active)) : new Set(s).add(active)))}
+                onClick={() => flip(active)}
               >
                 {previewing.has(active) ? 'Source' : 'Preview'}
               </button>
