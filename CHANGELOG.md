@@ -4,6 +4,21 @@ All notable changes to Agent World are listed here. The format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-24
+
+![Agent World 0.17.0: upload in the Preview, and a fuller Office viewer](https://raw.githubusercontent.com/hodkep/agent-world/v0.17.0/docs/images/releases/0.17.0/poster.png)
+
+### Added
+
+- Preview: agents driving the Preview can upload files to a page, and the frame shows the file's name.
+- Files: the Office viewer shows Word files as separate, numbered pages, keeps Excel's column widths, merged cells and fill colours, adds a zoom menu with fit-to-width and fit-to-page, copies cells, and can present a deck full screen.
+
+### Fixed
+
+- Files: very large or unusual spreadsheets open quickly in the viewer instead of freezing it.
+- Code: the Code tab keeps a file's formatted Preview and your last tab when you switch projects, and the Source/Preview button sits at the right.
+- Usage: the Share tab's hover card no longer gets cut off at the window edge, and the app's own background checks count as its use of an account.
+
 ## [0.16.0] - 2026-11-19
 
 ![Agent World 0.16.0: read Word, Excel and PowerPoint in the app](https://raw.githubusercontent.com/hodkep/agent-world/v0.16.0/docs/images/releases/0.16.0/poster.png)
