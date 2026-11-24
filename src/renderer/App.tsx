@@ -13,6 +13,7 @@ import { gitTag, type BrowserActivity, type DevServer, type Workspaces } from '.
 import { BUILT_IN_ROLES, STARTER_CREW, type Role } from '../shared/roles'
 import { ModBar, ModStyle, ShotAsk, WidgetSlot } from './chat/layoutUi'
 import { type MeterName, metersFor, todosUpdatedBy } from '../shared/widgets'
+import { arriving, leaving, type ViewMemory } from './panel/viewMemory'
 import { WorkspaceMenu, type WorkspaceActivity } from './panel/WorkspaceMenu'
 import { Identicon } from './panel/Identicon'
 import { QuickPanel } from './panel/QuickPanel'
@@ -792,6 +793,16 @@ export function App() {
   useEffect(() => {
     if (selected && !current && allAgents.length) setSelected(null)
   }, [selected, current, allAgents.length])
+  // Each project is left on the tab it was on: coming back to it (or going to one never opened, which starts as usual) shows that tab, not the one the last project was on.
+  const viewMemory = useRef<ViewMemory>({})
+  const lastFolder = useRef<string | null>(null)
+  useEffect(() => {
+    const was = lastFolder.current
+    lastFolder.current = folder
+    if (!folder || was === folder) return
+    viewMemory.current = leaving(viewMemory.current, was, viewRef.current)
+    if (was) setView(arriving(viewMemory.current, folder, talkRef.current) as typeof view)
+  }, [folder])
   // Opening a project brings back the agent that was open in it last.
   const openedFor = useRef<string | null>(null)
   useEffect(() => {
