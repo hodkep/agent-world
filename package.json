@@ -66,7 +66,7 @@
     "@xterm/xterm": "^6.0.0",
     "@xyflow/react": "^12.12.1",
     "docx-preview": "^0.4.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.5.0",
     "electron-updater": "^6.8.11",
     "katex": "^0.18.10",
     "marked": "^18.2.1",
